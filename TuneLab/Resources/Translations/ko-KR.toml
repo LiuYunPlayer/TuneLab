@@ -508,3 +508,7 @@
 "Processing effect: {0} ({1}/{2})" = "이펙트 처리 중: {0} ({1}/{2})"
 "Processing effects" = "이펙트 처리 중"
 "Effect {0} failed, playing unprocessed audio" = "이펙트 {0} 처리 실패, 처리되지 않은 오디오 재생 중"
+
+[DropDownMenu]
+"Search" = "검색"
+"No matches" = "일치하는 항목 없음"

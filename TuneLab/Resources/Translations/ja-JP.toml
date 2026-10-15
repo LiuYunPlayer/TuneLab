@@ -508,3 +508,7 @@
 "Processing effect: {0} ({1}/{2})" = "エフェクト処理中：{0}（{1}/{2}）"
 "Processing effects" = "エフェクト処理中"
 "Effect {0} failed, playing unprocessed audio" = "エフェクト {0} の処理に失敗、未処理のオーディオを再生中"
+
+[DropDownMenu]
+"Search" = "検索"
+"No matches" = "一致する項目がありません"

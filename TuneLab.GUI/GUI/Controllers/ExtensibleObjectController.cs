@@ -14,6 +14,7 @@ namespace TuneLab.GUI.Controllers;
 
 // 变长键控容器（ExtensibleObjectConfig）的面板渲染：值落为 PropertyObject。与 ListController 对称，但项是「命名键」——
 // 每行带标签（PropertyKey.DisplayText）、按 key 寻址（非 token），底部 + 菜单从候选键里挑（隐藏已存在的键）。
+// + 菜单与列表同用 DropDownMenu：候选分组成子菜单，子项全已加入的分组随之隐藏。
 // 键控访问天生懒（DataPropertyObject 的 Object/GetValue 读不建、写物化 + presence），故无需 array 那套越界 seed 适配。
 // 典型用法是「起步为空、+ 增项」（如多说话人音色里选要混入的 speaker）；插件若对 absent 返回 seed 键，则随编辑物化。
 internal sealed class ExtensibleObjectController : StackPanel
@@ -28,7 +29,12 @@ internal sealed class ExtensibleObjectController : StackPanel
         mAddButton.Height = 30;
         mAddButton.Margin = new(24, 8);
         mAddButton.Clicked += OnAddButtonClicked;
-        Children.Add(mAddButton);
+        mAddMenu = new DropDownMenu(mAddButton);
+        mAddMenu.ItemPicked += item => AddKey((AddableKey)item.Tag!);
+        mAddHost = new Panel();
+        mAddHost.Children.Add(mAddButton);
+        mAddHost.Children.Add(mAddMenu);
+        Children.Add(mAddHost);
     }
 
     public void Bind(IDataPropertyObject dataObject)
@@ -49,7 +55,9 @@ internal sealed class ExtensibleObjectController : StackPanel
         ReconcileRows(config.Properties);
 
         // + 候选 = 尚未存在的键；全部已加 / 无候选 → 隐藏 +。
-        mAddButton.IsVisible = mAddableElements.Any(a => !mPresentKeys.Contains(a.Key.Id));
+        mAddHost.IsVisible = AddableMenu.FirstLeaf(BuildItems(mAddableElements)) != null;
+        // + 隐藏时末行会贴住下一个字段的分隔线：补上与普通字段控件同样的底边距（同 ListController）。
+        mRowsPanel.Margin = new(0, 0, 0, mAddHost.IsVisible ? 0 : ArrayControllerBase.TrailingGap);
     }
 
     // 键控 keyed-diff：按 PropertyKey.Id 复用行（同 id 同类型仅更参数）、消失则 dispose、新建、换类型则换行。
@@ -86,6 +94,8 @@ internal sealed class ExtensibleObjectController : StackPanel
             }
             nextOrder.Add(id);
         }
+        for (int i = 0; i < nextOrder.Count; i++)
+            nextByKey[nextOrder[i]].SetFirst(i == 0);
 
         if (mRowsByKey.Count > 0)
             structureChanged = true; // 有键被删
@@ -135,28 +145,25 @@ internal sealed class ExtensibleObjectController : StackPanel
 
     void OnAddButtonClicked()
     {
-        if (mDataObject == null)
+        if (mDataObject == null || mAddMenu.JustClosed)
             return;
 
         // 候选 = 尚未存在的键。
-        var candidates = mAddableElements.Where(a => !mPresentKeys.Contains(a.Key.Id)).ToList();
-        if (candidates.Count == 0)
+        var items = BuildItems(mAddableElements);
+        int count = AddableMenu.CountLeaves(items);
+        if (count == 0)
             return;
 
-        if (candidates.Count == 1)
+        if (count == 1)
         {
-            AddKey(candidates[0]);
+            AddKey((AddableKey)AddableMenu.FirstLeaf(items)!.Tag!);
             return;
         }
 
-        var menu = new ContextMenu();
-        foreach (var candidate in candidates)
-        {
-            var captured = candidate;
-            menu.Items.Add(new MenuItem().SetName(captured.Key.DisplayText ?? captured.Key.Id).SetAction(() => AddKey(captured)));
-        }
-        mAddButton.OpenContextMenu(menu);
+        mAddMenu.Open(items, 0);
     }
+
+    List<DropDownItem> BuildItems(IReadOnlyList<AddableKey> addables) => AddableMenu.Build(addables, mPresentKeys.Contains);
 
     // 加键 = 写入该键的默认值（物化键 + 其所在容器），提交。插件随后 present 该键 → 行出现。
     void AddKey(AddableKey addable)
@@ -191,11 +198,16 @@ internal sealed class ExtensibleObjectController : StackPanel
     HashSet<string> mPresentKeys = new();
     readonly StackPanel mRowsPanel = new() { Orientation = Orientation.Vertical };
     readonly Button mAddButton;
+    readonly DropDownMenu mAddMenu;
+    readonly Panel mAddHost;
     Dictionary<string, KeyedRow> mRowsByKey = new();
     List<string> mOrder = new();
 }
 
-// 单个命名条目行：标签（DisplayText）在上、条目控件在下，悬浮在右上角浮出删除钮（不挤占布局）。
+// 单个命名条目行：标签（DisplayText）在上、条目控件在下；悬浮整条时右侧外浮出删除钮（同 ElementRow 的 FloatingDelete，
+// 不占控件宽度、不遮控件）。键控条目自带标签，不另加序号条。间距：条目上下各留 EntryPadding；名字与下方控件
+// 之间留 TitleGap，但只在控件真有内容时——空对象条目只有名字，再留就成了下方独宽的一截。分隔线同 ElementRow：每条下沿一条、首条头顶一条，
+// 左右缩进到控件边距内、与数组元素的线对齐。
 sealed class KeyedRow : IDisposable
 {
     public Control Root => mRoot;
@@ -206,25 +218,33 @@ sealed class KeyedRow : IDisposable
         mWidget = ElementWidget.Create(dataObject, key.Id, config);
         mTitle = ArrayControlsFactory.MakeRowTitle(key.DisplayText ?? key.Id);
 
-        var content = new StackPanel { Orientation = Orientation.Vertical };
+        var content = new StackPanel { Orientation = Orientation.Vertical, Margin = new(0, ArrayControlsFactory.EntryPadding) };
         content.Children.Add(mTitle);
         content.Children.Add(mWidget.View);
+        // 按控件实际渲染高度判「有无内容」而非看 config：条件面板可能让它中途变空或长出字段。
+        mWidget.View.SizeChanged += (_, e) => UpdateTitleGap(e.NewSize.Height);
+        UpdateTitleGap(0);
 
-        mRoot = new LayerPanel { Background = Brushes.Transparent };
-        mRoot.Children.Add(content);
+        mTopLine = ArrayControlsFactory.MakeLine();
+        mTopLine.Margin = new(ArrayControlsFactory.Gutter, 0);
+        var bottomLine = ArrayControlsFactory.MakeLine();
+        bottomLine.Margin = new(ArrayControlsFactory.Gutter, 0);
+        var entry = new DockPanel { LastChildFill = true };
+        DockPanel.SetDock(mTopLine, Avalonia.Controls.Dock.Top);
+        DockPanel.SetDock(bottomLine, Avalonia.Controls.Dock.Bottom);
+        entry.Children.Add(mTopLine);
+        entry.Children.Add(bottomLine);
+        entry.Children.Add(content);
 
-        mDelete = ArrayControlsFactory.MakeIconButton("✕");
-        mDelete.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right;
-        mDelete.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top;
-        mDelete.Margin = new(0, 4, 4, 0);
-        mDelete.Opacity = 0;
-        mDelete.IsHitTestVisible = false;
-        mDelete.Clicked += onDelete;
-        mRoot.Children.Add(mDelete);
-
-        mRoot.PointerEntered += (_, _) => { mDelete.Opacity = 1; mDelete.IsHitTestVisible = true; };
-        mRoot.PointerExited += (_, _) => { mDelete.Opacity = 0; mDelete.IsHitTestVisible = false; };
+        mRoot = new Panel { Background = Brushes.Transparent };   // 透明底：空白处也收得到悬浮
+        mRoot.Children.Add(entry);
+        // 条目横贯面板全宽、控件自带左右 Gutter 边距：锚在条目上时往回退一个 Gutter，钮才落在控件右沿外侧（与 ElementRow 一致）。
+        mDelete = new FloatingDelete(mRoot, mRoot, ArrayControlsFactory.DeleteOffset - ArrayControlsFactory.Gutter, onDelete);
     }
+
+    public void SetFirst(bool first) => mTopLine.IsVisible = first;
+
+    void UpdateTitleGap(double contentHeight) => mTitle.Margin = new(0, 0, 0, contentHeight > 0 ? ArrayControlsFactory.TitleGap : 0);
 
     public void Update(PropertyKey key, IControllerConfig config)
     {
@@ -232,10 +252,15 @@ sealed class KeyedRow : IDisposable
         mWidget.Update(config);
     }
 
-    public void Dispose() => mWidget.Dispose();
+    public void Dispose()
+    {
+        mDelete.Dispose();
+        mWidget.Dispose();
+    }
 
-    readonly LayerPanel mRoot;
+    readonly Panel mRoot;
     readonly Label mTitle;
-    readonly Button mDelete;
+    readonly Border mTopLine;
+    readonly FloatingDelete mDelete;
     readonly ElementWidget mWidget;
 }

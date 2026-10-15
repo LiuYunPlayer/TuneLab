@@ -34,7 +34,7 @@ internal class ComboBoxController : DropDown, IDataValueController<PropertyValue
     {
         mConfig = config;
         mLeaves.Clear();
-        CollectLeaves(config.Items, mLeaves);
+        mLeaves.AddRange(config.Items.Leaves());
         // 重建选项不应走「用户改动」路径（reconcile 高频 SetConfig），屏蔽随后的选中变化。
         mAcceptSelectionChanged = false;
         SetItems(BuildItems(config.Items));
@@ -118,20 +118,6 @@ internal class ComboBoxController : DropDown, IDataValueController<PropertyValue
                 items.Add(new DropDownItem() { Text = option.ShowText(), Tag = option.Value });
         }
         return items;
-    }
-
-    // 展平叶子（DFS，分组展开、跳过分隔线）——与 DropDown 内部展平同序，故 SelectedIndex 在两侧一致。
-    static void CollectLeaves(IReadOnlyList<ComboBoxItem> options, List<ComboBoxItem> leaves)
-    {
-        foreach (var option in options)
-        {
-            if (option.IsSeparator)
-                continue;
-            else if (option.SubItems is not null)
-                CollectLeaves(option.SubItems, leaves);
-            else
-                leaves.Add(option);
-        }
     }
 
     int IndexOfValue(PropertyValue value)

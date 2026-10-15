@@ -259,6 +259,87 @@ public class PropertyArrayTests
         Assert.Equal(insertedTokens, live.Tokens);
     }
 
+    // ===== 重排（拖动序号条）：挪的是同一元素实例 → token 随元素走、一次提交一个撤销单元 =====
+
+    static List<double> Values(DataPropertyArray live)
+    {
+        var values = new List<double>();
+        foreach (var value in live.GetInfo())
+            values.Add(value.ToDouble(out var d) ? d : double.NaN);
+        return values;
+    }
+
+    [Fact]
+    public void Move_ReordersAndKeepsTokensWithTheirElements()
+    {
+        var live = new DataPropertyArray();
+        live.SetInfo(new PropertyArray(new PropertyValue[] { 1.0, 2.0, 3.0 }));
+        var t = live.Tokens;   // [a, b, c]
+
+        live.Move(0, 2);       // 首个挪到末尾 → [2, 3, 1]
+        Assert.Equal([2.0, 3.0, 1.0], Values(live));
+        Assert.Equal([t[1], t[2], t[0]], live.Tokens);
+
+        live.Move(2, 0);       // 再挪回 → [1, 2, 3]
+        Assert.Equal([1.0, 2.0, 3.0], Values(live));
+        Assert.Equal(t, live.Tokens);
+    }
+
+    [Fact]
+    public void Move_IsOneUndoUnit_AndRedoRestoresSameTokens()
+    {
+        var doc = new DataDocument();
+        var live = new DataPropertyArray(doc);
+        live.SetInfo(new PropertyArray(new PropertyValue[] { 1.0, 2.0, 3.0 }));
+        doc.Commit();
+        var baseTokens = live.Tokens;
+
+        live.Move(2, 0);       // [3, 1, 2]
+        doc.Commit();
+        var movedTokens = live.Tokens;
+
+        doc.Undo();            // 一次撤销整个挪动
+        Assert.Equal([1.0, 2.0, 3.0], Values(live));
+        Assert.Equal(baseTokens, live.Tokens);
+
+        doc.Redo();
+        Assert.Equal([3.0, 1.0, 2.0], Values(live));
+        Assert.Equal(movedTokens, live.Tokens);
+    }
+
+    [Fact]
+    public void Move_OutOfRangeOrSamePosition_IsNoOp()
+    {
+        var live = new DataPropertyArray();
+        live.SetInfo(new PropertyArray(new PropertyValue[] { 1.0, 2.0 }));
+
+        live.Move(1, 1);
+        live.Move(-1, 0);
+        live.Move(0, 2);
+        Assert.Equal([1.0, 2.0], Values(live));
+    }
+
+    [Fact]
+    public void MultipleArray_Move_FansOutOnlyWhenLengthsMatch()
+    {
+        var a = new DataPropertyArray();
+        a.SetInfo(new PropertyArray(new PropertyValue[] { 1.0, 2.0 }));
+        var b = new DataPropertyArray();
+        b.SetInfo(new PropertyArray(new PropertyValue[] { 3.0, 4.0 }));
+        var multi = new MultipleDataPropertyArray([a, b]);
+
+        Assert.True(multi.HasUniformLength);
+        multi.Move(0, 1);
+        Assert.Equal([2.0, 1.0], Values(a));
+        Assert.Equal([4.0, 3.0], Values(b));
+
+        b.Add(5.0);            // 不等长：第 i 个元素在两边不是一回事，重排不扇出
+        Assert.False(multi.HasUniformLength);
+        multi.Move(0, 1);
+        Assert.Equal([2.0, 1.0], Values(a));
+        Assert.Equal([4.0, 3.0, 5.0], Values(b));
+    }
+
     [Fact]
     public void SetValueByToken_EditsElementInPlace()
     {

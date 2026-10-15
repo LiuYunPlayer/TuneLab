@@ -508,3 +508,7 @@
 "Processing effect: {0} ({1}/{2})" = "Efekt işleniyor: {0} ({1}/{2})"
 "Processing effects" = "Efektler işleniyor"
 "Effect {0} failed, playing unprocessed audio" = "{0} efekti başarısız oldu, işlenmemiş ses çalınıyor"
+
+[DropDownMenu]
+"Search" = "Ara"
+"No matches" = "Eşleşme yok"

@@ -508,3 +508,7 @@
 "Processing effect: {0} ({1}/{2})" = "Effect wordt verwerkt: {0} ({1}/{2})"
 "Processing effects" = "Effecten worden verwerkt"
 "Effect {0} failed, playing unprocessed audio" = "Effect {0} mislukt, onverwerkte audio wordt afgespeeld"
+
+[DropDownMenu]
+"Search" = "Zoeken"
+"No matches" = "Geen overeenkomsten"

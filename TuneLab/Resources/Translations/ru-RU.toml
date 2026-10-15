@@ -508,3 +508,7 @@
 "Processing effect: {0} ({1}/{2})" = "Обработка эффекта: {0} ({1}/{2})"
 "Processing effects" = "Обработка эффектов"
 "Effect {0} failed, playing unprocessed audio" = "Эффект {0} не сработал, воспроизводится необработанный звук"
+
+[DropDownMenu]
+"Search" = "Поиск"
+"No matches" = "Нет совпадений"

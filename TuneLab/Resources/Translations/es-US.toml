@@ -508,3 +508,7 @@
 "Processing effect: {0} ({1}/{2})" = "Procesando efecto: {0} ({1}/{2})"
 "Processing effects" = "Procesando efectos"
 "Effect {0} failed, playing unprocessed audio" = "El efecto {0} falló, reproduciendo audio sin procesar"
+
+[DropDownMenu]
+"Search" = "Buscar"
+"No matches" = "Sin coincidencias"

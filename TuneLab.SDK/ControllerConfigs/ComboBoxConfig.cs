@@ -21,8 +21,8 @@ public readonly struct ComboBoxItem(PropertyValue value, string? displayText = n
     // 允许空列表：表示"分组存在但暂无子项"（如引擎已加载但无音源），渲染为空子菜单、不可选。
     public IReadOnlyList<ComboBoxItem>? SubItems { get; init; } = null;
     // 分隔线项：不可选、不计入选中；DisplayText 为可选居中标签（null/空 = 纯线）。
-    // private set：唯一构造路径是 Separator() 工厂，外部初始化器不能把普通项标成分隔线（避免矛盾态）。
-    // internal：分隔线是 config 内部/宿主关切，插件只经 ComboBoxConfig.AppendSeparator 造、不直接读判（经 InternalsVisibleTo 暴露给宿主渲染器）。
+    // private init：唯一构造路径是 Separator() 工厂，外部初始化器不能把普通项标成分隔线（避免矛盾态）。
+    // internal：插件只造不读（经 InternalsVisibleTo 暴露给宿主渲染器）。
     internal bool IsSeparator { get; private init; } = false;
 
     // 分组构造：显示文本 + 子项（空列表 = 空分组）；本身不可选，Value 取 Null（不参与选中/反查）。
@@ -32,8 +32,9 @@ public readonly struct ComboBoxItem(PropertyValue value, string? displayText = n
         SubItems = subItems as IReadOnlyList<ComboBoxItem> ?? subItems.ToList();
     }
 
-    // 分隔线（可带居中标签）：分段用。internal——插件经 ComboBoxConfig.AppendSeparator 造分隔线，不直接手搓。
-    internal static ComboBoxItem Separator(string? label = null) => new(PropertyValue.Null, label) { IsSeparator = true };
+    // 分隔线（可带居中标签）：分段用。任意层级可用——顶层与分组的子项里都能放（分组构造收的就是 ComboBoxItem 列表）；
+    // 顶层也可走 ComboBoxConfig.AppendSeparator 便捷写法。与 AddableElement/AddableKey.Separator 同形。
+    public static ComboBoxItem Separator(string? label = null) => new(PropertyValue.Null, label) { IsSeparator = true };
 
     public static implicit operator ComboBoxItem(PropertyValue value) => new(value);
     public static implicit operator ComboBoxItem(bool value) => new(PropertyValue.Create(value));
@@ -70,7 +71,7 @@ public readonly struct ComboBoxItem(PropertyValue value, string? displayText = n
 
 // 原 EnumConfig（按 UI 控件命名）。选项与默认值都用 ComboBoxItem（值/显示分离），默认值是「值」而非「索引」。
 // 构造函数全封，只走静态工厂 + 链式 Append/With（与 SliderConfig 同款 ABI 理由）。
-// 链式构造隐藏列表拼装与分隔线细节：Create().Append(...).AppendSeparator().Append(...) 即可，无需手搓 ComboBoxItem.Separator。
+// 链式构造隐藏列表拼装：Create().Append(...).AppendSeparator().Append(...)；分组内的分隔线用 ComboBoxItem.Separator 放进子项列表。
 public sealed class ComboBoxConfig : IValueConfig
 {
     public IReadOnlyList<ComboBoxItem> Items { get; private set; } = [];
@@ -94,7 +95,7 @@ public sealed class ComboBoxConfig : IValueConfig
 
     public ComboBoxConfig Append(ComboBoxItem option) { var c = Clone(); c.Items = [.. Items, option]; return c; }
     public ComboBoxConfig Append(IEnumerable<ComboBoxItem> options) { var c = Clone(); c.Items = [.. Items, .. options]; return c; }
-    // 追加分隔线（可带居中标签）；隐藏 ComboBoxItem.Separator 细节。
+    // 追加分隔线（可带居中标签）= Append(ComboBoxItem.Separator(label))。
     public ComboBoxConfig AppendSeparator(string? label = null) => Append(ComboBoxItem.Separator(label));
 
     public ComboBoxConfig WithDefault(ComboBoxItem option) { var c = Clone(); c.mDefaultOption = option; return c; }

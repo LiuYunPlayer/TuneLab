@@ -508,3 +508,7 @@
 "Processing effect: {0} ({1}/{2})" = "Bearbetar effekt: {0} ({1}/{2})"
 "Processing effects" = "Bearbetar effekter"
 "Effect {0} failed, playing unprocessed audio" = "Effekten {0} misslyckades, obearbetat ljud spelas upp"
+
+[DropDownMenu]
+"Search" = "Sök"
+"No matches" = "Inga träffar"

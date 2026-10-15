@@ -567,7 +567,7 @@ internal class PropertyObjectController : StackPanel
     {
         public ArrayCreator(PropertyObjectController parent, PropertyKey key, ArrayConfig config) : base(parent)
         {
-            mTitle = CreateTitle(key.DisplayText ?? key.Id, 30);
+            mTitle = CreateTitle(key.DisplayText ?? key.Id, 30, ArrayControlsFactory.TitleGap);
             mController = new ArrayController();
             mController.Bind(parent.DataObject.Array(key.Id));
             mController.Apply(config);
@@ -592,7 +592,7 @@ internal class PropertyObjectController : StackPanel
     {
         public ListCreator(PropertyObjectController parent, PropertyKey key, ListConfig config) : base(parent)
         {
-            mTitle = CreateTitle(key.DisplayText ?? key.Id, 30);
+            mTitle = CreateTitle(key.DisplayText ?? key.Id, 30, ArrayControlsFactory.TitleGap);
             mController = new ListController();
             mController.Bind(parent.DataObject.Array(key.Id));
             mController.Apply(config);
@@ -619,7 +619,7 @@ internal class PropertyObjectController : StackPanel
     {
         public ExtensibleObjectCreator(PropertyObjectController parent, PropertyKey key, ExtensibleObjectConfig config) : base(parent)
         {
-            mTitle = CreateTitle(key.DisplayText ?? key.Id, 30);
+            mTitle = CreateTitle(key.DisplayText ?? key.Id, 30, ArrayControlsFactory.TitleGap);
             mController = new ExtensibleObjectController();
             mController.Bind(parent.DataObject.Object(key.Id));
             mController.Apply(config);
@@ -676,10 +676,13 @@ internal class PropertyObjectController : StackPanel
         readonly Components.CheckBox mController;
     }
 
-    static Label CreateTitle(string title, double height)
+    // bottomGap：标题下方留白。容器字段（数组/列表/键控容器）的内容紧接标题、自身不带上边距，需要它隔开；
+    // 其余字段的控件自带上边距，取 0。标题出自对象池，故每次都显式重设，不继承上一任主人的值。
+    static Label CreateTitle(string title, double height, double bottomGap = 0)
     {
         var label = ObjectPoolManager.Get<Label>();
         label.Height = height;
+        label.Margin = new(0, 0, 0, bottomGap);
         label.FontSize = 12;
         label.VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Bottom;
         label.Foreground = Style.LIGHT_WHITE.ToBrush();

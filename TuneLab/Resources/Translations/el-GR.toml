@@ -508,3 +508,7 @@
 "Processing effect: {0} ({1}/{2})" = "Επεξεργασία εφέ: {0} ({1}/{2})"
 "Processing effects" = "Επεξεργασία εφέ"
 "Effect {0} failed, playing unprocessed audio" = "Το εφέ {0} απέτυχε, αναπαραγωγή μη επεξεργασμένου ήχου"
+
+[DropDownMenu]
+"Search" = "Αναζήτηση"
+"No matches" = "Δεν βρέθηκαν αποτελέσματα"

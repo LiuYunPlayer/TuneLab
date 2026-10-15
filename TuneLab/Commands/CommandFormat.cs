@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using TuneLab.Extensions;
 using TuneLab.Foundation;
+using TuneLab.GUI.Controllers;
 using TuneLab.SDK;
 
 namespace TuneLab.Commands;
@@ -57,10 +58,10 @@ internal static class ConfigText
     {
         var sb = new StringBuilder("[");
         bool first = true;
-        foreach (var item in c.Items)
+        foreach (var item in c.Items.Leaves())   // 分组展开成其中的选项
         {
-            if (item.SubItems != null || item.Value.IsNull())
-                continue;   // 跳过分组标题 / 分隔线（值为空）
+            if (item.Value.IsNull())
+                continue;
             if (!first) sb.Append(", ");
             first = false;
             sb.Append(FormatValue(item.Value));

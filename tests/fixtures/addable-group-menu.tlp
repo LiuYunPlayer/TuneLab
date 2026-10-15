@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "tempos": [{ "pos": 0, "bpm": 120 }],
+  "timeSignatures": [{ "barIndex": 0, "numerator": 4, "denominator": 4 }],
+  "tracks": [
+    {
+      "name": "Conditional (grouped menus)",
+      "gain": 0, "pan": 0, "mute": false, "solo": false,
+      "parts": [
+        {
+          "type": "midi", "name": "menus", "pos": 0, "startOffset": 0, "endOffset": 3840, "gain": 0,
+          "properties": {},
+          "voice": { "type": "TLSuiteVoice", "id": "suite-conditional" },
+          "notes": [
+            { "pos": 0,    "dur": 960, "pitch": 60, "lyric": "a", "pronunciation": "", "properties": {} },
+            { "pos": 960,  "dur": 960, "pitch": 62, "lyric": "a", "pronunciation": "", "properties": { "letters": "ka" } },
+            { "pos": 1920, "dur": 960, "pitch": 64, "lyric": "a", "pronunciation": "", "properties": {} }
+          ]
+        }
+      ]
+    }
+  ]
+}

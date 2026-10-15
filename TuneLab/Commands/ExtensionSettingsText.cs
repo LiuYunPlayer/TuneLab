@@ -3,6 +3,7 @@ using System.Linq;
 using System.Text.Json;
 using TuneLab.Extensions;
 using TuneLab.Foundation;
+using TuneLab.GUI.Controllers;
 using TuneLab.SDK;
 
 namespace TuneLab.Commands;
@@ -101,9 +102,9 @@ internal static class ExtensionSettingsText
             {
                 var given = JsonScalar.Text(raw);
                 foreach (var pass in new[] { StringComparison.Ordinal, StringComparison.OrdinalIgnoreCase })
-                    foreach (var option in combo.Items)
+                    foreach (var option in combo.Items.Leaves())
                     {
-                        if (option.SubItems != null || option.Value.IsNull())
+                        if (option.Value.IsNull())
                             continue;
                         if (string.Equals(JsonScalar.Literal(option.Value), given, pass))
                             return (option.Value, null);   // 值形态照声明原样（可能是文本/数字/布尔）

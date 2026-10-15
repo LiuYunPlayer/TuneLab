@@ -7,6 +7,7 @@ using System.Text.Json;
 using TuneLab.Configs;
 using TuneLab.Foundation;
 using TuneLab.I18N;
+using TuneLab.GUI.Controllers;
 using TuneLab.SDK;
 
 namespace TuneLab.Commands;
@@ -123,9 +124,9 @@ internal static class SettingsText
         var given = JsonScalar.Text(raw);
         foreach (var pass in new[] { StringComparison.Ordinal, StringComparison.OrdinalIgnoreCase })
         {
-            foreach (var o in options)
+            foreach (var o in options.Leaves())
             {
-                if (o.SubItems != null || o.Value.IsNull())
+                if (o.Value.IsNull())
                     continue;
                 if (!string.Equals(JsonScalar.Literal(o.Value), given, pass))
                     continue;

@@ -123,6 +123,27 @@ public sealed class MultipleDataPropertyArray : IDataPropertyArray
     public void RemoveAt(int index)
         => FanOut(array => { if (index < array.Count) array.RemoveAt(index); });
 
+    // 各成员是否等长。不等长时「第 i 个元素」在各成员里指的不是一回事（短成员的缺位只是默认值），
+    // 重排无从定义，故 Move 只在等长时扇出、面板也据此禁用拖拽。
+    public bool HasUniformLength
+    {
+        get
+        {
+            for (int i = 1; i < mArrays.Count; i++)
+                if (mArrays[i].Count != mArrays[0].Count)
+                    return false;
+            return true;
+        }
+    }
+
+    // 重排：等长时各成员同步挪同一对位置；不等长 = no-op（见 HasUniformLength）。
+    public void Move(int from, int to)
+    {
+        if (!HasUniformLength)
+            return;
+        FanOut(array => array.Move(from, to));
+    }
+
     // 扇出三段式（同 MultipleDataPropertyObject.SetValue）：先全员进 merge、再统一操作、最后统一退 merge，
     // 消除「部分成员写完→瞬时 Multiple」的中间态闪烁。
     void FanOut(Action<IDataPropertyArray> action)

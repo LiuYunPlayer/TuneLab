@@ -59,8 +59,8 @@ public sealed class SuiteVoiceEngine : IVoiceSynthesisEngine, IExtensionSettings
 
         var selected = context.Parts.Select(p => p.PartProperties).Merge().GetValue("speakers", PropertyObject.Empty);
         var map = new OrderedMap<PropertyKey, AutomationConfig>();
-        foreach (var kvp in selected.Map)
-            map.Add((kvp.Key, SpeakerName(kvp.Key)), AutomationConfig.Create(0, 100).WithColor("#73E5A5").WithDefault(0));
+        foreach (var id in InCatalogOrder(selected, kSpeakers))
+            map.Add((id, SpeakerName(id)), AutomationConfig.Create(0, 100).WithColor("#73E5A5").WithDefault(0));
         return map;
     }
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IVoiceSynthesisPartPropertyContext context) => sEmptyConfigs;
@@ -77,19 +77,38 @@ public sealed class SuiteVoiceEngine : IVoiceSynthesisEngine, IExtensionSettings
 
         var selected = context.Parts.Select(p => p.PartProperties).Merge().GetValue("speakers", PropertyObject.Empty);
         var speakerProps = new OrderedMap<PropertyKey, IControllerConfig>();
-        foreach (var kvp in selected.Map)
-            speakerProps.Add((kvp.Key, SpeakerName(kvp.Key)), ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>()));
+        foreach (var id in InCatalogOrder(selected, kSpeakers))
+            speakerProps.Add((id, SpeakerName(id)), ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>()));
 
         map.Add(("speakers", "Mixed Speakers"), ExtensibleObjectConfig.Create(
             speakerProps,
-            kSpeakers
-                .Select(s => new AddableKey((s.id, s.name), ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>())))
-                .ToList()));
+            // 分组候选：加完某组全部说话人后该组从 + 菜单消失。
+            [
+                new AddableKey("Female", kSpeakers.Where(s => s.id != "bob").Select(SpeakerKey)),
+                new AddableKey("Male", kSpeakers.Where(s => s.id == "bob").Select(SpeakerKey)),
+            ]));
 
         return ObjectConfig.Create(map);
     }
 
     static readonly (string id, string name)[] kSpeakers = { ("alice", "Alice"), ("bob", "Bob"), ("carol", "Carol") };
+
+    // 键控容器的条目顺序由插件定：数据里的键是无序的（删掉再加会落进空位，先后不可靠），故按候选目录排；
+    // 目录外的键（如旧数据里的）排在后面，不丢。
+    static IEnumerable<string> InCatalogOrder(PropertyObject present, IEnumerable<(string id, string name)> catalog)
+    {
+        var known = new HashSet<string>();
+        foreach (var (id, _) in catalog)
+        {
+            known.Add(id);
+            if (present.Map.ContainsKey(id))
+                yield return id;
+        }
+        foreach (var key in present.Map.Keys)
+            if (!known.Contains(key))
+                yield return key;
+    }
+    static AddableKey SpeakerKey((string id, string name) s) => new((s.id, s.name), ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>()));
     static string SpeakerName(string id)
     {
         foreach (var s in kSpeakers)
@@ -111,6 +130,16 @@ public sealed class SuiteVoiceEngine : IVoiceSynthesisEngine, IExtensionSettings
         {
             { "mode", ComboBoxConfig.Create(["Simple", "Advanced"]) },
             { "letters", TextBoxConfig.Create() },
+            // 分组下拉 + 搜索：15 个叶子（≥ 搜索阈值）分在两级分组里，可按组名收窄（如「minor a」）。
+            { "key", ComboBoxConfig.Create(
+                [
+                    new ComboBoxItem("Major", kKeyRoots.Select(r => new ComboBoxItem(r + " maj", r + " major"))),
+                    new ComboBoxItem("Minor", [
+                        new ComboBoxItem("Natural", kKeyRoots.Take(4).Select(r => new ComboBoxItem(r + " min", r + " minor"))),
+                        ComboBoxItem.Separator(),   // 分组内分隔线
+                        new ComboBoxItem("Harmonic", kKeyRoots.Take(4).Select(r => new ComboBoxItem(r + " hmin", r + " harmonic minor"))),
+                    ]),
+                ]).WithDefault("C maj") },
         };
 
         // ② pick 选项随 letters 变（内容 + 数量）
@@ -147,9 +176,17 @@ public sealed class SuiteVoiceEngine : IVoiceSynthesisEngine, IExtensionSettings
             : letters.Select(c => (IControllerConfig)TextBoxConfig.Create(c.ToString())).ToList();
         map.Add("phonemes", ListConfig.Create(
             phonemeElements,
+            // 分组候选（两级）+ 叶子 ≥ 搜索阈值 → + 菜单带搜索框。
             [
                 new AddableElement(TextBoxConfig.Create(), "Phoneme"),
                 new AddableElement(TextBoxConfig.Create("-"), "Rest"),
+                AddableElement.Separator("Sets"),   // 顶层带标签分隔线
+                new AddableElement("Vowels", "aeiou".Select(c => new AddableElement(TextBoxConfig.Create(c.ToString()), c.ToString()))),
+                new AddableElement("Consonants", [
+                    new AddableElement("Plosive", "ktp".Select(c => new AddableElement(TextBoxConfig.Create(c.ToString()), c.ToString()))),
+                    AddableElement.Separator(),   // 分组内分隔线
+                    new AddableElement("Nasal", "nm".Select(c => new AddableElement(TextBoxConfig.Create(c.ToString()), c.ToString()))),
+                ]),
             ]));
 
         // ④ 定长数组 pair（PropertyArray + ArrayConfig）：固定 2 个滑条、不可增删；
@@ -164,18 +201,22 @@ public sealed class SuiteVoiceEngine : IVoiceSynthesisEngine, IExtensionSettings
         //   这里放一个到可多选的 note 面板，供多选下「键并集合并 + 公共键编辑扇出」真机测试。
         var selectedTags = note.GetValue("tags", PropertyObject.Empty);
         var tagProps = new OrderedMap<PropertyKey, IControllerConfig>();
-        foreach (var kvp in selectedTags.Map)
-            tagProps.Add((kvp.Key, TagName(kvp.Key)), ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>()));
+        foreach (var id in InCatalogOrder(selectedTags, kTags))
+            tagProps.Add((id, TagName(id)), ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>()));
         map.Add(("tags", "Tags"), ExtensibleObjectConfig.Create(
             tagProps,
-            kTags
-                .Select(t => new AddableKey((t.id, t.name), ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>())))
-                .ToList()));
+            // 分隔线分段：某段的键全加完后，该段的段标题随之隐藏（宿主清理空段）。
+            [
+                AddableKey.Separator("Warm"), TagKey(kTags[0]),
+                AddableKey.Separator("Cool"), TagKey(kTags[1]), TagKey(kTags[2]),
+            ]));
 
         return ObjectConfig.Create(map);
     }
 
+    static readonly string[] kKeyRoots = { "C", "D", "E", "F", "G", "A", "B" };
     static readonly (string id, string name)[] kTags = { ("red", "Red"), ("green", "Green"), ("blue", "Blue") };
+    static AddableKey TagKey((string id, string name) t) => new((t.id, t.name), ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>()));
     static string TagName(string id)
     {
         foreach (var t in kTags)

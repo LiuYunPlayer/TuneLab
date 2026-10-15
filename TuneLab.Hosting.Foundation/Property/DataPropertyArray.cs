@@ -47,6 +47,21 @@ public class DataPropertyArray : DataObject, IDataObject<PropertyArray>, IDataPr
 
     public void RemoveAt(int index) => mList.RemoveAt(index);
 
+    // 重排 = 摘下同一个元素实例、插回新位置（同轨道调位：删除再插入同一对象）。token 按实例赋号且摘下后映射仍在，
+    // 故插回后 token 不变；两条命令同属一次提交 → 一个撤销单元。合并通知：不让订阅者看到「少一个元素」的中间态。
+    public void Move(int from, int to)
+    {
+        if (from == to || (uint)from >= (uint)mList.Count || (uint)to >= (uint)mList.Count)
+            return;
+
+        using (MergeNotify())
+        {
+            var item = mList[from];
+            mList.RemoveAt(from);
+            mList.Insert(to, item);
+        }
+    }
+
     // 原位改某元素值（撤销由该元素 DataPropertyValue 自带命令承担）。
     public void SetValue(int index, PropertyValue value) => mList[index].Set(PropertySlot.Canonicalize(value));
 

@@ -13,7 +13,8 @@ namespace TuneLab.SDK;
 // AddableElements —— 可添加的元素类型候选集（+ 菜单）。单项：点 + 直接追加该类型默认值；多项：点 + 弹下拉
 //   按类型名选再追加。随 f(context) 一并重算，故可依当前状态变化（如达上限时返回空 → + 禁用）。
 //
-// 与 ObjectConfig/ArrayConfig 同为复合型、不实现 IValueConfig。重排先不做（做时限同类型互换位置）。
+// 与 ObjectConfig/ArrayConfig 同为复合型、不实现 IValueConfig。用户可拖元素序号重排（宿主行为，不限同类型）：
+// 挪的是数据里的元素本身，插件随后按挪完的数据重算 Elements，故逐元素 config 应由元素值推出、而非由位置推出。
 // 构造函数全封，只走静态工厂。两列表均构造即拷贝（[.. …]）：值语义由构造保证，与调用方构造后对原 list 的
 // 改动无关（AddableElement 是不可变 struct，浅拷即完全封死）。
 public sealed class ListConfig : IControllerConfig

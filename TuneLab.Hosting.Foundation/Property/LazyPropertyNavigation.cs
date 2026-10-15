@@ -52,6 +52,7 @@ internal sealed class ArrayView(IDataObject root, ILazyObjectNode owner, string 
     public void Insert(int index, PropertyValue value) => owner.GetOrCreateArray(key).Insert(index, value);
     public void Add(PropertyValue value) => owner.GetOrCreateArray(key).Add(value);
     public void RemoveAt(int index) => owner.FindArray(key)?.RemoveAt(index);   // 缺席无元素可删
+    public void Move(int from, int to) => owner.FindArray(key)?.Move(from, to);   // 缺席无元素可挪
 
     public IDataPropertyObject Object(string token) => new ObjectView(root, this, token);
     public IDataPropertyArray Array(string token) => new ArrayView(root, this, token);

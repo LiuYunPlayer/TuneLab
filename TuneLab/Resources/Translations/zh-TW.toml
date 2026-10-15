@@ -508,3 +508,7 @@
 "Processing effect: {0} ({1}/{2})" = "正在處理效果器：{0}（{1}/{2}）"
 "Processing effects" = "正在處理效果器"
 "Effect {0} failed, playing unprocessed audio" = "效果器 {0} 處理失敗，正在播放未處理音訊"
+
+[DropDownMenu]
+"Search" = "搜尋"
+"No matches" = "無符合項目"

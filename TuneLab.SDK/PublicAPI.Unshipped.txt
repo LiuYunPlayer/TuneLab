@@ -10,3 +10,10 @@ TuneLab.SDK.IVoiceSynthesisContext.InvalidatePart() -> void
 TuneLab.SDK.IVoiceSynthesisContext.PartId.get -> string!
 TuneLab.SDK.IVoiceSynthesisNoteView.Id.get -> string!
 TuneLab.SDK.IVoiceSynthesisPartView.PartId.get -> string!
+TuneLab.SDK.AddableElement.AddableElement(string! label, System.Collections.Generic.IEnumerable<TuneLab.SDK.AddableElement>! subItems) -> void
+TuneLab.SDK.AddableElement.SubItems.get -> System.Collections.Generic.IReadOnlyList<TuneLab.SDK.AddableElement>?
+TuneLab.SDK.AddableKey.AddableKey(string! displayText, System.Collections.Generic.IEnumerable<TuneLab.SDK.AddableKey>! subItems) -> void
+TuneLab.SDK.AddableKey.SubItems.get -> System.Collections.Generic.IReadOnlyList<TuneLab.SDK.AddableKey>?
+static TuneLab.SDK.AddableElement.Separator(string? label = null) -> TuneLab.SDK.AddableElement
+static TuneLab.SDK.AddableKey.Separator(string? label = null) -> TuneLab.SDK.AddableKey
+static TuneLab.SDK.ComboBoxItem.Separator(string? label = null) -> TuneLab.SDK.ComboBoxItem

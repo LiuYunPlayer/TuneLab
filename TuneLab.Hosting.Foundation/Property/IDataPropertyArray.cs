@@ -6,7 +6,7 @@ namespace TuneLab.Foundation;
 // 有序可重复列表的导航式数据外观，承 IDataPropertyObject 的 token-as-key 范式：
 // 元素以「稳定 token」寻址——token 是元素槽的身份，跨增删/undo/redo 不变（底层 DataObjectList 给每个元素槽稳定实例身份）。
 // token 当 key 复用 Object(token)/Array(token)/GetValue/SetValue，面板用现成的字段绑定机制原位 live-bind 每个元素、无需感知 index。
-// 与 IDataPropertyObject 的差别：键集有序（Tokens）、可结构性增删（Insert/Add/RemoveAt 按 index）、
+// 与 IDataPropertyObject 的差别：键集有序（Tokens）、可结构性增删与重排（Insert/Add/RemoveAt/Move 按 index）、
 // 结构变化单独成事件（MembershipModified，只在增删/重排触发；元素值原位编辑不触发）。
 public interface IDataPropertyArray : IDataPropertyObject
 {
@@ -19,4 +19,7 @@ public interface IDataPropertyArray : IDataPropertyObject
     void Insert(int index, PropertyValue value);
     void Add(PropertyValue value);
     void RemoveAt(int index);
+    // 重排：把 from 处的元素挪到 to（to 是挪完后的位置）。元素身份随之移动——token 不变、绑在它上面的控件不重建；
+    // 提交后是一个撤销单元。from/to 越界或相等 = no-op。
+    void Move(int from, int to);
 }
