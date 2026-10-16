@@ -86,7 +86,9 @@ internal static class PartPresets
     {
         part.SoundSource.SetInfo(preset.Source);
         int properties = ResetPropertiesToDefaults(part.SoundSource.GetPartPropertyConfig(PartPropertyContext.Single(part)), part.Properties);
-        ApplyProperties(preset.Properties, part.Properties);
+        ApplyProperties(part, preset.Properties);
+        // 自动化轨集合可随属性涌现（条件轨，如某条目被选中才声明的轨）：属性写入即经 part 的属性订阅重算
+        //（同步，见 MidiPart.OnPartPropertiesModified），故走到这里时 AutomationConfigs 已是应用后的声明集。
         return new Applied(properties, ApplyAutomationDefaults(part, preset));
     }
 
@@ -148,17 +150,87 @@ internal static class PartPresets
         return new PropertyObject(map);
     }
 
-    static void ApplyProperties(PropertyObject properties, IDataPropertyObject node)
+    // 声明可随属性值涌现（条件面板：某字段取某值才出现的容器/字段）：应用前那份声明里看不见的键，
+    // 写进去之后才被声明。故按「求声明 → 照声明应用」反复，直到声明形状不再变——应用本身幂等，多跑一轮无副作用。
+    // 上限只防插件声明来回振荡（值 A 声明出 B、B 又撤掉 A），正常一两轮即收敛。
+    static void ApplyProperties(IMidiPart part, PropertyObject preset)
     {
+        string? previousShape = null;
+        for (int pass = 0; pass < MaxApplyPasses; pass++)
+        {
+            var config = part.SoundSource.GetPartPropertyConfig(PartPropertyContext.Single(part));
+            var shape = ConfigShape(config);
+            if (shape == previousShape)
+                break;
+            previousShape = shape;
+            ApplyProperties(config, preset, part.Properties);
+        }
+    }
+
+    const int MaxApplyPasses = 4;
+
+    // 沿声明把 preset 写进数据节点，按 config 种类分两种语义：
+    // · 固定结构对象（ObjectConfig）= 字段合并：下降逐字段写，目标里 preset 没有的键（孤儿）原样保留；
+    // · 变长容器（ExtensibleObjectConfig / ListConfig / ArrayConfig）= 整值替换：容器的键集合/元素序列本身就是选择，
+    //   合并会把「preset 没选的条目」留在目标里，而值为 {} 的条目（只靠键存在表达"选中"）下降后无字段可写、键永远落不下。
+    // 声明之外的键（孤儿 / 条件面板当前隐藏的字段）按旧口径递归合并——不知道它是什么，就不替它做替换的决定。
+    internal static void ApplyProperties(ObjectConfig config, PropertyObject properties, IDataPropertyObject node)
+    {
+        var declared = new Dictionary<string, IControllerConfig>();
+        foreach (var kvp in config.Properties)
+            declared[kvp.Key.Id] = kvp.Value;
+
         foreach (var property in properties.Map)
         {
-            if (property.Value.ToObject(out var propertyObject))
+            declared.TryGetValue(property.Key, out var propertyConfig);
+            bool isObject = property.Value.ToObject(out var propertyObject);
+            if (propertyConfig is ObjectConfig objectConfig && isObject)
             {
-                ApplyProperties(propertyObject, node.Object(property.Key));
+                ApplyProperties(objectConfig, propertyObject, node.Object(property.Key));
+            }
+            else if (propertyConfig == null && isObject)
+            {
+                MergeUndeclared(propertyObject, node.Object(property.Key));
             }
             else
             {
                 node.SetValue(property.Key, property.Value);
+            }
+        }
+    }
+
+    static void MergeUndeclared(PropertyObject properties, IDataPropertyObject node)
+    {
+        foreach (var property in properties.Map)
+        {
+            if (property.Value.ToObject(out var propertyObject))
+                MergeUndeclared(propertyObject, node.Object(property.Key));
+            else
+                node.SetValue(property.Key, property.Value);
+        }
+    }
+
+    // 声明形状 = 各层键路径 + 种类（对象下降、其余只记一层）。只用于判断「再求一次声明有没有长出新东西」。
+    static string ConfigShape(ObjectConfig config)
+    {
+        var sb = new System.Text.StringBuilder();
+        AppendShape(sb, config, string.Empty);
+        return sb.ToString();
+    }
+
+    static void AppendShape(System.Text.StringBuilder sb, ObjectConfig config, string prefix)
+    {
+        foreach (var kvp in config.Properties)
+        {
+            var path = prefix + "/" + kvp.Key.Id;
+            if (kvp.Value is ObjectConfig objectConfig)
+            {
+                sb.Append(path).Append("{;");
+                AppendShape(sb, objectConfig, path);
+            }
+            else
+            {
+                sb.Append(path).Append(':').Append(kvp.Value.GetType().Name).Append(';');
             }
         }
     }
