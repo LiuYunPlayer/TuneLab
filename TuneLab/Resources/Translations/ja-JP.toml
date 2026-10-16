@@ -107,6 +107,7 @@
 "No value here, vibrato has no effect" = "ここには値がないため、ビブラートは効果がありません"
 
 [Dialog]
+"Fetch Runtime" = "ランタイムを取得"
 "OK" = "OK"
 "Cancel" = "キャンセル"
 "Yes" = "はい"

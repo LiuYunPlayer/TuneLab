@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- .NET 假 sidecar：M1 协议封条测试的执行体（设计文档 §12.0/§12.1——CI 免装任何解释器）。
+       它按 scripting/wire/v1 的手写帧协议应答，独立于宿主代码即"协议另一侧"的活样本。 -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>TuneLab.ScriptedFakeSidecar</AssemblyName>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+</Project>

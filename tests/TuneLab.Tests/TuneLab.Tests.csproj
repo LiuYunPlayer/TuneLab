@@ -15,10 +15,15 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\TuneLab\TuneLab.csproj" />
+    <!-- TuneLab.Base（legacy）里有同名同命名空间的 ActionEvent：直引 Foundation 令其优先，
+         与宿主工程的解析行为一致（否则替身实现事件接口时 CS0738）。 -->
+    <ProjectReference Include="..\..\TuneLab.Foundation\TuneLab.Foundation.csproj" />
     <!-- 命令行：保留参数名与批量文件切词的封条要读它的唯一真源，不另抄一份。 -->
     <ProjectReference Include="..\..\TuneLab.Cli\TuneLab.Cli.csproj" />
     <!-- 安装器：命令行是向导的镜像，"默认值与向导一致"这条约定由 SetupCliOptionsTests 机器可检。 -->
     <ProjectReference Include="..\..\TuneLab.Setup\TuneLab.Setup.csproj" />
+    <!-- 假 sidecar（协议封条执行体）：只要构建顺序，不要程序集引用——测试按路径 spawn 它。 -->
+    <ProjectReference Include="..\ScriptedFakeSidecar\TuneLab.ScriptedFakeSidecar.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
 </Project>

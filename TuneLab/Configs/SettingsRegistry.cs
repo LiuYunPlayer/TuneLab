@@ -175,6 +175,29 @@ internal static class SettingsRegistry
             // 而不是让人去反复开关命令桥（那个开关只管连不连得上）。
             + "It is also the ceiling for the command bridge: an external tool (the tunelab CLI, an MCP server) never gets more than this, whatever it asks for.");
 
+    // ── 脚本运行时（sidecar；docs/scripted-plugin-sidecar-design.md §8）——M0 起仅存储，
+    // "设置 → 扩展 → 运行时"页与下载按钮随 M1 挂 UI；现在可经 agent set_setting / 手改 settings.json /
+    // 环境变量（TUNELAB_PYTHON 等）设定。值是解释器可执行文件路径，分号分隔多候选（按序核验，首个真跑通过的赢）。
+    public static readonly SettingItem<string> ScriptedRuntimePython = Str("ScriptedRuntimePython", null,
+        "Scripted Runtime: Python", TextBoxConfig.Create(), string.Empty,
+        description: "Absolute path(s) of the Python interpreter for scripted plugins (semicolon-separated candidates). " +
+        "Probing order: this setting, then TUNELAB_PYTHON, then installed runtime packages, then PATH.");
+    public static readonly SettingItem<string> ScriptedRuntimeNode = Str("ScriptedRuntimeNode", null,
+        "Scripted Runtime: Node.js", TextBoxConfig.Create(), string.Empty,
+        description: "Absolute path(s) of the Node.js executable for scripted plugins (semicolon-separated candidates). " +
+        "Probing order: this setting, then TUNELAB_NODE, then installed runtime packages, then PATH.");
+    public static readonly SettingItem<string> ScriptedRuntimeLua = Str("ScriptedRuntimeLua", null,
+        "Scripted Runtime: Lua", TextBoxConfig.Create(), string.Empty,
+        description: "Absolute path(s) of the Lua interpreter for scripted plugins (semicolon-separated candidates; use TUNELAB_LUAJIT for the luajit flavor). " +
+        "Probing order: this setting, then TUNELAB_LUA / TUNELAB_LUAJIT, then installed runtime packages, then PATH.");
+    public static readonly SettingItem<bool> ScriptedAutoFetchRuntime = Bool("ScriptedAutoFetchRuntime", null,
+        "Auto Fetch Scripted Runtimes", CheckBoxConfig.Create(false), false,
+        description: "When on, a missing interpreter for a scripted plugin is downloaded automatically (checksum-pinned runtime package); " +
+        "when off, the sidebar offers a one-click download that asks first. Offline / air-gapped: keep it off and provide the interpreter yourself.");
+    public static readonly SettingItem<string> ScriptedRuntimeSource = Str("ScriptedRuntimeSource", null,
+        "Scripted Runtime Download Source", TextBoxConfig.Create(), string.Empty,
+        description: "Override base URL for runtime package downloads (mirrors / intranet). Checksum verification still applies; empty means the official release feed.");
+
     // 全部条目——顺序 = 【设置窗行序】（tab 分组、组内重要项在前），是单一受控顺序源：
     // 设置窗 All.Where(Tab==tab) 渲染、agent list_settings 同序。末尾是仅存储的孤儿设置（无 tab、不渲染）。
     // 磁盘 JSON 键随此顺序写出（分组排列）——键顺序无语义、按键名加载，不影响兼容。
@@ -190,6 +213,7 @@ internal static class SettingsRegistry
         ParameterBoundaryExtension, ParameterSyncMode, AutoGeneratePronunciation,
         // 仅存储（无设置窗行）
         AutoScrollTarget, AgentModelProvider, AgentAuthorization,
+        ScriptedRuntimePython, ScriptedRuntimeNode, ScriptedRuntimeLua, ScriptedAutoFetchRuntime, ScriptedRuntimeSource,
     ];
 
     // ── 工厂 + 转换器 ──

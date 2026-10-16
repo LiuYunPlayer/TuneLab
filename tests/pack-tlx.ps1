@@ -16,6 +16,10 @@ New-Item -ItemType Directory -Force -Path $out | Out-Null
 $sources = @()
 $sources += Get-ChildItem -Directory (Join-Path $root 'packages') -ErrorAction SilentlyContinue
 $sources += Get-ChildItem -Directory (Join-Path $root 'manifest-variants') -ErrorAction SilentlyContinue
+# 脚本插件（Python/Node/Lua）：tests/plugins 下【无 csproj】的目录 = 源即发行物，直接收编
+# （有 csproj 的由构建产出进 packages/，此处跳过以免双打）。
+$sources += Get-ChildItem -Directory (Join-Path $root 'plugins') -ErrorAction SilentlyContinue |
+    Where-Object { -not (Get-ChildItem -Path $_.FullName -Filter *.csproj -File -ErrorAction SilentlyContinue) }
 
 if ($sources.Count -eq 0) {
     Write-Warning "未找到任何包。请先运行: dotnet build tests/TestPlugins.slnx -c Debug"

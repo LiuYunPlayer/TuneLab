@@ -1,0 +1,36 @@
+{
+  "python": {
+    "source": "python.org embeddable (win) / python-build-standalone (osx, linux)",
+    "versions": {
+      "3.12.7": {
+        "win-x64":   { "url": "https://www.python.org/ftp/python/3.12.7/python-3.12.7-embed-amd64.zip", "layout": "root" },
+        "win-arm64": { "note": "python.org ships no ARM64 embeddable before 3.14; use python-build-standalone (uv) builds for this cell", "url": "", "layout": "prefix", "exe": "python.exe" },
+        "osx-x64":   { "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20241016/cpython-3.12.7+20241016-x86_64-apple-darwin-install_only.tar.gz", "layout": "prefix", "exe": "python3" },
+        "osx-arm64": { "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20241016/cpython-3.12.7+20241016-aarch64-apple-darwin-install_only.tar.gz", "layout": "prefix", "exe": "python3" },
+        "linux-x64":   { "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20241016/cpython-3.12.7+20241016-x86_64-unknown-linux-gnu-install_only.tar.gz", "layout": "prefix", "exe": "python3" },
+        "linux-arm64": { "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20241016/cpython-3.12.7+20241016-aarch64-unknown-linux-gnu-install_only.tar.gz", "layout": "prefix", "exe": "python3" }
+      }
+    }
+  },
+  "node": {
+    "source": "nodejs.org official distributions",
+    "versions": {
+      "20.17.0": {
+        "win-x64":   { "url": "https://nodejs.org/dist/v20.17.0/node-v20.17.0-win-x64.zip", "layout": "prefix", "exe": "node.exe" },
+        "win-arm64": { "url": "https://nodejs.org/dist/v20.17.0/node-v20.17.0-win-arm64.zip", "layout": "prefix", "exe": "node.exe" },
+        "osx-x64":   { "url": "https://nodejs.org/dist/v20.17.0/node-v20.17.0-darwin-x64.tar.gz", "layout": "prefix", "exe": "bin/node" },
+        "osx-arm64": { "url": "https://nodejs.org/dist/v20.17.0/node-v20.17.0-darwin-arm64.tar.gz", "layout": "prefix", "exe": "bin/node" },
+        "linux-x64":   { "url": "https://nodejs.org/dist/v20.17.0/node-v20.17.0-linux-x64.tar.xz", "layout": "prefix", "exe": "bin/node" },
+        "linux-arm64": { "url": "https://nodejs.org/dist/v20.17.0/node-v20.17.0-linux-arm64.tar.xz", "layout": "prefix", "exe": "bin/node" }
+      }
+    }
+  },
+  "lua": {
+    "source": "no official binaries - build from source (C89) or wrap a distro build; see README",
+    "versions": {}
+  },
+  "luajit": {
+    "source": "luajit/OpenResty build trees; no official zip",
+    "versions": {}
+  }
+}

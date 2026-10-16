@@ -1,0 +1,13 @@
+{
+  "id": "com.tunelab.test.scriptedpy",
+  "name": "V1 Scripted Python Format",
+  "version": "1.0.0",
+  "author": "TuneLab Tests",
+  "description": "脚本 format 条目(runtime+entry)。预期(M0)：真跑核验 Python——探不到则 Skipped: no matching runtime(探测轨迹全文)；探得到则 Skipped: sidecar loading not implemented yet。绝不谎报 Loaded。",
+  "sdk-version": "1.1",
+  "type": "format",
+  "suffixes": ["tlscripthi"],
+  "runtime": "python>=3.10,<4",
+  "entry": "plugin/main.py",
+  "platforms": ["win", "osx", "linux"]
+}

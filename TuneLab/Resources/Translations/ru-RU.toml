@@ -107,6 +107,7 @@
 "No value here, vibrato has no effect" = "Здесь нет значения, вибрато не действует"
 
 [Dialog]
+"Fetch Runtime" = "Скачать среду выполнения"
 "OK" = "ОК"
 "Cancel" = "Отмена"
 "Yes" = "Да"

@@ -65,9 +65,12 @@ namespace TuneLab.Extensions;
 //                 曾经是候选类【数组】、由宿主扫描认领，那是为了让一个 format 条目容纳导入类 + 导出类；
 //                 但"宿主替作者猜哪个类"与"方向是声明不是推断"相悖，且两个类共用一个设置桶必然牺牲其中
 //                 一份 schema。故收敛成：两份实现就写两个条目，各自一份设置。
-//   assembly   —— 含该实现类的程序集（相对包文件夹的路径）；资源类省略。
-//   assemblies —— 仅 Legacy 老 schema 顶层使用（盲扫候选 dll）；V1 条目改用单数 assembly。
-//   platforms  —— 平台过滤（同一包内不同插件可各自声明）。
+    //   assembly   —— 含该实现类的程序集（相对包文件夹的路径）；资源类省略。
+    //   assemblies —— 仅 Legacy 老 schema 顶层使用（盲扫候选 dll）；V1 条目改用单数 assembly。
+    //   platforms  —— 平台过滤（同一包内不同插件可各自声明）。
+    //   runtime/entry/deps —— 脚本条目（sidecar，见 scripted-plugin-sidecar-design.md §2）：runtime 非空即
+    //                声明"进程外实现"（flavor+版本区间，如 "python>=3.10,<4"），entry 指包内入口脚本；
+    //                与 class/assembly【互斥】（同"声明即事实"纪律），deps 缺省 vendored、"pip" 已声明未实现。
 internal class ExtensionInfo
 {
     public string type { get; set; } = string.Empty;
@@ -158,6 +161,23 @@ internal class ExtensionInfo
 
     [JsonIgnore]
     public string EffectiveClass => (entryClass ?? string.Empty).Trim();
+
+    // —— 脚本条目（sidecar；docs/scripted-plugin-sidecar-design.md §2）——
+    // 判别只看 runtime（entry 缺失由校验报 Failed，不在判别里吞错）。
+    public string? runtime { get; set; }
+
+    // 包内相对路径的入口脚本（main.py / index.js / main.lua）；与 runtime 成对出现。
+    public string? entry { get; set; }
+
+    // 依赖策略："vendored"（缺省）| "pip"（已声明未实现 → Skipped）。
+    public string? deps { get; set; }
+
+    // 脚本条目：本条目携带扩展设置面板（宿主经 settings.get_config/settings.apply 与 sidecar 往返；
+    // 缺省 false=零负担，与 .NET 侧"探测式接入 IExtensionSettings"同语义——只是脚本侧无法静态探测）。
+    public bool settings { get; set; }
+
+    [JsonIgnore]
+    public bool IsScripted => !string.IsNullOrEmpty(runtime);
 
     // —— 显示名（可翻译，独立于身份 id）——
     public string? name { get; set; }

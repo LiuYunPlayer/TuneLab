@@ -17,6 +17,7 @@ using TuneLab.Extensions.Voices;
 using TuneLab.Extensions.Instruments;
 using TuneLab.Extensions.Effect;
 using TuneLab.Extensions.Agent;
+using TuneLab.Extensions.Scripted;
 namespace TuneLab.Extensions;
 
 // 扩展统一加载管线：发现 → 读 manifest 判代际 → 校验 → V1 per-folder ALC 加载 / Legacy fallback → 实例化。
@@ -73,6 +74,8 @@ internal static class ExtensionManager
     public static void LoadExtensions()
     {
         PathManager.MakeSureExist(PathManager.ExtensionsFolder);
+        // 防遗留第 4 防线：先于一切加载，清掉上次宿主猝死留下的 sidecar 孤儿（持着包目录的文件锁）。
+        SidecarRegistry.SweepStaleProcesses();
         FormatsManager.LoadBuiltIn();
         VoicesManager.LoadBuiltIn();
         InstrumentsManager.LoadBuiltIn();
@@ -93,6 +96,9 @@ internal static class ExtensionManager
 
     public static void Destroy()
     {
+        // 脚本 sidecar 先退（§3.2：礼貌 shutdown → 限时 → Kill），再走 .NET 引擎 Destroy，
+        // 卸载器随后删目录时不会被活进程锁住。
+        SidecarRegistry.ShutdownAll();
         VoicesManager.Destroy();
         InstrumentsManager.Destroy();
         EffectManager.Destroy();
@@ -135,6 +141,16 @@ internal static class ExtensionManager
             LoadV1(path, description);
         else
             LoadLegacy(path, description, folderName);
+    }
+
+    // 重载单包（runtime 自动部署落地后的回执路径）：摘旧结果再 Load。同包重复注册由
+    // FormatsManager（同后缀忽略）/EffectManager（同包警告+忽略）天然幂等，安全。
+    public static void Reload(string path)
+    {
+        var stale = mLoadResults.Where(r => string.Equals(r.DirectoryPath, path, StringComparison.Ordinal)).ToList();
+        foreach (var r in stale)
+            mLoadResults.Remove(r);
+        Load(path);
     }
 
     static void LoadV1(string path, ExtensionManifest description)
@@ -191,6 +207,27 @@ internal static class ExtensionManager
             }
         }
 
+        // ── 校验：wire 协议兼容门（脚本 sidecar 专用第三轴，见 scripted-plugin-sidecar-design.md §1.2）。
+        // 资源包/纯 .NET 包不写此字段，零影响；写了就必须落在宿主支持面内——高于即握手前拒，
+        // 与 sdk-version 门同款语义（"用了新协议 × 老宿主"是唯一合法不兼容方向）。──
+        if (description.protocolVersion.HasValue)
+        {
+            if (description.protocolVersion.Value < 1)
+            {
+                result.Status = ExtensionLoadStatus.Failed;
+                result.Error = string.Format("Invalid protocol-version '{0}'", description.protocolVersion.Value);
+                Log.Error(string.Format("Extension {0}: invalid protocol-version '{1}'", description.name, description.protocolVersion.Value));
+                return;
+            }
+            if (description.protocolVersion.Value > WireProtocol.Version)
+            {
+                result.Status = ExtensionLoadStatus.Skipped;
+                result.Error = string.Format("Requires extension protocol {0}, host provides {1}", description.protocolVersion.Value, WireProtocol.Version);
+                Log.Warning(string.Format("Extension {0} skipped: requires extension protocol {1}, host provides {2}", description.name, description.protocolVersion.Value, WireProtocol.Version));
+                return;
+            }
+        }
+
         // ── 加载：per-folder ALC，遍历归一化后的各 extension ──
         PluginLoadContext? alc = null;
         int loaded = 0, failed = 0, skipped = 0, disabled = 0;
@@ -241,13 +278,14 @@ internal static class ExtensionManager
             {
                 // 但【声明了代码】的未知 type 不是资源包，而是本宿主还不支持的插件类型（如只在别的分支/
                 // 更高版本存在的 kind）。资源类 type 是开放集，宿主无从区分二者——除了这个判据：资源包
-                // 不写 assembly/classes。缺了它就会把这种包静默登记成 loaded，侧栏显示"已加载"而其代码
+                // 不写 assembly/classes，也不写 runtime/entry（脚本声明同样是"有代码"，M0 起）。
+                // 缺了它就会把这种包静默登记成 loaded，侧栏显示"已加载"而其代码
                 // 一行没跑，比报错更误导。故如实报跳过。
-                if (!string.IsNullOrEmpty(ext.assembly) || ext.EffectiveClass.Length > 0)
+                if (!string.IsNullOrEmpty(ext.assembly) || ext.EffectiveClass.Length > 0 || ext.IsScripted)
                 {
                     skipped++;
                     var unsupported = string.Format(
-                        "unsupported extension type '{0}': the entry declares code (assembly/class) but this host has no such plugin kind"
+                        "unsupported extension type '{0}': the entry declares code (assembly/class or runtime/entry) but this host has no such plugin kind"
                         + " (supported: format / voice / instrument / effect; see docs/plugin-development.md)",
                         string.IsNullOrEmpty(type) ? "(empty)" : type);
                     entry.Status = ExtensionEntryStatus.Skipped;
@@ -258,6 +296,89 @@ internal static class ExtensionManager
                 }
 
                 loaded++;
+                continue;
+            }
+
+            // ── 脚本条目（sidecar；docs/scripted-plugin-sidecar-design.md）：走加载门而非 ALC ──
+            // M1：format 条目 runtime 就位即注册 RemoteFormat（懒 spawn 的 RPC 代理，注册表零感知）；
+            // voice/effect 的注册支随 M2/M3，此前 runtime 就位也如实 Skipped。
+            if (ext.IsScripted)
+            {
+                var gate = ScriptedEntryGate.Evaluate(ext, path);
+                if (gate.Status == ScriptedGateStatus.Ready && FormatsManager.IsFormatKind(kind))
+                {
+                    if (RegisterScriptedFormatEntry(description.id ?? string.Empty, path, ext, gate.Runtime, displayName: ext.LocalizedName(lang), out var scriptedError))
+                    {
+                        loaded++;
+                    }
+                    else
+                    {
+                        failed++;
+                        entry.Status = ExtensionEntryStatus.Failed;
+                        entry.Error = scriptedError;
+                        reasons.Add(string.Format("{0}: {1}", IdentityLabel(ext, kind), scriptedError));
+                        Log.Error(string.Format("Extension {0}: {1}: {2}", description.name, IdentityLabel(ext, kind), scriptedError));
+                    }
+                }
+                else if (gate.Status == ScriptedGateStatus.Ready && kind == "effect")
+                {
+                    if (RegisterScriptedEffectEntry(description.id ?? string.Empty, path, ext, gate.Runtime, ext.LocalizedName(lang), out var effectError))
+                    {
+                        loaded++;
+                    }
+                    else
+                    {
+                        failed++;
+                        entry.Status = ExtensionEntryStatus.Failed;
+                        entry.Error = effectError;
+                        reasons.Add(string.Format("{0}: {1}", IdentityLabel(ext, kind), effectError));
+                        Log.Error(string.Format("Extension {0}: {1}: {2}", description.name, IdentityLabel(ext, kind), effectError));
+                    }
+                }
+                else if (gate.Status == ScriptedGateStatus.Ready && kind == "voice")
+                {
+                    if (RegisterScriptedVoiceEntry(description.id ?? string.Empty, path, ext, gate.Runtime, ext.LocalizedName(lang), out var voiceError))
+                    {
+                        loaded++;
+                    }
+                    else
+                    {
+                        failed++;
+                        entry.Status = ExtensionEntryStatus.Failed;
+                        entry.Error = voiceError;
+                        reasons.Add(string.Format("{0}: {1}", IdentityLabel(ext, kind), voiceError));
+                        Log.Error(string.Format("Extension {0}: {1}: {2}", description.name, IdentityLabel(ext, kind), voiceError));
+                    }
+                }
+                else if (gate.Status == ScriptedGateStatus.Ready)
+                {
+                    // 引擎类注册支未落地（instrument 明确不承诺）——如实 Skipped，不谎报。
+                    skipped++;
+                    var pending = string.Format("scripted {0} registration is not implemented by this host build yet ({1})", kind, gate.Message);
+                    entry.Status = ExtensionEntryStatus.Skipped;
+                    entry.Error = pending;
+                    reasons.Add(string.Format("{0}: {1}", IdentityLabel(ext, kind), pending));
+                }
+                else if (gate.Status == ScriptedGateStatus.Skipped)
+                {
+                    skipped++;
+                    entry.Status = ExtensionEntryStatus.Skipped;
+                    entry.Error = gate.Message;
+                    reasons.Add(string.Format("{0}: {1}", IdentityLabel(ext, kind), gate.Message));
+                    Log.Warning(string.Format("Extension {0}: {1}: {2}", description.name, IdentityLabel(ext, kind), gate.Message));
+                    // 自动部署档（默认关）：仅"探测落空"这一种跳过触发（deps/未知格子不动），
+                    // 后台一次、成功即 Reload——绝不在此加载路径上等网络。
+                    if (gate.RuntimeMissing && gate.Spec is { } fetchSpec && Configs.SettingsRegistry.ScriptedAutoFetchRuntime.Property.Value)
+                        RuntimeInstallQueue.Schedule(description.id ?? string.Empty, path, fetchSpec);
+                }
+                else
+                {
+                    failed++;
+                    entry.Status = ExtensionEntryStatus.Failed;
+                    entry.Error = gate.Message;
+                    reasons.Add(string.Format("{0}: {1}", IdentityLabel(ext, kind), gate.Message));
+                    Log.Error(string.Format("Extension {0}: {1}: {2}", description.name, IdentityLabel(ext, kind), gate.Message));
+                }
                 continue;
             }
 
@@ -619,6 +740,81 @@ internal static class ExtensionManager
             hasImport ? (importSuffixes, () => (IImportFormat)ictor!.Invoke(null)) : null,
             hasExport ? (exportSuffixes, () => (IExportFormat)ector!.Invoke(null)) : null,
             declaresSettings, className);
+        error = null;
+        return true;
+    }
+
+    // 脚本 format 条目的注册（M1）：镜像 RegisterFormatEntry 的校验次序——后缀声明、身份集、
+    // 同实现禁止拆条目（脚本侧"实现"的身份键 = entry 路径）、然后交 FormatsManager。设置声明在
+    // 脚本侧来自握手字段（M2 接 IExtensionSettings 代理），M1 恒 false。工厂返回包级共享的
+    // RemoteFormat（无状态代理；spawn 与重启都藏在 SidecarHost 里）。
+    static bool RegisterScriptedFormatEntry(string packageId, string packageDir, ExtensionInfo ext, RuntimeInfo runtime, string displayName, out string? error)
+    {
+        if (!ext.ValidateSuffixDeclaration(out error))
+            return false;
+
+        var importSuffixes = ext.EffectiveImportSuffixes;
+        var exportSuffixes = ext.EffectiveExportSuffixes;
+        bool hasImport = importSuffixes.Length > 0;
+        bool hasExport = exportSuffixes.Length > 0;
+        var identity = ext.EffectiveIdentitySuffixes;
+
+        var entryPath = (ext.entry ?? string.Empty).Trim().Replace('\\', '/');
+        var conflict = FormatsManager.FindConflictingEntry(packageId, entryPath, identity);
+        if (conflict != null)
+        {
+            error = string.Format(
+                "'entry' '{0}' is already declared by this package's format entry '{1}' with overlapping suffixes; one implementation must be one entry",
+                entryPath, conflict);
+            return false;
+        }
+
+        var host = SidecarRegistry.For(packageId, packageDir, runtime, entryPath);
+        host.ExpectFormat(entryPath, importSuffixes, exportSuffixes);
+        var proxy = new RemoteFormat(host, entryPath, ext.settings);
+        FormatsManager.RegisterFormat(packageId, FormatsManager.DeriveKind(hasImport, hasExport), identity, displayName,
+            hasImport ? (importSuffixes, () => (IImportFormat)proxy) : null,
+            hasExport ? (exportSuffixes, () => (IExportFormat)proxy) : null,
+            declaresSettings: ext.settings, className: entryPath);
+        error = null;
+        return true;
+    }
+
+    // 脚本 effect 条目的注册（M2b）：engine id 必填且不可跨包复制拆条目（一个条目 = 一个引擎实例）；
+    // 懒 spawn 语义与 .NET 引擎的"Init 按需"同构——EffectManager.GetInitedEngine 首次用到才调 Init，
+    // RemoteEffectEngine.Init 承担 spawn + engine.init（长任务无超时，失败上抛 = passthrough 触发点）。
+    static bool RegisterScriptedEffectEntry(string packageId, string packageDir, ExtensionInfo ext, RuntimeInfo runtime, string displayName, out string? error)
+    {
+        var engineId = (ext.engine ?? string.Empty).Trim();
+        if (engineId.Length == 0)
+        {
+            error = "scripted effect entries must declare 'engine' (the immutable id projects reference)";
+            return false;
+        }
+        var entryPath = (ext.entry ?? string.Empty).Trim().Replace('\\', '/');
+        var host = SidecarRegistry.For(packageId, packageDir, runtime, entryPath);
+        host.AutoRestart = true;   // effect 是被 push 调度的常驻引擎：崩溃后自动 warm 回来（§3.2）
+        host.ExpectEngine("effect", engineId);
+        EffectManager.RegisterEngine(packageId, engineId, displayName, new RemoteEffectEngine(host, engineId, ext.settings));
+        error = null;
+        return true;
+    }
+
+    // 脚本 voice 条目的注册（M3c）：同 effect 家族——engine id 必填；懒 spawn 由首次 Init 触发
+    // （VoicesManager 按需 Init 的既有语义原样成立）。AutoRestart：合成调度是 push 型，崩了自动 warm 回。
+    static bool RegisterScriptedVoiceEntry(string packageId, string packageDir, ExtensionInfo ext, RuntimeInfo runtime, string displayName, out string? error)
+    {
+        var engineId = (ext.engine ?? string.Empty).Trim();
+        if (engineId.Length == 0)
+        {
+            error = "scripted voice entries must declare 'engine' (the immutable id projects reference)";
+            return false;
+        }
+        var entryPath = (ext.entry ?? string.Empty).Trim().Replace('\\', '/');
+        var host = SidecarRegistry.For(packageId, packageDir, runtime, entryPath);
+        host.AutoRestart = true;
+        host.ExpectEngine("voice", engineId);
+        VoicesManager.RegisterEngine(packageId, engineId, displayName, new RemoteVoiceEngine(host, engineId, ext.settings));
         error = null;
         return true;
     }

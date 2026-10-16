@@ -58,6 +58,7 @@ internal static class CommandRegistry
         new ExtensionSetSettingCommand(),
         new ExtensionEnableCommand(),
         new ExtensionInstallCommand(),
+        new ExtensionFetchRuntimeCommand(),
         new ExtensionUninstallCommand(),
         new ExtensionCancelUninstallCommand(),
     };

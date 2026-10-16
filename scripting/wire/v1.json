@@ -1,0 +1,138 @@
+{
+  "protocol-version": 1,
+  "status": "M4b: control plane + format + settings + effect + voice + inline/shm audio plane",
+  "framing": {
+    "transport": "stdio (binary), one message per frame",
+    "frame": "Content-Length: <byte-length>\\r\\n\\r\\n<UTF-8 JSON body>",
+    "max-frame-bytes": 536870912,
+    "stdout-discipline": "child stdout is protocol-only; all logging goes through the log.write notification, stderr is captured by the host for diagnostics"
+  },
+  "jsonrpc": {
+    "version": "2.0",
+    "ids": "opaque strings (host uses GUID-n); notifications carry no id",
+    "error-codes": ["bad_request", "unsupported_protocol", "stale_epoch", "stale_handle", "runtime_error", "cancelled", "timeout", "io"]
+  },
+  "environment": {
+    "TUNELAB_PROTOCOL": "wire version the host speaks; child must refuse handshake otherwise",
+    "TUNELAB_EPOCH": "monotonic process-generation counter, 1 per (re)spawn",
+    "TUNELAB_PACKAGE_ID": "manifest package id",
+    "TUNELAB_NONCE": "per-boot random string; the shm region name and stderr log carry it (stale leftovers stay identifiable)",
+    "TUNELAB_SHM_DIR": "absolute directory holding shm region files (file-backed, cross-platform); only meaningful when the facade declares audio_plane=shm"
+  },
+  "methods": {
+    "initialize": {
+      "direction": "host->sidecar",
+      "params": { "protocol": "int", "package_id": "string", "entries": [{ "type": "format", "entry": "manifest-relative path", "import_suffixes": ["..."], "export_suffixes": ["..."] }] },
+      "result": { "provides": [{ "type": "string", "entry": "string", "can_import": "bool", "can_export": "bool" }], "capabilities": { "audio_plane": "inline|shm", "curve_plane": "inline|shm" }, "runtime": { "exe": "string", "version": "string", "arch": "string", "flavor": "python|node|lua|luajit" }, "facade_version": "string" },
+      "notes": "every host-declared format entry MUST be answered in provides; a missing one is a protocol violation and the host kills the child"
+    },
+    "format.import": {
+      "direction": "host->sidecar",
+      "params": { "entry": "string", "stream_ref": "absolute path of a temp file holding the source bytes" },
+      "result": { "project": "ProjectInfo, see value-encoding" },
+      "temp-files": "under <TuneLabFolder>/Temp/io-<nonce>/; host deletes after the call; the child must not outlive them"
+    },
+    "format.export": {
+      "direction": "host->sidecar",
+      "params": { "entry": "string", "stream_ref": "absolute path the sidecar must write the exported bytes to", "project": "ProjectInfo, see value-encoding" },
+      "result": {},
+      "notes": "host owns the final output stream and copies stream_ref into it atomically"
+    },
+    "log.write": { "direction": "sidecar->host", "notification": true, "params": { "level": "info|warning|error", "message": "string" } },
+    "ping": {
+      "direction": "host->sidecar", "params": { "epoch": "int" }, "result": {},
+      "notes": "heartbeat: host pings every 15s with a 5s timeout; 4 consecutive failures = wedged sidecar, host kills the tree (facades MUST keep the RPC loop responsive — run user code on worker threads)"
+    },
+    "settings.get_config": {
+      "direction": "host->sidecar", "params": { "entry": "string" }, "result": { "config": "<config>" },
+      "notes": "schema for the extension settings panel (manifest entry field \"settings\": true); must work BEFORE engine init; declared ONLY by entries that have settings"
+    },
+    "settings.apply": {
+      "direction": "host->sidecar",
+      "params": { "entry": "string", "values": "<property-object map>" },
+      "shape": "notification while running; also delivered as initialize.params.entries[].settings (key 'settings') when the host holds values before (re)spawn",
+      "notes": "password fields are decrypted host-side before delivery — same trust level as an in-process plugin's ApplySettings"
+    },
+    "engine.init": {
+      "direction": "host->sidecar", "params": { "engine": "string" }, "result": {},
+      "notes": "long task allowed (models): host waits without RPC timeout; death/error surfaces as passthrough; init_progress notification reserved"
+    },
+    "engine.destroy": { "direction": "host->sidecar", "params": { "engine": "string" }, "notification": true },
+    "engine.create_session": { "direction": "host->sidecar", "params": { "engine": "string", "session": "string" }, "result": {} },
+    "session.dispose": { "direction": "host->sidecar", "params": { "engine": "string", "session": "string" }, "notification": true },
+    "effect.cancel": { "direction": "host->sidecar", "params": { "engine": "string", "session": "string" }, "notification": true, "notes": "best-effort; a wedged user handler still faces heartbeat" },
+    "effect.get_property_config": { "direction": "host->sidecar", "params": { "engine": "string", "effects": ["<property-object map>"] }, "result": { "config": "<config>" } },
+    "effect.get_automation_configs": { "direction": "host->sidecar", "params": { "engine": "string", "effects": ["<property-object map>"] }, "result": { "tracks": "<automation-map>" } },
+    "effect.get_synthesized_parameter_configs": { "direction": "host->sidecar", "params": { "engine": "string", "effects": ["<property-object map>"] }, "result": { "tracks": "<automation-map>" } },
+    "effect.process": {
+      "direction": "host->sidecar", "params": { "engine": "string", "session": "string", "input": { "sample_offset": "i64", "sample_count": "i32", "sample_rate": "i32" } },
+      "result": {}, "timeout": "none (level semantics; the reply IS completion — the host released its data thread meanwhile)",
+      "notes": "sidecar publishes via host.* reverse calls + effect.status/effect.parameters notifications below"
+    },
+    "effect.status": { "direction": "sidecar->host", "notification": true, "params": { "engine": "string", "session": "string", "segments": [{ "start": "d", "end": "d", "status": "pending|synthesizing|synthesized|failed", "progress": "d?", "message": "s?" }] } },
+    "effect.parameters": { "direction": "sidecar->host", "notification": true, "params": { "engine": "string", "session": "string", "parameters": { "<id>": { "segments": "list of list of [t, v] pairs" } } } },
+    "voice.get_catalog": { "direction": "host->sidecar", "params": { "engine": "string" }, "result": { "sources": [{ "id": "string", "name": "string", "description": "string" }], "layout": "list of {voice:id} (leaf) or {name, group:[...]} (group node)" }, "notes": "pulled at engine.init and on engine.catalog_changed; host caches (VoiceSourceInfos must never block)" },
+    "voice.get_automation_configs": { "direction": "host->sidecar", "params": { "engine": "string", "parts": "[part-view]" }, "result": { "tracks": "<automation-map>" } },
+    "voice.get_synthesized_parameter_configs": { "direction": "host->sidecar", "params": { "engine": "string", "parts": "[part-view]" }, "result": { "tracks": "<automation-map>" } },
+    "voice.get_part_property_config": { "direction": "host->sidecar", "params": { "engine": "string", "parts": "[part-view]" }, "result": { "config": "<config>" } },
+    "voice.get_note_property_config": { "direction": "host->sidecar", "params": { "engine": "string", "part": "[part-view]", "notes": "[note-view]" }, "result": { "config": "<config>" } },
+    "voice.get_phoneme_property_configs": { "direction": "host->sidecar", "params": { "engine": "string", "part": "[part-view]", "notes": "[note-view]" }, "result": { "slots": [{ "slot": "int", "config": "<config>" }] } },
+    "voice.default_lyric": { "direction": "host->sidecar", "params": { "engine": "string", "session": "string" }, "result": { "lyric": "string" }, "notes": "bounded (250ms) call from the data thread, host caches last value" },
+    "voice.is_continuation": { "direction": "host->sidecar", "params": { "engine": "string", "session": "string", "note": "[note-view incl id/start/end/pitch/lyric/leading/body/body_offset]" }, "result": { "continuation": "bool" }, "notes": "bounded + fingerprint-cached host-side; the note rides along as values (stateless sidecar)" },
+    "voice.peek": { "direction": "host->sidecar", "params": { "engine": "string", "session": "string", "start": "d", "end": "d" }, "result": { "range": "[s, e] | null" }, "notes": "bounded + (window,dirtySeq)-cached host-side; commit is level-idempotent so a stale one-beat answer is safe" },
+    "voice.synthesize": { "direction": "host->sidecar", "params": { "engine": "string", "session": "string", "start": "d", "end": "d" }, "result": {}, "timeout": "none (the reply IS completion)", "notes": "sidecar pulls truth via host.notes / host.snapshot / host.evaluate (pitch|pitch_deviation|<track>) and emits via host.segment_* + voice.status/pitch/phonemes/parameters" },
+    "voice.dirty": { "direction": "host->sidecar", "notification": true, "params": { "session": "string", "kind": "notes|fields|automation|part_properties|committed", "track": "string?", "start": "d?", "end": "d?" }, "notes": "coarse forwarded signals (the remote mapping of 廉价标脏): the sidecar keeps an incremental dirty ledger and RE-PULLS full truth (notes/snapshot) when it acts; facades surface it as user.on_dirty(kind, params)" },
+    "voice.cancel": { "direction": "host->sidecar", "params": { "engine": "string", "session": "string" }, "notification": true, "notes": "same contract as effect.cancel (best-effort; a wedged user handler still faces heartbeat); facades surface it as user.cancel()/user.on_cancel()" },
+    "voice.status": { "direction": "sidecar->host", "notification": true, "params": { "engine": "string", "session": "string", "segments": "[same shape as effect.status]" } },
+    "voice.pitch": { "direction": "sidecar->host", "notification": true, "params": { "engine": "string", "session": "string", "segments": "list of list of [seconds, semitones] pairs" } },
+    "voice.phonemes": { "direction": "sidecar->host", "notification": true, "params": { "engine": "string", "session": "string", "syllables": { "<note_id>": { "leading": "[{symbol,duration,stretch_weight}]", "body": "[same]", "body_offset": "d" } } }, "notes": "keyed by note id = the request_id echoed back from host.snapshot" },
+    "voice.parameters": { "direction": "sidecar->host", "notification": true, "params": { "engine": "string", "session": "string", "parameters": "{same shape as effect.parameters}" } },
+    "engine.catalog_changed": { "direction": "sidecar->host", "notification": true, "params": { "engine": "string" }, "notes": "voice: catalog changed → host re-pulls voice.get_catalog" },
+    "host.notes": { "direction": "sidecar->host", "params": { "engine": "string", "session": "string" }, "result": { "notes": "[note-view with ids]" }, "notes": "voice reverse pull, data-thread marshal" },
+    "host.snapshot": { "direction": "sidecar->host", "params": { "engine": "string", "session": "string", "note_ids": ["string"] }, "result": { "snapshot": { "notes": "[snapshot-note incl request_id]", "part_properties": "<property-object map>", "pitch": "pitch", "pitch_deviation": "pitch_deviation", "automations": ["track id"] } }, "notes": "evaluators never cross: pull their values via host.evaluate with these track keys" },
+    "host.input_read": { "direction": "sidecar->host", "params": { "engine": "string", "session": "string", "offset": "i32 (segment-relative)", "count": "i32?" }, "result": { "data": "base64 f32-LE" }, "notes": "host executes on the data thread (live-view discipline) with a 30s marshal cap; chunk limit 1<<20 samples" },
+    "host.properties": { "direction": "sidecar->host", "params": { "engine": "string", "session": "string", "keys": ["string"] }, "result": { "values": "<property-object map>" } },
+    "host.automation_tracks": { "direction": "sidecar->host", "params": { "engine": "string", "session": "string" }, "result": { "tracks": ["string"] } },
+    "host.evaluate": { "direction": "sidecar->host", "params": { "engine": "string", "session": "string", "track": "string", "positions": "base64 f64-LE (non-decreasing)" }, "result": { "values?": "base64 f64-LE (inline, <64KB)", "region?": "{path, data_offset, count} on the shm plane when the batch is >=64KB (§5.6 curve result ring)" }, "notes": "live automation evaluated on the host's data thread — interpolation stays host-side (§5.6). Exactly one of values/region is present. The RPC response is the memory barrier for the region (the session serializes its own calls, so the ring buffer is reused safely)" },
+    "host.segment_create": { "direction": "sidecar->host", "params": { "engine": "string", "session": "string", "sample_offset": "i64", "sample_count": "i32", "sample_rate": "i32" }, "result": { "segment": "string", "region?": "{path, name, data_offset, sample_offset, sample_count, sample_rate} when the handshake negotiated audio_plane=shm" }, "notes": "shm plane (§7): the facade maps the region file and writes the body directly; the host copies region->segment buffer on commit (the commit control message is the only barrier)" },
+    "host.segment_write": { "direction": "sidecar->host", "params": { "engine": "string", "session": "string", "segment": "string", "offset": "i32", "data": "base64 f32-LE" }, "result": {}, "notes": "inline fallback (PUC Lua / non-mmap platforms). On the shm plane the facade normally skips this and writes the region; if it is sent for a shm segment the host proxies it into the region body" },
+    "host.segment_commit": { "direction": "sidecar->host", "params": { "engine": "string", "session": "string", "segment": "string" }, "result": {}, "notes": "the sole barrier into the effect graph; on the shm plane this is where the host copies the region body into the segment buffer" },
+    "host.segment_resize": { "direction": "sidecar->host", "params": { "engine": "string", "session": "string", "segment": "string", "sample_offset": "i64", "sample_count": "i32" }, "result": { "region?": "the fresh region when the segment is shm-backed (the facade must re-map; the old view is invalid)" }, "notes": "identity-preserving geometry change (§6); on the shm plane content is flushed region->segment, the host resizes, and a new region is laid over the resized buffer" },
+    "host.segment_dispose": { "direction": "sidecar->host", "params": { "engine": "string", "session": "string", "segment": "string" }, "result": {} },
+    "shutdown": { "direction": "host->sidecar", "params": { "reason": "string" }, "result": {} }
+  },
+  "value-encoding": {
+    "naming": "property names camelCase; public fields included (Point.X/Y); enums as camelCase strings, numbers accepted on read",
+    "property-value": {
+      "bool": { "b": true },
+      "number": { "n": 1.5 },
+      "string": { "s": "x" },
+      "object": { "o": { "key": "<property-value>" } },
+      "array": { "a": ["<property-value>"] },
+      "null": null,
+      "nan-or-infinity": "NEVER a bare JSON token — always the strings \"NaN\"|\"Infinity\"|\"-Infinity\" (inside n payloads and for any plain double field alike; legal JSON, host reads all forms, writers MUST write strings)",
+      "multiple": "never crosses the wire (UI tri-state)",
+      "reading-plain-values": "readers MAY accept untagged JSON natives (bool/number/string/array/object); bare objects under a properties map with exactly one reserved key b|n|s|o|a of matching value kind are treated as tagged — authors who need such single-underscore-free literal maps as property objects must nest them under another key"
+    },
+    "property-object": "JSON object of tagged values; appears at key \"properties\" inside notes/parts/effects/projects trees",
+    "foundation-map": "Map<string,T> ↔ JSON object (insertion order preserved)",
+    "partinfo-discriminator": "PartInfo (abstract) ↔ concrete fields plus \"kind\": \"midi\" | \"audio\"",
+    "config": {
+      "note": "controller configs are factory-built on the host side; the wire carries DECLARATIONS only — custom INormalizedScale/INumberFormat/IDragResponse lambdas cannot cross (host codec throws on unknown kinds)",
+      "slider": { "type": "slider", "defaultValue": "d", "scale": { "kind": "linear|integer", "min": "d", "max": "d" }, "format": { "kind": "decimals", "digits": "n" }, "randomizable": "b?", "minLabel": "s?", "maxLabel": "s?" },
+      "checkbox": { "type": "checkbox", "defaultValue": "b" },
+      "textbox": { "type": "textbox", "defaultValue": "s", "password": "b?", "multiline": "b?", "maxVisibleLines": "n?" },
+      "combo": { "type": "combo", "items": [{ "value": "<pv>", "displayText": "s?", "separator": "b?", "subItems": "[items]" }], "default": "<pv>?" },
+      "number": { "type": "number", "defaultValue": "d", "min": "d?", "max": "d?", "step": "d?", "sensitivity": "d?", "randomizable": "b?", "format": "decimals?" },
+      "path": { "type": "path", "defaultValue": "s", "target": "file|folder", "fileTypes": [{ "name": "s", "patterns": ["s"] }], "pickerTitle": "s?" },
+      "automation": { "type": "automation", "scale": "as slider (or minValue/maxValue when absent)", "defaultValue": "d|\"NaN\" (=piecewise)", "color": "s?", "format": "decimals?", "minLabel": "s?", "maxLabel": "s?", "randomizable": "b?" },
+      "object": { "type": "object", "properties": [{ "id": "s", "displayText": "s?", "config": "<config>" }] },
+      "automation-map": "[{ id, displayText?, config: <automation> }] (ordered array)"
+    }
+  },
+  "lifecycle": {
+    "parent-death": "child MUST exit on stdin EOF (all platforms) and additionally arm OS-level guards: Windows host-side Job Object, Linux PR_SET_PDEATHSIG, macOS ppid poll — all inside the facade/host",
+    "crash": "host discards the process generation (epoch++), fails the in-flight calls with runtime_error, respawns on the next call with backoff; 5 deaths in 10 minutes open the circuit",
+    "progress-events-settings": "reserved for M2/M3 method groups; unknown notifications MUST be ignored by both sides (forward compatibility)"
+  }
+}

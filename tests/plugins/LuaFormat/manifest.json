@@ -1,0 +1,13 @@
+{
+  "id": "com.tunelab.test.luaformat",
+  "name": "Lua Format (txt notes)",
+  "version": "1.0.0",
+  "author": "TuneLab Tests",
+  "description": "脚本 format 样例（Lua）：一行一音符的 .lpx 文本格式。CI 三平台的 lua 靶（本地无解释器时 vacuous）。",
+  "sdk-version": "1.1",
+  "type": "format",
+  "suffixes": ["lpx"],
+  "runtime": "lua>=5.1",
+  "entry": "plugin/main.lua",
+  "platforms": ["win", "osx", "linux"]
+}

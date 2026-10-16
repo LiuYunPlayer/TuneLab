@@ -1,0 +1,13 @@
+{
+  "id": "com.tunelab.test.pyeffect",
+  "name": "Py Effect (gain)",
+  "version": "1.0.0",
+  "author": "TuneLab Tests",
+  "description": "脚本 effect 样例：把整段音频乘以固定增益。声明 amount 滑条与 loudness 回显轨。真解释器 E2E 靶。",
+  "sdk-version": "1.1",
+  "type": "effect",
+  "engine": "PyGain",
+  "runtime": "python>=3.10,<4",
+  "entry": "plugin/main.py",
+  "platforms": ["win", "osx", "linux"]
+}

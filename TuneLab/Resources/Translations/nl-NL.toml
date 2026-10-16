@@ -107,6 +107,7 @@
 "No value here, vibrato has no effect" = "Hier is geen waarde, vibrato heeft geen effect"
 
 [Dialog]
+"Fetch Runtime" = "Runtime downloaden"
 "OK" = "OK"
 "Cancel" = "Annuleren"
 "Yes" = "Ja"

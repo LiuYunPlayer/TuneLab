@@ -18,6 +18,7 @@ using TuneLab.I18N;
 using TuneLab.Utils;
 
 using TuneLab.Extensions.Formats;
+using TuneLab.Extensions.Scripted;
 using TuneLab.Extensions.Voices;
 namespace TuneLab.UI;
 
@@ -334,6 +335,8 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
                 Pages = pages,
                 IsLegacy = result.Generation == ExtensionGeneration.Legacy,
                 IsPendingUninstall = ExtensionManager.PendingUninstalls.Contains(result.DirectoryPath),
+                CanFetchRuntime = TryRuntimeSpecForFetch(result, out var runtimeSpec),
+                RuntimeSpecText = runtimeSpec,
             };
 
             mDetailWindow?.Close();
@@ -365,6 +368,8 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
             };
             mDetailWindow = win;
             win.SetRestartRequired(NeedsRestart(result));
+            if (info.CanFetchRuntime)
+                win.FetchRuntimeRequested += () => OnFetchRuntime(win, result);
 
             if (TopLevel.GetTopLevel(mContentPanel) is Avalonia.Controls.Window owner)
                 win.Show(owner);
@@ -372,6 +377,53 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
                 win.Show();
         }
         catch { }
+    }
+
+    // 某条脚本条目因"探测不到解释器"被跳过（§8.6）→ 详情窗给「下载运行时」按钮；spec 串回读自 manifest。
+    static bool TryRuntimeSpecForFetch(ExtensionLoadResult result, out string specText)
+    {
+        specText = string.Empty;
+        bool missing = result.Entries.Any(e => e.Status == ExtensionEntryStatus.Skipped
+            && e.Error != null && e.Error.StartsWith("no matching runtime", StringComparison.Ordinal));
+        if (!missing)
+            return false;
+        try
+        {
+            using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(result.DirectoryPath, "manifest.json")));
+            var root = doc.RootElement;
+            var candidates = new List<JsonElement> { root };
+            if (root.TryGetProperty("extensions", out var exts) && exts.ValueKind == JsonValueKind.Array)
+                candidates.AddRange(exts.EnumerateArray());
+            foreach (var c in candidates)
+                if (c.TryGetProperty("runtime", out var r) && r.ValueKind == JsonValueKind.String
+                    && TuneLab.Extensions.Scripted.RuntimeSpec.TryParse(r.GetString(), out _, out _))
+                {
+                    specText = r.GetString()!;
+                    return true;
+                }
+        }
+        catch { }
+        return false;
+    }
+
+    // 点「下载运行时」：后台一发（queue 按包去重），完成回 UI 线程重载该包并刷新卡片；按钮在途转圈。
+    void OnFetchRuntime(ExtensionDetailWindow win, ExtensionLoadResult result)
+    {
+        if (!TryRuntimeSpecForFetch(result, out var specText) || !RuntimeSpec.TryParse(specText, out var spec, out _))
+            return;
+        win.SetFetchRuntimeBusy(true);
+        var pkgId = result.Id ?? result.DirectoryPath;
+        RuntimeInstallQueue.Schedule(pkgId, result.DirectoryPath, spec, onDone: (dir, ok, message) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            win.SetFetchRuntimeBusy(false);
+            if (ok)
+            {
+                ExtensionManager.Reload(dir);
+                RefreshExtensions();
+            }
+            else
+                win.SetFetchRuntimeResult(false, message);   // M5c：失败原因回挂按钮 tooltip（可重试）
+        }));
     }
 
     private async void OnUninstallExtension(ExtensionItemView itemView)

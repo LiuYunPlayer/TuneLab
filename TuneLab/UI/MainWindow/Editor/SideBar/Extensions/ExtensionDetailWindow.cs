@@ -61,6 +61,9 @@ internal sealed class ExtensionDetailInfo
     public IReadOnlyList<ExtensionDetailPage> Pages = [];
     public bool IsLegacy;                          // 决定"无文档"占位的措辞：legacy 是机制使然，不是作者没写
     public bool IsPendingUninstall;                // 打开时该插件是否已处于待卸载态（决定卸载按钮初始态）
+    // 脚本包探测不到解释器（某条目错误以 "no matching runtime" 开头）→ 底部给「下载运行时」按钮（§8.6 半自动档）。
+    public bool CanFetchRuntime;
+    public string RuntimeSpecText = string.Empty;  // manifest 的 runtime 串（点击时投给下载器）
 }
 
 // 扩展详情窗：点侧栏条目弹出，逐条目渲染 introduction（正文完全由作者定义、宿主不解释）。
@@ -74,8 +77,29 @@ internal sealed class ExtensionDetailWindow : Window
     public event Action<string>? SettingsRequested;
     public event Action? UninstallRequested;
     public event Action? CancelUninstallRequested;
+    // 「下载运行时」按钮被按（脚本包缺解释器，§8.6）：provider 投给 RuntimeInstallQueue 并经 SetFetchRuntimeBusy 反馈态。
+    public event Action? FetchRuntimeRequested;
     // 本窗改了启停（包级或条目级，选择已落盘）。provider 据此同步侧栏卡片与「需重启」提示。
     public event Action? ActivationChanged;
+
+    TextBlock? mFetchRuntimeText;
+    Border? mFetchRuntimeBtn;
+    bool mFetchRuntimeBusy;
+
+    // 下载在途：按钮文案变"…"且不再触发事件（防双击重复排队；queue 本身也按包去重）。
+    public void SetFetchRuntimeBusy(bool busy)
+    {
+        mFetchRuntimeBusy = busy;
+        if (mFetchRuntimeText != null)
+            mFetchRuntimeText.Text = busy ? "…" : "Fetch Runtime".Tr(TC.Dialog);
+    }
+
+    // M5c：下载失败时把原因透到按钮 tooltip（按钮保持可点=可重试），成功则交给 Reload 刷新窗口。
+    public void SetFetchRuntimeResult(bool ok, string message)
+    {
+        if (ok || mFetchRuntimeBtn == null) return;
+        ToolTip.SetTip(mFetchRuntimeBtn, string.IsNullOrEmpty(message) ? "runtime fetch failed" : message);
+    }
 
     public ExtensionDetailWindow(ExtensionDetailInfo info)
     {
@@ -338,10 +362,40 @@ internal sealed class ExtensionDetailWindow : Window
             HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
             VerticalAlignment = Avalonia.Layout.VerticalAlignment.Bottom,
         };
+        if (info.CanFetchRuntime)
+            bottomRow.Children.Add(BuildFetchRuntimeButton(info.RuntimeSpecText));
         bottomRow.Children.Add(BuildUninstallButton(info.IsPendingUninstall));
         col.AddDock(bottomRow, Dock.Bottom);
 
         return col;
+    }
+
+    // 「下载运行时」：脚本包缺解释器时的半自动入口（§8.6）；文案即 manifest 的 runtime 串提示装什么。
+    Control BuildFetchRuntimeButton(string runtimeSpec)
+    {
+        mFetchRuntimeText = new TextBlock
+        {
+            Text = "Fetch Runtime".Tr(TC.Dialog),
+            FontSize = 12,
+            Foreground = Style.LIGHT_WHITE.ToBrush(),
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+        };
+        var btn = new Border
+        {
+            Background = Style.BUTTON_NORMAL.ToBrush(),
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(12, 6),
+            Cursor = new Cursor(StandardCursorType.Hand),
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+            Child = mFetchRuntimeText,
+        };
+        if (!string.IsNullOrEmpty(runtimeSpec))
+            ToolTip.SetTip(btn, runtimeSpec);
+        btn.PointerEntered += (_, _) => { if (!mFetchRuntimeBusy) btn.Background = Style.BUTTON_NORMAL_HOVER.ToBrush(); };
+        btn.PointerExited += (_, _) => { if (!mFetchRuntimeBusy) btn.Background = Style.BUTTON_NORMAL.ToBrush(); };
+        btn.PointerPressed += (_, e) => { e.Handled = true; if (!mFetchRuntimeBusy) FetchRuntimeRequested?.Invoke(); };
+        mFetchRuntimeBtn = btn;
+        return btn;
     }
 
     // 统一操作按钮：可选前置图标 + 文本，hover 变色，点击回调。右对齐、宽度贴合内容。
