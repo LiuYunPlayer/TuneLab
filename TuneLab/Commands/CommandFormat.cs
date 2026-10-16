@@ -35,6 +35,8 @@ internal static class ConfigText
             ? string.Format("automation track, range [{0}, {1}], piecewise (no baseline)", FormatNum(a.MinValue), FormatNum(a.MaxValue))
             : string.Format("automation track, range [{0}, {1}], default {2}", FormatNum(a.MinValue), FormatNum(a.MaxValue), FormatNum(a.DefaultValue)),
         ObjectConfig => "object (grouped fields)",
+        // 按钮没有值：点明它不是可设的字段，免得模型去 set 它。
+        ButtonConfig b => string.Format("button \"{0}\" (an action in the panel, holds no value; can't be set)", b.Text),
         _ => "value",
     };
 

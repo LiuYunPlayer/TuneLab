@@ -247,7 +247,7 @@ internal static class ScriptToolMenu
             var owner = TopLevel.GetTopLevel(anchor) as Window;
             if (owner != null)
             {
-                var window = new ScriptInputWindow(tool.DisplayName, schema,
+                var window = new PropertyFormWindow(tool.DisplayName, schema,
                     vals => ScriptRunner.GetInputConfig(sProject?.Invoke() ?? project, sCurrentPart, sQuantization, Lang, sSelection, sPianoSelection, code, vals, CancellationToken.None),
                     initialValues);
                 var picked = await window.ShowDialog<PropertyObject?>(owner);

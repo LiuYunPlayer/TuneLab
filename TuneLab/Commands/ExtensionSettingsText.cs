@@ -119,6 +119,9 @@ internal static class ExtensionSettingsText
                     ? (default, string.Format("\"{0}\" is text; got a boolean.", key))
                     : (PropertyValue.Create(JsonScalar.Text(raw)), null);
 
+            case ButtonConfig:
+                return (default, string.Format("\"{0}\" is a button, not a value — it can only be clicked in the Settings window's Extensions page.", key));
+
             default:
                 return (default, string.Format("\"{0}\" is a grouped/complex field that can't be set here — ask the user to edit it in the Settings window's Extensions page.", key));
         }

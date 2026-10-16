@@ -1,10 +1,24 @@
 #nullable enable
+static TuneLab.SDK.ButtonConfig.Create(string! text, System.Func<TuneLab.SDK.IButtonClickContext!, System.Threading.Tasks.Task!>! onClick) -> TuneLab.SDK.ButtonConfig!
+TuneLab.SDK.ButtonConfig
+TuneLab.SDK.ButtonConfig.OnClick.get -> System.Func<TuneLab.SDK.IButtonClickContext!, System.Threading.Tasks.Task!>!
+TuneLab.SDK.ButtonConfig.Text.get -> string!
+TuneLab.SDK.IButtonClickContext
+TuneLab.SDK.IButtonClickContext.Dialogs.get -> TuneLab.SDK.IDialogService!
+TuneLab.SDK.IDialogService
+TuneLab.SDK.IDialogService.Confirm(string! title, string! message) -> System.Threading.Tasks.Task<bool>!
+TuneLab.SDK.IDialogService.PromptInputs(string! title, TuneLab.SDK.ObjectConfig! config) -> System.Threading.Tasks.Task<TuneLab.Foundation.PropertyObject?>!
+TuneLab.SDK.IDialogService.RunWithProgress(string! title, System.Func<TuneLab.SDK.IProgressReporter!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! work) -> System.Threading.Tasks.Task!
+TuneLab.SDK.IDialogService.ShowMessage(string! title, string! message) -> System.Threading.Tasks.Task!
 TuneLab.SDK.IInstrumentSynthesisContext.InvalidateNotes(System.Collections.Generic.IEnumerable<string!>! noteIds) -> void
 TuneLab.SDK.IInstrumentSynthesisContext.InvalidatePart() -> void
 TuneLab.SDK.IInstrumentSynthesisContext.PartId.get -> string!
 TuneLab.SDK.IInstrumentSynthesisNote.Id.get -> string!
 TuneLab.SDK.IInstrumentSynthesisNoteView.Id.get -> string!
 TuneLab.SDK.IInstrumentSynthesisPartView.PartId.get -> string!
+TuneLab.SDK.IProgressReporter
+TuneLab.SDK.IProgressReporter.Report(double? fraction, string? status = null) -> void
+TuneLab.SDK.IProgressReporter.SetCancellable(bool cancellable) -> void
 TuneLab.SDK.IVoiceSynthesisContext.InvalidateNotes(System.Collections.Generic.IEnumerable<string!>! noteIds) -> void
 TuneLab.SDK.IVoiceSynthesisContext.InvalidatePart() -> void
 TuneLab.SDK.IVoiceSynthesisContext.PartId.get -> string!

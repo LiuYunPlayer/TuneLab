@@ -97,7 +97,7 @@
 一行一个入口。**入口**列是这个文件里的稳定 key（菜单项取显示名字面量、按钮/开关取变量名；同名的按出现
 次序加 `#2`），**不带行号**——行号天天变，那样这张表会因为无关改动天天红。
 
-**169 个入口**：`action` 27 · `command` 15 · `script` 73 · `pending` 0 · `dialog` 34 · `internal` 19 · `by-design` 1 · `todo` 0
+**170 个入口**：`action` 27 · `command` 15 · `script` 73 · `pending` 0 · `dialog` 35 · `internal` 19 · `by-design` 1 · `todo` 0
 
 #### TuneLab/App.axaml.cs
 
@@ -117,6 +117,12 @@
 | 入口 | 种类 | 裁决 | 说明 |
 |---|---|---|---|
 | button | button | `dialog` | 更新框自己的按钮 |
+
+#### TuneLab/Extensions/HostDialogService.cs
+
+| 入口 | 种类 | 裁决 | 说明 |
+|---|---|---|---|
+| ok | button | `dialog` | 插件经 IDialogService（按钮点击期间）弹出的确认框的确定按钮 |
 
 #### TuneLab/UI/ImportTrackSelector/ImportTrackSelector.axaml.cs
 
@@ -172,15 +178,6 @@
 | Check for Updates... | menu | `action:app.checkUpdates` |  |
 | About TuneLab | menu | `action:app.about` |  |
 | mRecentFile.FileName | menu | `command:project open` | 「打开哪个工程」要一个路径参数，那是命令的形状（最近文件这一族本身是动态成员，但每一项都是「打开这个路径」） |
-
-#### TuneLab/UI/MainWindow/Editor/ScriptInputWindow.axaml.cs
-
-| 入口 | 种类 | 裁决 | 说明 |
-|---|---|---|---|
-| closeButton | button | `dialog` | 脚本入参窗的确认/取消/重置 |
-| resetButton | button | `dialog` | 脚本入参窗的确认/取消/重置 |
-| cancelButton | button | `dialog` | 脚本入参窗的确认/取消/重置 |
-| okButton | button | `dialog` | 脚本入参窗的确认/取消/重置 |
 
 #### TuneLab/UI/MainWindow/Editor/ScriptToolMenu.cs
 
@@ -402,6 +399,15 @@
 |---|---|---|---|
 | close | button | `dialog` | 手册窗的关闭 |
 | row | button | `internal` | 手册窗内部：跳到某一章（正文由 docs manual 命令给） |
+
+#### TuneLab/UI/PropertyFormWindow.axaml.cs
+
+| 入口 | 种类 | 裁决 | 说明 |
+|---|---|---|---|
+| closeButton | button | `dialog` | 输入表单窗（脚本工具 inputs / 插件按钮 PromptInputs）的确认/取消/重置 |
+| resetButton | button | `dialog` | 输入表单窗（脚本工具 inputs / 插件按钮 PromptInputs）的确认/取消/重置 |
+| cancelButton | button | `dialog` | 输入表单窗（脚本工具 inputs / 插件按钮 PromptInputs）的确认/取消/重置 |
+| okButton | button | `dialog` | 输入表单窗（脚本工具 inputs / 插件按钮 PromptInputs）的确认/取消/重置 |
 
 #### TuneLab/UI/Settings/KeymapSettingsPage.cs
 

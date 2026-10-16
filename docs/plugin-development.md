@@ -9,7 +9,7 @@
 
 ## 1. Core Concepts
 
-- **A plugin package = a folder**. It is the atomic unit of deployment, installation, and uninstallation, placed into TuneLab's extension directory (see §9).
+- **A plugin package = a folder**. It is the atomic unit of deployment, installation, and uninstallation, placed into TuneLab's extension directory (see §10).
 - **`manifest.json` is the package's identity manifest**, which must sit at the **top level** of the package folder. New (V1) plugins **must** include it; TuneLab reads this file first and then **selectively** loads the assemblies inside the package based on its contents — it does not blindly scan the whole folder.
 - **One package can contain multiple plugins**. If you have a shared infrastructure assembly, you can pack multiple plugins built on top of it into the same package — the infrastructure is distributed once and loaded once at runtime (they share a single load context).
 - **Plugin category (type)**: currently supported are `format` (project file import/export), `voice` (singing synthesis engine), `instrument` (polyphonic sound-source engine such as a synth/sampler), and `effect` (an effect that applies whole-segment offline transforms to synthesized audio, such as voice conversion). A package can also be a pure **resource package** (no code, e.g. voicebank resources).
@@ -1017,7 +1017,83 @@ public sealed class MyFormat : IImportFormat, IExportFormat, IExtensionSettings
 
 ---
 
-## 9. Packaging, Installation, Uninstallation
+## 9. Buttons (ButtonConfig)
+
+### 9.1 Declaration and execution
+
+A button can go anywhere a panel is declared: extension settings, part / note / phoneme property panels, effect parameter panels. It is just another member of the control-config vocabulary, and clicking it calls the function you pass in:
+
+```csharp
+public ObjectConfig GetSettingsConfig(IExtensionSettingsContext context)
+{
+    var props = new OrderedMap<PropertyKey, IControllerConfig>();
+    // capture values only: read what you need at declaration time, never capture the context
+    string apiKey = context.Settings.GetString("api_key", "");
+    props.Add(("cache", "Cache"), ButtonConfig.Create($"Clear ({mCacheMB} MB)", ClearCacheAsync));
+    props.Add(("test", "Connection"), ButtonConfig.Create("Test", click => TestAsync(click, apiKey)));
+    return ObjectConfig.Create(props);
+}
+```
+
+- **A button holds no value**: it reads and writes no property; reset-to-default, presets and settings persistence skip it, and CLI / agent cannot set it. **A button does not change project data** — it only touches your own state (cache, connection, model…).
+- **Capture values only**: declaration contexts and views are valid only during the declaration call, and a click may come minutes later. Read the PartId, note ids or filled-in values in `GetXxxConfig` and let the closure capture those. On the settings page `context.Settings` holds the **values currently in the window, including unsaved ones**, so a "test connection" button can use the key the user just typed.
+- **Thread**: `OnClick` is called on the main thread — the same thread as `Init`, `CreateSession`, declaration functions and session events — and after an `await` it resumes on the main thread by default (unless you write `ConfigureAwait(false)`). Resources you only ever touch on the main thread need no locking inside a button.
+- **`await` is an interleaving point**: while you are awaiting, the main thread does other work, and the host may call your other methods (synthesis scheduling, declaration functions, session events). The concern is not multithreading but **whether your state is consistent across an `await`** — e.g. if clearing a cache awaits halfway, synthesis scheduling may read the cache right then: either finish the clearing in one step without awaiting, or keep the state usable before and after each `await`. Concurrency with background threads you start yourself (such as synthesis workers) remains your responsibility.
+- **Do not block the main thread**: the host cannot stop you, and the consequences are yours (a frozen UI, the OS reporting "not responding"). Instant operations can simply run synchronously; long ones should `await` or go inside `RunWithProgress` (§9.2). Blocking on a dialog result (`.Result` / `.Wait()`) deadlocks.
+- **The host stays usable while it runs**: running a button is not modal — only that button is greyed out and cannot be re-entered (even after the panel is rebuilt); only a dialog, while shown, blocks the window holding the button. The user may edit or even delete project content meanwhile, so PartIds / note ids captured by the closure may no longer exist — tolerate "not found" when looking up your own data by id.
+- **Exceptions** are logged and shown to the user, attributed to your plugin.
+- **The panel refreshes after the click**: when it finishes the host calls the panel's declaration function again, so the button text and nearby options reflect the new state. If other notes' / parts' declarations are affected, call `InvalidatePart` / `InvalidateNotes` (§5.2).
+- **Placement**: only as a member of an `ObjectConfig` (at any depth, including objects inside list elements). Not supported directly as an `ArrayConfig` / `ListConfig` element or an `ExtensibleObjectConfig` addable key — every slot there is a value.
+- **No layout properties**: a button takes a row under the existing vertical layout.
+
+### 9.2 The dialog service during a click (`click.Dialogs`)
+
+**Dialogs can only be shown while a button click is running**, and the only entry point is the callback argument `click.Dialogs`:
+
+```csharp
+static async Task ClearCacheAsync(IButtonClickContext click)
+{
+    if (!await click.Dialogs.Confirm("Clear cache", "Delete all cached files?")) return;
+    await click.Dialogs.RunWithProgress("Clearing…", async (progress, cancel) =>
+    {
+        for (int i = 1; i <= n; i++) { cancel.ThrowIfCancellationRequested(); /* … */ progress.Report((double)i / n, $"File {i} / {n}"); }
+    });
+    await click.Dialogs.ShowMessage("Clear cache", "Done.");
+}
+
+// ask the user for a few parameters after the click: complete values (untouched fields = defaults), null when cancelled
+var inputs = await click.Dialogs.PromptInputs("Export preset", ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>
+{
+    { ("name", "Preset name"), TextBoxConfig.Create(lastName) },     // initial values go into the defaults
+    { ("quality", "Quality"), SliderConfig.Integer(5, 0, 10) },
+}));
+```
+
+- The host draws them in its own style: consistent theme, OK / Cancel text translated by the host, title and body translated by you. Dialogs are modal over **the window holding the button** and name the plugin they came from.
+- **Lifetime**: from the start of the callback until the Task it returns completes. Keeping `click.Dialogs` and using it afterwards throws `InvalidOperationException`.
+- Callable from any thread. **Never block synchronously** on the returned Task (`.Result` / `.Wait()`) — dialogs need the UI thread, and blocking it deadlocks.
+- `RunWithProgress`: the progress window starts at 0%; in `Report(fraction, status)` a `null` fraction shows indeterminate progress (a moving bar), and `status` is one line of text under the bar (translated by you) — omit it or pass `null` to keep the previous text (pass `""` to clear it); `fraction` has no "keep as is" value, so pass the current progress when only the text changes; `progress.SetCancellable(false)` greys out the cancel button during a critical section that must not be interrupted (replacing files, writing an index…) and `SetCancellable(true)` restores it (cancellable by default; the token is still cancelled when the app exits, so a critical section must still survive the process being terminated); `Report` may be called from any thread at any rate (the host coalesces per frame); the progress window always has a cancel button, and the token is cancelled when the user cancels or the app exits; exceptions thrown by `work` come back to you unchanged.
+- `PromptInputs`: renders your config with the same controls as property panels (the same form window as script tools' inputs); form data is isolated from the project and not undoable.
+
+### 9.3 Your own settings UI
+
+For a UI with your own layout and your own data (bypassing the host's config and property-data machinery), **make it a separate process: write your own exe and let a button just launch it**. That UI has nothing to do with the host — the host provides no owner window and no modality; the exe's framework, its runtime and how it exchanges data with the plugin (files, command line, pipes…) are all up to you.
+
+```csharp
+props.Add(("editor", "Editor"), ButtonConfig.Create("Open...", async _ =>
+{
+    var start = new ProcessStartInfo(Path.Combine(packageDir, "editor", "MyEditor.exe")) { UseShellExecute = false };
+    start.ArgumentList.Add("--data"); start.ArgumentList.Add(dataPath);
+    using var process = Process.Start(start)!;
+    await process.WaitForExitAsync();   // wait for it: the button stays greyed and the panel refreshes after it closes (or return right away)
+}));
+```
+
+**UI frameworks inside the plugin process are not part of the contract**: the host's Avalonia is not available to plugins; WinForms / WPF belong to .NET's desktop runtime, which the host process does not load, so referencing them fails at run time with a missing assembly. If you insist on another in-process UI framework, keeping it from conflicting with the host is on you.
+
+Reference implementations: `tests/plugins/V1.CustomWindow` + `tests/plugins/V1.CustomWindow.Editor` (a button launching a WinForms editor exe, waiting for it or not), `tests/plugins/V1.Settings` (settings page: clear cache / test connection / export preset (PromptInputs) / throwing / buttons inside a nested object and list elements), `tests/plugins/V1.Voice` (buttons on part / note / phoneme panels), `tests/plugins/V1.Effect` (an effect-panel button with progress).
+
+## 10. Packaging, Installation, Uninstallation
 
 - **Package format**: zip up the package folder and change the extension to **`.tlx`**, requiring `manifest.json` at the zip's **root**.
 - **Installation**: in TuneLab, drag the `.tlx` into the window, or use "Install Extension" in the extensions sidebar. Installing extracts it to the extension directory and **loads it immediately** (no restart needed).
@@ -1027,7 +1103,7 @@ public sealed class MyFormat : IImportFormat, IExportFormat, IExtensionSettings
 
 ---
 
-## 10. Loading and Validation Behavior
+## 11. Loading and Validation Behavior
 
 When TuneLab loads each package: **discover** → read `manifest.json` and **judge the generation** (has `id` = V1) → **validate** (sdk-version compatible? platform matches?) → build a **per-folder ALC** for the package → load each `assembly` in turn, **verifying the declared `class` implements what this `type` requires, then instantiating & registering it** (no longer reflecting over attributes).
 

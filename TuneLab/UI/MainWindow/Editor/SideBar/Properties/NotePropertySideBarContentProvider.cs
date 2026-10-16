@@ -33,6 +33,8 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         // note 属性右键菜单（钉选到参数面板）：只挂 note 面板顶层属性——lane 值按顶层 id 直取 note.Properties，
         // 嵌套属性无 lane 寻址形；part / 音素面板不挂（lane 语义 = per-note 值）。
         mNotePropertiesController.ItemContextMenuProvider = BuildNotePropertyContextMenu;
+        // 插件按钮执行完 → 重新询问 note 声明（按钮动的是插件状态，面板选项可能随之变）。
+        mNotePropertiesController.ButtonActionCompleted += mNoteScheduler.InvalidateValues;
 
         var noteName = new Label() { Content = "Note".Tr(TC.Property), Height = 38, FontSize = 14, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), Padding = new(24, 0) };
         mNotePanel.Title = noteName;
@@ -240,6 +242,8 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         // 遮罩仅压暗 + 挡交互、提示去选音符。
         var dataObjects = mPart.Notes.AllSelectedItems().Select(note => note.Properties).ToList();
         mNoteData = new MultipleDataPropertyObject(dataObjects);
+        // 按钮作用域 = 所属 part + 选中的这批 note（见 ButtonRoot）。
+        mNotePropertiesController.ButtonScope = "note/" + mPart.RuntimeId + "/" + string.Join(",", mPart.Notes.AllSelectedItems().Select(note => note.RuntimeId));
         mNotePropertiesController.SetConfig(mPart.SoundSource.GetNotePropertyConfig(BuildNoteContext()), mNoteData);
         mNoteContentMask.IsVisible = dataObjects.Count == 0;
         mNoteData.Modified.Subscribe(mNoteScheduler.InvalidateValues, mNoteSub);
@@ -316,6 +320,9 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
             {
                 var config = slotConfig!;
                 var poc = new PropertyObjectController() { ShowSeparators = false };   // 分界由行单元统一拥有（见下），控制器不再自吐尾随分隔
+                // 按钮作用域 = part + 本行成员 note + slot；执行完重建音素面板（音素 schema 可能随插件状态变）。
+                poc.ButtonScope = "phoneme/" + mPart!.RuntimeId + "/" + string.Join(",", members.Select(m => m.Note.Note.RuntimeId)) + "/" + a;
+                poc.ButtonActionCompleted += mPhonemeScheduler.InvalidateStructure;
                 // 属性行右键 = 钉选项（phoneme scope）+ 既有 slot 动作（拆分/删除）——属性行的右键被本钩子接管后
                 // 不再冒泡到行容器的 ContextMenu，故把 slot 项并进来，避免"点在属性上就丢拆分/删除"。
                 var menuMembers = members;

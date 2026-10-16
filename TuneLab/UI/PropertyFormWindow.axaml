@@ -3,7 +3,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="460" d:DesignHeight="480"
-        x:Class="TuneLab.UI.ScriptInputWindow"
+        x:Class="TuneLab.UI.PropertyFormWindow"
         Title="TuneLab"
         Width="460"
         Height="480"

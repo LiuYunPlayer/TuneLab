@@ -309,7 +309,7 @@ internal sealed class ScriptSideBarContentProvider
             var owner = TopLevel.GetTopLevel(mCodeBox) as Window;
             if (owner != null)
             {
-                var window = new ScriptInputWindow("Script".Tr(this), schema,
+                var window = new PropertyFormWindow("Script".Tr(this), schema,
                     vals => ScriptRunner.GetInputConfig(mProject ?? project, mCurrentPart, mQuantization, lang, mSelection, mPianoSelection, code, vals, CancellationToken.None),
                     PropertyObject.Empty);
                 var picked = await window.ShowDialog<PropertyObject?>(owner);

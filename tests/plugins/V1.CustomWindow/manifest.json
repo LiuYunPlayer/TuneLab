@@ -1,0 +1,19 @@
+{
+  "id": "com.tunelab.test.v1customwindow",
+  "name": "V1 Custom Window Demo",
+  "version": "1.0.0",
+  "author": "TuneLab Tests",
+  "description": "Custom settings UI demo: a settings button launches the author's own editor exe (WinForms, separate process; own layout, own data). The host is not involved beyond the button.",
+  "localizations": {
+    "zh-CN": {
+      "name": "V1 自定义窗口演示",
+      "description": "自定义设置界面演示：设置页按钮启动作者自己的界面 exe（WinForms，独立进程；自己布局、自己管数据），除按钮外与宿主无关。"
+    }
+  },
+  "sdk-version": "1.0",
+  "type": "voice",
+  "engine": "TLCustomWindowDemo",
+  "class": "TuneLab.TestPlugins.V1CustomWindow.CustomWindowVoiceEngine",
+  "assembly": "V1.CustomWindow.dll",
+  "platforms": ["win"]
+}

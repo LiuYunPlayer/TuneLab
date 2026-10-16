@@ -19,6 +19,10 @@ namespace TuneLab.GUI.Controllers;
 // 典型用法是「起步为空、+ 增项」（如多说话人音色里选要混入的 speaker）；插件若对 absent 返回 seed 键，则随编辑物化。
 internal sealed class ExtensibleObjectController : StackPanel
 {
+    // 按钮作用域（见 ButtonRoot）：由外层 creator 设好，条目里的对象按 "路径/键" 继续往下传。
+    internal ButtonRoot? ButtonRoot { get; set; }
+    internal string ButtonPath { get; set; } = string.Empty;
+
     public ExtensibleObjectController()
     {
         Orientation = Orientation.Vertical;
@@ -89,7 +93,7 @@ internal sealed class ExtensibleObjectController : StackPanel
             }
             else
             {
-                nextByKey.Add(id, new KeyedRow(mDataObject, key, cfg, () => RemoveKey(id)));
+                nextByKey.Add(id, new KeyedRow(mDataObject, key, cfg, () => RemoveKey(id), ButtonRoot, ButtonPath + "/" + id));
                 structureChanged = true;
             }
             nextOrder.Add(id);
@@ -213,9 +217,9 @@ sealed class KeyedRow : IDisposable
     public Control Root => mRoot;
     public Type ConfigType => mWidget.ConfigType;
 
-    public KeyedRow(IDataPropertyObject dataObject, PropertyKey key, IControllerConfig config, Action onDelete)
+    public KeyedRow(IDataPropertyObject dataObject, PropertyKey key, IControllerConfig config, Action onDelete, ButtonRoot? buttonRoot, string buttonPath)
     {
-        mWidget = ElementWidget.Create(dataObject, key.Id, config);
+        mWidget = ElementWidget.Create(dataObject, key.Id, config, buttonRoot, buttonPath);
         mTitle = ArrayControlsFactory.MakeRowTitle(key.DisplayText ?? key.Id);
 
         var content = new StackPanel { Orientation = Orientation.Vertical, Margin = new(0, ArrayControlsFactory.EntryPadding) };

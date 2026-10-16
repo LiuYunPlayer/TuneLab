@@ -62,7 +62,8 @@ internal partial class SettingsWindow : Window
         CanResize = false;
         WindowState = WindowState.Normal;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
-        Topmost = true;
+        // 不设 Topmost：打开时以主窗口为 owner（见 Show(owner)），被拥有的窗口本就恒在主窗口之上——点主窗口也不会把
+        // 主窗口拉到它前面。全局置顶会压住其他程序的窗口（系统文件选择框、插件按钮启动的外部界面 exe）。
 
         TitleLabel.Content = "Settings".Tr(this);
 
@@ -480,7 +481,8 @@ internal partial class SettingsWindow : Window
             data.Commit();
 
             var ctx = new SettingsContext(data);
-            var controller = new PropertyObjectController();
+            // 按钮作用域按扩展身份：切 tab 再切回、页面重建后仍认得出执行中的按钮（见 ButtonRoot）。
+            var controller = new PropertyObjectController { ButtonScope = "settings/" + entry.PackageId + "/" + entry.ExtensionKey };
             controller.SetConfig(entry.Settings.GetSettingsConfig(ctx), data);
             listView.Content.Children.Add(controller);
 
@@ -488,6 +490,8 @@ internal partial class SettingsWindow : Window
             var captured = entry;
             Action refresh = () => controller.Reconcile(captured.Settings.GetSettingsConfig(ctx));
             data.Modified.Subscribe(refresh);
+            // 按钮执行完同样重算：按钮动的是插件自己的状态（缓存大小、连接状态……），schema 可能随之变。
+            controller.ButtonActionCompleted += refresh;
 
             mExtensionPages.Add(new ExtensionPage(entry, data, controller, ctx, refresh));
         }

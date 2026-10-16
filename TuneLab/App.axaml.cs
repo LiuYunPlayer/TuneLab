@@ -46,8 +46,11 @@ public partial class App : Application
                 {
                     AnimationManager.SharedManager.Init();
                 };
+                // 插件按钮（ButtonConfig）点击的宿主侧执行：来源归属、异常提示、退出时取消（见 PluginButtonInvoker）。
+                TuneLab.GUI.Controllers.ButtonActions.Invoke = PluginButtonInvoker.Invoke;
                 desktop.Exit += (s, e) =>
                 {
+                    HostLifetime.Shutdown();   // 先取消插件侧长任务（按钮、进度弹窗），再拆引擎
                     ExtensionManager.LaunchPendingUninstalls();
                     ExtensionManager.Destroy();
                     AudioEngine.Destroy();

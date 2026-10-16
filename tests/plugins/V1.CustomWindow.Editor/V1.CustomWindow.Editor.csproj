@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- V1.CustomWindow 的界面 exe（独立进程，仅 Windows）：插件自定义设置窗口的推荐形态——作者自己做一个 exe，
+       插件的按钮只负责启动它。UI 框架（这里是 WinForms）与运行时由 exe 自己负责，不进 TuneLab 进程。
+       不引用任何 TuneLab 程序集。输出落进插件包的 editor/ 子目录（tests/packages/v1-customwindow/editor/）。 -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputPath>$(MSBuildThisFileDirectory)..\..\packages\v1-customwindow\editor\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+  </PropertyGroup>
+
+</Project>

@@ -28,6 +28,20 @@ internal class PropertyObjectController : StackPanel
     // 只挂在数值类控件（slider / 拖拽数值框）上；嵌套 ObjectConfig 的子控制器不继承本钩子（作用面 = 本层直属属性）。
     public Func<PropertyKey, IControllerConfig, IReadOnlyList<MenuItem>?>? ItemContextMenuProvider { get; set; }
 
+    // 按钮（ButtonConfig）的作用域与完成通知，见 ButtonRoot。面板持有方在根控制器上设 / 订阅；嵌套控制器经
+    // AttachButtonRoot 共享根的那一份（路径 = 根到本层的 key / 元素 token 串）。
+    public string ButtonScope { get => mButtonRoot.Scope; set => mButtonRoot.Scope = value; }
+    public event Action? ButtonActionCompleted { add => mButtonRoot.ActionCompleted += value; remove => mButtonRoot.ActionCompleted -= value; }
+
+    internal void AttachButtonRoot(ButtonRoot root, string path)
+    {
+        mButtonRoot = root;
+        mButtonPath = path;
+    }
+
+    // 嵌套控制器归池前调用：断开与外层树的共享，免得池里取出来当根用时还连着别人的作用域。
+    internal void DetachButtonRoot() => AttachButtonRoot(new ButtonRoot(), string.Empty);
+
     public PropertyObjectController()
     {
         Background = Style.INTERFACE.ToBrush();
@@ -224,6 +238,7 @@ internal class PropertyObjectController : StackPanel
             mBorder.Background = Style.BACK.ToBrush();
 
             mController = ObjectPoolManager.Get<PropertyObjectController>();
+            mController.AttachButtonRoot(parent.mButtonRoot, parent.mButtonPath + "/" + key.Id);
             mController.SetConfig(config, parent.DataObject.Object(key.Id));
 
             mDockPanel = ObjectPoolManager.Get<DockPanel>();
@@ -251,6 +266,7 @@ internal class PropertyObjectController : StackPanel
             ObjectPoolManager.Return(mDockPanel);
             ObjectPoolManager.Return(mBorder);
             mController.ResetConfig();
+            mController.DetachButtonRoot();
             ObjectPoolManager.Return(mController);
             ObjectPoolManager.Return(mTitle);
         }
@@ -568,7 +584,7 @@ internal class PropertyObjectController : StackPanel
         public ArrayCreator(PropertyObjectController parent, PropertyKey key, ArrayConfig config) : base(parent)
         {
             mTitle = CreateTitle(key.DisplayText ?? key.Id, 30, ArrayControlsFactory.TitleGap);
-            mController = new ArrayController();
+            mController = new ArrayController { ButtonRoot = parent.mButtonRoot, ButtonPath = parent.mButtonPath + "/" + key.Id };
             mController.Bind(parent.DataObject.Array(key.Id));
             mController.Apply(config);
         }
@@ -593,7 +609,7 @@ internal class PropertyObjectController : StackPanel
         public ListCreator(PropertyObjectController parent, PropertyKey key, ListConfig config) : base(parent)
         {
             mTitle = CreateTitle(key.DisplayText ?? key.Id, 30, ArrayControlsFactory.TitleGap);
-            mController = new ListController();
+            mController = new ListController { ButtonRoot = parent.mButtonRoot, ButtonPath = parent.mButtonPath + "/" + key.Id };
             mController.Bind(parent.DataObject.Array(key.Id));
             mController.Apply(config);
         }
@@ -620,7 +636,7 @@ internal class PropertyObjectController : StackPanel
         public ExtensibleObjectCreator(PropertyObjectController parent, PropertyKey key, ExtensibleObjectConfig config) : base(parent)
         {
             mTitle = CreateTitle(key.DisplayText ?? key.Id, 30, ArrayControlsFactory.TitleGap);
-            mController = new ExtensibleObjectController();
+            mController = new ExtensibleObjectController { ButtonRoot = parent.mButtonRoot, ButtonPath = parent.mButtonPath + "/" + key.Id };
             mController.Bind(parent.DataObject.Object(key.Id));
             mController.Apply(config);
         }
@@ -676,6 +692,90 @@ internal class PropertyObjectController : StackPanel
         readonly Components.CheckBox mController;
     }
 
+    // 按钮（ButtonConfig）：标题在左、按钮靠右（CheckBox 式同行布局）。不绑任何数据字段——按钮没有值。
+    // 点击交 ButtonActions 统一调度：执行期间不可重入（键 = 树作用域 + 本按钮路径，面板重建后仍认得出），
+    // 结束后经 ButtonRoot 通知面板持有方刷新。Reconcile 时换用新 config：每次声明重算都会给出新闭包，点击永远用最新的。
+    // 执行中的指示是叠在按钮上的边框光带（RunningBorder）：不往按钮里加内容物，文字与布局在执行前后完全不变。
+    class ButtonCreator : Creator
+    {
+        public ButtonCreator(PropertyObjectController parent, PropertyKey key, ButtonConfig config) : base(parent)
+        {
+            mConfig = config;
+            mRoot = parent.mButtonRoot;
+            mPath = parent.mButtonPath + "/" + key.Id;
+
+            mDockPanel = ObjectPoolManager.Get<DockPanel>();
+
+            mText = new TextItem() { Text = config.Text };
+            mButton = new Button() { Height = 28 };
+            mButton.AddContent(new() { Item = new BorderItem() { CornerRadius = 6 }, ColorSet = new() { Color = Style.BUTTON_NORMAL, HoveredColor = Style.BUTTON_NORMAL_HOVER } });
+            mButton.AddContent(new() { Item = mText, ColorSet = new() { Color = Style.LIGHT_WHITE } });
+            mButton.Clicked += OnClicked;
+            mButtonHost = new Panel() { Margin = new(24, 8) };
+            mButtonHost.Children.Add(mButton);
+            mButtonHost.Children.Add(mRunning);   // 叠在按钮上方、不参与命中
+            mDockPanel.Children.Add(mButtonHost);
+            DockPanel.SetDock(mButtonHost, Dock.Right);
+
+            mTitle = CreateTitle(key.DisplayText ?? key.Id, 30);
+            mTitle.VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center;
+            mDockPanel.Children.Add(mTitle);
+
+            ButtonActions.RunningChanged += RefreshState;
+            RefreshState();
+        }
+
+        string RunningKey => mRoot.Scope + mPath;
+
+        // 按钮所在的窗口就是本次点击弹窗的父窗口（宿主确知点击来源，不靠"最前面的窗口"去猜）。
+        void OnClicked() => ButtonActions.Click(RunningKey, mConfig, mRoot, TopLevel.GetTopLevel(mButton) as Window);
+
+        void RefreshState()
+        {
+            bool running = ButtonActions.IsRunning(RunningKey);
+            mButton.IsHitTestVisible = !running;
+            mRunning.IsRunning = running;
+            mText.Text = mConfig.Text;
+            mButton.Width = Math.Max(72, MeasureText(mConfig.Text) + 32);
+            mButton.InvalidateVisual();
+        }
+
+        static double MeasureText(string text)
+            => new Avalonia.Media.FormattedText(text, System.Globalization.CultureInfo.CurrentCulture, Avalonia.Media.FlowDirection.LeftToRight,
+                TuneLab.Utils.Extensions.DrawStringTypeface, 12, null).Width;
+
+        public override Type ConfigType => typeof(ButtonConfig);
+        public override IEnumerable<Control> Views => [mDockPanel];
+
+        public override void Update(IControllerConfig config)
+        {
+            mConfig = (ButtonConfig)config;
+            RefreshState();
+        }
+
+        public override void Dispose()
+        {
+            base.Dispose();
+            ButtonActions.RunningChanged -= RefreshState;
+            mButton.Clicked -= OnClicked;
+            mRunning.IsRunning = false;
+            mButtonHost.Children.Clear();
+            mDockPanel.Children.Clear();
+            ObjectPoolManager.Return(mTitle);
+            ObjectPoolManager.Return(mDockPanel);
+        }
+
+        readonly ButtonRoot mRoot;
+        readonly string mPath;
+        readonly Label mTitle;
+        readonly DockPanel mDockPanel;
+        readonly Button mButton;
+        readonly Panel mButtonHost;
+        readonly RunningBorder mRunning = new();
+        readonly TextItem mText;
+        ButtonConfig mConfig;
+    }
+
     // bottomGap：标题下方留白。容器字段（数组/列表/键控容器）的内容紧接标题、自身不带上边距，需要它隔开；
     // 其余字段的控件自带上边距，取 0。标题出自对象池，故每次都显式重设，不继承上一任主人的值。
     static Label CreateTitle(string title, double height, double bottomGap = 0)
@@ -703,8 +803,11 @@ internal class PropertyObjectController : StackPanel
         { typeof(ArrayConfig), (parent, key, config) => new ArrayCreator(parent, key, (ArrayConfig)config) },
         { typeof(ListConfig), (parent, key, config) => new ListCreator(parent, key, (ListConfig)config) },
         { typeof(ExtensibleObjectConfig), (parent, key, config) => new ExtensibleObjectCreator(parent, key, (ExtensibleObjectConfig)config) },
+        { typeof(ButtonConfig), (parent, key, config) => new ButtonCreator(parent, key, (ButtonConfig)config) },
     };
 
+    ButtonRoot mButtonRoot = new();
+    string mButtonPath = string.Empty;
     IDataPropertyObject? mDataObject;
     Dictionary<string, Creator> mCreatorsByKey = new();
     List<string> mOrder = new();

@@ -115,6 +115,13 @@ internal sealed class ExtensionSettingsCommand : ICommand
 
             field["secret"] = false;
             field["allowed"] = ConfigText.Describe(kv.Value);
+            // 按钮是动作不是值：没有 current / default 可报，标出来让渲染端整段跳过（报"未设、取默认"会误导）。
+            if (kv.Value is ButtonConfig)
+            {
+                field["action"] = true;
+                fields.Add(field);
+                continue;
+            }
             // "有没有存过值"与"存的值是什么"分开记：没存过时默认生效，而存过一个空值是另一件事。
             field["hasCurrent"] = hasValue;
             field["current"] = hasValue ? ConfigText.ToJson(value) : null;
@@ -192,6 +199,8 @@ internal sealed class ExtensionSettingsCommand : ICommand
             }
 
             sb.Append(field["allowed"]!.GetValue<string>());
+            if (field["action"]?.GetValue<bool>() == true)
+                continue;
             sb.Append(" — current ").Append(field["hasCurrent"]!.GetValue<bool>()
                 ? ConfigText.FormatValue(field["current"])
                 : "(unset, so the default applies)");

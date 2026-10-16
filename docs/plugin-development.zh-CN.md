@@ -9,7 +9,7 @@
 
 ## 1. 核心概念
 
-- **插件包 = 一个文件夹**。它是部署、安装、卸载的原子单位，被放进 TuneLab 的扩展目录（见 §9）。
+- **插件包 = 一个文件夹**。它是部署、安装、卸载的原子单位，被放进 TuneLab 的扩展目录（见 §10）。
 - **`manifest.json` 是包的身份标识**，必须放在包文件夹的**最外层**。新版（V1）插件**必须**带它；TuneLab 先读这个文件，再据其内容**有选择地**加载包内程序集——不会盲目扫描整个文件夹。
 - **一个包可以含多个插件**。若你有一套共用的基建程序集，可以把基于它开发的多个插件打进同一个包，基建只分发一份、运行时也只加载一份（它们共享同一个加载上下文）。
 - **插件类别（type）**：当前支持 `format`（工程文件导入/导出）、`voice`（歌声合成引擎）、`instrument`（多声部音源引擎，如合成器/采样器）与 `effect`（效果器，对合成音频做整段离线变换，如换声）。包还可以是纯**资源包**（无代码，如音色资源）。
@@ -1015,7 +1015,83 @@ public sealed class MyFormat : IImportFormat, IExportFormat, IExtensionSettings
 
 ---
 
-## 9. 打包、安装、卸载
+## 9. 按钮（ButtonConfig）
+
+### 9.1 声明与执行
+
+任何声明面板的地方都能放按钮：扩展设置、part / note / 音素属性面板、effect 参数面板。按钮是控件配置词汇里的一员，点击时调用你传进去的函数：
+
+```csharp
+public ObjectConfig GetSettingsConfig(IExtensionSettingsContext context)
+{
+    var props = new OrderedMap<PropertyKey, IControllerConfig>();
+    // 闭包只捕获值：在声明时把需要的东西读出来，不要捕获 context
+    string apiKey = context.Settings.GetString("api_key", "");
+    props.Add(("cache", "缓存"), ButtonConfig.Create($"清理（{mCacheMB} MB）", ClearCacheAsync));
+    props.Add(("test", "连接"), ButtonConfig.Create("测试", click => TestAsync(click, apiKey)));
+    return ObjectConfig.Create(props);
+}
+```
+
+- **按钮没有值**：它不读写任何属性，恢复默认、preset、设置落盘都跳过它，CLI / agent 也设不了它。**按钮不改工程数据**——它只动你自己的状态（缓存、连接、模型……）。
+- **闭包只捕获值**：声明 context 和视图只在声明调用期间有效，点击可能发生在几分钟以后。需要 PartId、note Id、已填的值，就在 `GetXxxConfig` 里先取出来再让闭包捕获。设置页的 `context.Settings` 是窗口里**当前填写的值（含尚未保存的）**，所以"测试连接"能直接用用户刚输入的密钥。
+- **线程**：`OnClick` 在主线程上调用，与 `Init`、`CreateSession`、声明函数、会话事件同一条线程；`await` 之后默认也回到主线程（除非你写了 `ConfigureAwait(false)`）。所以只在主线程上访问的资源，按钮里用不着加锁。
+- **`await` 是交错点**：主线程在 `await` 期间会去处理别的事，宿主可能这时调用你的其他方法（合成调度、声明函数、会话事件）。要注意的不是多线程，而是**状态跨越 `await` 时是否一致**——比如清缓存清到一半 `await`，合成调度可能正好来读缓存：要么让清理一步完成、中间不 `await`，要么保证 `await` 前后状态都可用。你自己开的后台线程（如合成 worker）的并发安全照旧由你负责。
+- **别阻塞主线程**：宿主拦不住，后果由你承担（界面卡住、系统报"未响应"）。瞬间完成的操作直接同步执行就行；耗时的要 `await`，或放进 `RunWithProgress`（§9.2）。同步等待弹窗结果（`.Result` / `.Wait()`）会死锁。
+- **执行期间宿主照常可操作**：按钮执行本身不是模态的，只有这个按钮置灰、不可重入（面板重建后仍然置灰）；弹窗显示时才挡住按钮所在的窗口。用户可能在此期间编辑甚至删除工程内容，闭包里捕获的 PartId / note Id 可能已经失效，按 id 查自己的数据时要能接受"查不到"。
+- **异常**：由宿主记日志并弹错误提示（标明你的插件）。
+- **点完自动刷新**：执行结束后宿主重新调用该面板的声明函数，按钮文字、旁边的选项都能反映新状态。若影响到别的 note / part 的声明，再调 `InvalidatePart` / `InvalidateNotes`（§5.2）。
+- **位置**：只能作为 `ObjectConfig` 的成员（任意嵌套深度，含列表元素里的对象）。直接当 `ArrayConfig` / `ListConfig` 的元素或 `ExtensibleObjectConfig` 的可加键时不支持——那些位置每一格都是一个值。
+- **不带布局属性**：按钮按现有规则纵向占一行。
+
+### 9.2 点击期间的弹窗服务（`click.Dialogs`）
+
+**弹窗只能在按钮点击期间弹**，入口只有回调参数 `click.Dialogs`：
+
+```csharp
+static async Task ClearCacheAsync(IButtonClickContext click)
+{
+    if (!await click.Dialogs.Confirm("清理缓存", "删除全部缓存文件？")) return;
+    await click.Dialogs.RunWithProgress("正在清理…", async (progress, cancel) =>
+    {
+        for (int i = 1; i <= n; i++) { cancel.ThrowIfCancellationRequested(); /* … */ progress.Report((double)i / n, $"第 {i} / {n} 个文件"); }
+    });
+    await click.Dialogs.ShowMessage("清理缓存", "完成。");
+}
+
+// 点了按钮后要用户填几个参数：返回完整的值（没改的字段为默认值），取消返回 null
+var inputs = await click.Dialogs.PromptInputs("导出预设", ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>
+{
+    { ("name", "预设名"), TextBoxConfig.Create(lastName) },          // 初始值写在默认值里
+    { ("quality", "质量"), SliderConfig.Integer(5, 0, 10) },
+}));
+```
+
+- 宿主按自身风格画出来：主题一致，确定 / 取消等按钮文字由宿主翻译，标题和正文由你自译；弹窗以**按钮所在的窗口**为父窗口模态显示，并标明来源插件。
+- **有效期**：从回调开始到它返回的 Task 完成。把 `click.Dialogs` 存起来、事后再用会抛 `InvalidOperationException`。
+- 任意线程可调。**不要同步阻塞等待**返回的 Task（`.Result` / `.Wait()`）——弹窗要用 UI 线程，在 UI 线程上阻塞即死锁。
+- `RunWithProgress`：进度窗从 0% 开始；`Report(fraction, status)` 的 `fraction` 为 `null` 时显示不确定进度（滚动条），`status` 是进度条下方的一行文字（自译），省略或传 `null` 表示保持上一次的文字（想清空传 `""`）；`fraction` 没有"保持不变"的写法，只更新文字时要传入当前进度；`progress.SetCancellable(false)` 让取消按钮在不能打断的关键段（替换文件、写索引……）里变灰，出关键段再置回 `true`（默认可取消；应用退出时 token 照样取消，关键段仍须能应对进程被结束）；`Report` 可任意线程、高频调用（宿主按帧合并）；进度窗恒带取消按钮，用户取消或应用退出时 token 取消；`work` 抛出的异常原样传回给你。
+- `PromptInputs`：用和属性面板同一套控件渲染你的 config（与脚本工具的 inputs 是同一个表单窗）；表单数据与工程隔离、不进撤销。
+
+### 9.3 插件自己的设置界面
+
+想要自己布局、自己管数据的界面（不经过宿主的 config 和属性数据机制），**做成独立进程：自己写一个 exe，按钮只负责启动它**。这个界面与宿主无关——宿主不提供父窗口，也不做模态；exe 用什么框架、带什么运行时、怎么和插件交换数据（文件、命令行、管道……），都由你自己决定。
+
+```csharp
+props.Add(("editor", "编辑器"), ButtonConfig.Create("打开...", async _ =>
+{
+    var start = new ProcessStartInfo(Path.Combine(packageDir, "editor", "MyEditor.exe")) { UseShellExecute = false };
+    start.ArgumentList.Add("--data"); start.ArgumentList.Add(dataPath);
+    using var process = Process.Start(start)!;
+    await process.WaitForExitAsync();   // 等它关闭：期间按钮置灰，关闭后宿主刷新面板（不等也行，那就立刻返回）
+}));
+```
+
+**插件进程内的 UI 框架不在契约里**：宿主的 Avalonia 不对插件开放；WinForms / WPF 属于 .NET 的桌面运行时，宿主进程里没有，插件里引用它们会在运行时找不到程序集。若坚持在进程内引入别的 UI 框架，由你自行保证不与宿主冲突。
+
+参考实现：`tests/plugins/V1.CustomWindow` + `tests/plugins/V1.CustomWindow.Editor`（按钮启动 WinForms 界面 exe，等它关闭 / 只启动两种方式）、`tests/plugins/V1.Settings`（设置页：清理缓存 / 测试连接 / 导出预设（PromptInputs）/ 抛异常 / 嵌套对象与列表元素里的按钮）、`tests/plugins/V1.Voice`（part / note / 音素面板的按钮）、`tests/plugins/V1.Effect`（effect 面板的按钮 + 进度）。
+
+## 10. 打包、安装、卸载
 
 - **包格式**：把包文件夹打成 zip，扩展名改为 **`.tlx`**，要求 `manifest.json` 在 zip 的**根目录**。
 - **安装**：在 TuneLab 里把 `.tlx` 拖进窗口，或用扩展侧边栏的「Install Extension」。安装即解压到扩展目录并**立即加载**（无需重启）。
@@ -1025,7 +1101,7 @@ public sealed class MyFormat : IImportFormat, IExportFormat, IExtensionSettings
 
 ---
 
-## 10. 加载与校验行为
+## 11. 加载与校验行为
 
 TuneLab 加载每个包时：**发现** → 读 `manifest.json` **判代际**（有 `id` = V1）→ **校验**（sdk-version 兼容？平台匹配？）→ 为包建一个 **per-folder ALC** → 逐条按 `assembly` 加载、**校验声明的 `class` 实现了本 `type` 所需接口后实例化注册**（不再反射扫 attribute）。
 

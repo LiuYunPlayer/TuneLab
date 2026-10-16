@@ -102,22 +102,43 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
     // part / note 面板除静态字段外，还依赖会话后台分析出的声调（插件自有派生状态，宿主看不见）：按 PartId / note Id 查回。
     // 分析结果一变，会话就经 InvalidatePart / InvalidateNotes 宣告，宿主随即重新调用这两个方法——声明本身仍是纯查询。
     // part 面板：任一 part 已分析出声调才出现 Tone Strength（多选时宽松呈现）。
+    // 另各带一个按钮（验证 ButtonConfig 在 part / note / 音素面板上的点击、置灰、结束后刷新）：闭包只捕获值（id），
+    // 不捕获 context——点击可能发生在很久以后，那时视图早已失效。
     public ObjectConfig GetPartPropertyConfig(IVoiceSynthesisPartPropertyContext context)
     {
+        var partIds = context.Parts.Select(p => p.PartId).ToList();
+        var properties = With(mPartProperties, ("analysis_summary", "Analysis"), ButtonConfig.Create("Summary", click => ShowPartSummary(click, partIds)));
         if (!context.Parts.Any(p => mAnalyses.TryGetValue(p.PartId, out var analysis) && analysis.HasTones))
-            return ObjectConfig.Create(mPartProperties);
-        return ObjectConfig.Create(With(mPartProperties, ("tone_strength", "Tone Strength (Analyzed)"), mToneStrengthConfig));
+            return ObjectConfig.Create(properties);
+        return ObjectConfig.Create(With(properties, ("tone_strength", "Tone Strength (Analyzed)"), mToneStrengthConfig));
+    }
+
+    Task ShowPartSummary(IButtonClickContext click, IReadOnlyList<string> partIds)
+    {
+        int toned = partIds.Sum(id => mAnalyses.TryGetValue(id, out var analysis) ? analysis.Tones.Count : 0);
+        return click.Dialogs.ShowMessage("Analysis",
+            string.Format("{0} part(s) selected, {1} note(s) with an analyzed tone.", partIds.Count, toned));
     }
 
     // note 面板：选中 note 全部分析出声调才出现 Tone Depth（任一未解析 / 无声调 = 混合态，不呈现）。
     public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext context)
     {
+        string partId = context.Part.PartId;
+        var noteIds = context.Notes.Select(n => n.Id).ToList();
+        var properties = With(mNoteProperties, ("inspect", "Inspect"), ButtonConfig.Create("Show Tones", click => ShowNoteTones(click, partId, noteIds)));
         bool allToned = context.Notes.Count > 0
-            && mAnalyses.TryGetValue(context.Part.PartId, out var analysis)
+            && mAnalyses.TryGetValue(partId, out var analysis)
             && context.Notes.All(n => analysis.Tones.ContainsKey(n.Id));
         if (!allToned)
-            return ObjectConfig.Create(mNoteProperties);
-        return ObjectConfig.Create(With(mNoteProperties, ("tone_depth", "Tone Depth (Analyzed)"), mToneDepthConfig));
+            return ObjectConfig.Create(properties);
+        return ObjectConfig.Create(With(properties, ("tone_depth", "Tone Depth (Analyzed)"), mToneDepthConfig));
+    }
+
+    Task ShowNoteTones(IButtonClickContext click, string partId, IReadOnlyList<string> noteIds)
+    {
+        mAnalyses.TryGetValue(partId, out var analysis);
+        var lines = noteIds.Select(id => analysis != null && analysis.Tones.TryGetValue(id, out int tone) ? "note " + id + ": tone " + tone : "note " + id + ": no tone");
+        return click.Dialogs.ShowMessage("Tones", string.Join("\n", lines));
     }
 
     static OrderedMap<PropertyKey, IControllerConfig> With(OrderedMap<PropertyKey, IControllerConfig> properties, PropertyKey key, IControllerConfig config)
@@ -133,7 +154,13 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
     // schema 若依赖当前属性值，在此对同 slot 各成员值做三态 Merge（同 GetNotePropertyConfig 契约）再条件化。
     public IReadOnlyMap<int, ObjectConfig> GetPhonemePropertyConfigs(IVoiceSynthesisNotePropertyContext context)
     {
-        var core = ObjectConfig.Create(mCorePhonemeProperties);
+        // 核（slot 0）另带一个按钮：验证音素面板上的按钮。
+        var core = ObjectConfig.Create(With(mCorePhonemeProperties, ("audition", "Audition"),
+            ButtonConfig.Create("Play", _ =>
+            {
+                TuneLabContext.Global.GetLogger().Info("[V1.Voice] audition clicked");
+                return Task.CompletedTask;
+            })));
         var consonant = ObjectConfig.Create(mConsonantPhonemeProperties);
         var map = new Map<int, ObjectConfig>();
         foreach (int slot in context.Notes.UnionSlots())

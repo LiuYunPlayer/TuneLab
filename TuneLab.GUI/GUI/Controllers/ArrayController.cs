@@ -25,6 +25,11 @@ namespace TuneLab.GUI.Controllers;
 // 编辑中的文本框不被销毁），中插/删只增删一行。config = f(数据) 随数据变化重算，由面板级 reconcile 在每次 commit 后驱动。
 internal abstract class ArrayControllerBase : StackPanel, IElementRowHost
 {
+    // 按钮作用域（见 ButtonRoot）：由外层 creator 在 Apply 前设好；元素里的对象按 "路径/元素 token" 继续往下传。
+    // 未设（独立使用）时元素里的按钮各自成树。
+    internal ButtonRoot? ButtonRoot { get; set; }
+    internal string ButtonPath { get; set; } = string.Empty;
+
     protected ArrayControllerBase()
     {
         Orientation = Orientation.Vertical;
@@ -147,7 +152,7 @@ internal abstract class ArrayControllerBase : StackPanel, IElementRowHost
             }
             else
             {
-                row = new ElementRow(host, key, cfg, onDelete, Deletable ? this : null);
+                row = new ElementRow(host, key, cfg, onDelete, Deletable ? this : null, ButtonRoot, ButtonPath + "/" + key);
                 structureChanged = true; // 新建（含同 key 换类型 / seed 位物化为真实位）
             }
             row.SetPosition(i);   // 序号 = 元素位置 + 1，增删/重排后随位置刷新
@@ -620,11 +625,11 @@ sealed class ElementRow : IDisposable
     // 数据位置（0 起）：序号 = Position + 1；删除 / 拖拽松手时按它告诉数组动哪个。
     public int Position { get; private set; }
 
-    public ElementRow(IDataPropertyObject host, string bindKey, IControllerConfig config, Action? onDelete, IElementRowHost? rowHost)
+    public ElementRow(IDataPropertyObject host, string bindKey, IControllerConfig config, Action? onDelete, IElementRowHost? rowHost, ButtonRoot? buttonRoot, string buttonPath)
     {
         Key = bindKey;
         // host = 现存位的数组外观（bindKey = token）或越界位的 SeedPositionView（bindKey 仅作行身份、视图按 position 寻址）。
-        mWidget = ElementWidget.Create(host, bindKey, config);
+        mWidget = ElementWidget.Create(host, bindKey, config, buttonRoot, buttonPath);
 
         mIndexText = new TextBlock
         {
@@ -897,17 +902,20 @@ internal abstract class ElementWidget : IDisposable
 
     protected readonly DisposableManager s = new();
 
-    public static ElementWidget Create(IDataPropertyObject dataObject, string token, IControllerConfig config) => config switch
+    // buttonRoot / buttonPath：本元素在按钮作用域里的位置（见 ButtonRoot），复合元素据此把作用域传给内层控制器。
+    // ButtonConfig 直接当元素（或可加键模板）不支持——那些位置每一格都是一个值，按钮没有值可占——落到 UnknownElement。
+    public static ElementWidget Create(IDataPropertyObject dataObject, string token, IControllerConfig config,
+        ButtonRoot? buttonRoot = null, string buttonPath = "") => config switch
     {
         SliderConfig c => new SliderElement(dataObject, token, c),
         TextBoxConfig c => new TextElement(dataObject, token, c),
         PathPickerConfig c => new PathElement(dataObject, token, c),
         ComboBoxConfig c => new ComboElement(dataObject, token, c),
         CheckBoxConfig c => new CheckElement(dataObject, token, c),
-        ObjectConfig c => new ObjectElement(dataObject, token, c),
-        ArrayConfig c => new NestedArrayElement(dataObject, token, c),
-        ListConfig c => new NestedListElement(dataObject, token, c),
-        ExtensibleObjectConfig c => new NestedExtensibleObjectElement(dataObject, token, c),
+        ObjectConfig c => new ObjectElement(dataObject, token, c, buttonRoot, buttonPath),
+        ArrayConfig c => new NestedArrayElement(dataObject, token, c, buttonRoot, buttonPath),
+        ListConfig c => new NestedListElement(dataObject, token, c, buttonRoot, buttonPath),
+        ExtensibleObjectConfig c => new NestedExtensibleObjectElement(dataObject, token, c, buttonRoot, buttonPath),
         _ => new UnknownElement(config),
     };
 
@@ -1074,9 +1082,11 @@ internal abstract class ElementWidget : IDisposable
     // 对象元素：嵌 PropertyObjectController 渲染该元素子字段（带各自 key 标签），导航进 dataObject.Object(token)。
     sealed class ObjectElement : ElementWidget
     {
-        public ObjectElement(IDataPropertyObject dataObject, string token, ObjectConfig config)
+        public ObjectElement(IDataPropertyObject dataObject, string token, ObjectConfig config, ButtonRoot? buttonRoot, string buttonPath)
         {
             mController = new PropertyObjectController();
+            if (buttonRoot != null)
+                mController.AttachButtonRoot(buttonRoot, buttonPath);
             mController.SetConfig(config, dataObject.Object(token));
         }
 
@@ -1095,8 +1105,10 @@ internal abstract class ElementWidget : IDisposable
     // 数组套数组元素：嵌 ArrayController/ListController，导航进 dataObject.Array(token)。
     sealed class NestedArrayElement : ElementWidget
     {
-        public NestedArrayElement(IDataPropertyObject dataObject, string token, ArrayConfig config)
+        public NestedArrayElement(IDataPropertyObject dataObject, string token, ArrayConfig config, ButtonRoot? buttonRoot, string buttonPath)
         {
+            mController.ButtonRoot = buttonRoot;
+            mController.ButtonPath = buttonPath;
             mController.Bind(dataObject.Array(token));
             mController.Apply(config);
         }
@@ -1115,8 +1127,10 @@ internal abstract class ElementWidget : IDisposable
 
     sealed class NestedListElement : ElementWidget
     {
-        public NestedListElement(IDataPropertyObject dataObject, string token, ListConfig config)
+        public NestedListElement(IDataPropertyObject dataObject, string token, ListConfig config, ButtonRoot? buttonRoot, string buttonPath)
         {
+            mController.ButtonRoot = buttonRoot;
+            mController.ButtonPath = buttonPath;
             mController.Bind(dataObject.Array(token));
             mController.Apply(config);
         }
@@ -1136,8 +1150,10 @@ internal abstract class ElementWidget : IDisposable
     // 数组套变长键控对象元素：嵌 ExtensibleObjectController，导航进 dataObject.Object(token)。
     sealed class NestedExtensibleObjectElement : ElementWidget
     {
-        public NestedExtensibleObjectElement(IDataPropertyObject dataObject, string token, ExtensibleObjectConfig config)
+        public NestedExtensibleObjectElement(IDataPropertyObject dataObject, string token, ExtensibleObjectConfig config, ButtonRoot? buttonRoot, string buttonPath)
         {
+            mController.ButtonRoot = buttonRoot;
+            mController.ButtonPath = buttonPath;
             mController.Bind(dataObject.Object(token));
             mController.Apply(config);
         }
@@ -1293,7 +1309,11 @@ internal static class ControllerConfigDefaults
             {
                 var map = new Map<string, PropertyValue>();
                 foreach (var kvp in objectConfig.Properties)
+                {
+                    if (kvp.Value is ButtonConfig)
+                        continue;   // 按钮没有值，不占键
                     map.Add(kvp.Key.Id, kvp.Value.GetDefaultValue());
+                }
                 return PropertyValue.Create(new PropertyObject(map));
             }
             case ExtensibleObjectConfig addableObjectConfig:

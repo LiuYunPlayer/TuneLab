@@ -71,8 +71,12 @@ public partial class ProgressWindow : Window
         mCancel.IsVisible = true;
     }
 
+    // 禁用时半透明：自绘按钮没有禁用态外观，不压暗用户看不出"此刻不能取消"。
     public void SetCancelEnabled(bool enabled)
     {
-        if (mCancel != null) mCancel.IsEnabled = enabled;
+        if (mCancel == null)
+            return;
+        mCancel.IsEnabled = enabled;
+        mCancel.Opacity = enabled ? 1 : 0.4;
     }
 }

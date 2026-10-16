@@ -88,6 +88,8 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         mPartContent.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
         mPartContent.Children.Add(mPartFixedController);
         mPartContent.Children.Add(mPartPropertiesController);
+        // 插件按钮执行完 → 重新询问 part 声明（按钮动的是插件状态，面板选项可能随之变）。
+        mPartPropertiesController.ButtonActionCompleted += ReconcilePartController;
         // 无目标 part 时盖遮罩（压暗 + 挡交互），提示去选 part；有 part 时按 mode 显隐 Gain / 动态属性。
         mPartContentPanel.Children.Add(mPartContent);
         mPartContentPanel.Children.Add(mPartContentMask);
@@ -278,6 +280,8 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         var data = mParts.Count == 1
             ? (IDataPropertyObject)mParts[0].Properties
             : new MultipleDataPropertyObject(mParts.Select(part => part.Properties).ToList());
+        // 按钮作用域 = 选中的这批 part：重选同一批时认得出执行中的按钮（见 ButtonRoot）。
+        mPartPropertiesController.ButtonScope = "part/" + string.Join(",", mParts.Select(part => part.RuntimeId));
         mPartPropertiesController.SetConfig(mParts[0].SoundSource.GetPartPropertyConfig(BuildPartContext()), data);
     }
 

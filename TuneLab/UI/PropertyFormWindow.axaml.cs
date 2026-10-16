@@ -16,10 +16,11 @@ using Button = TuneLab.GUI.Components.Button;
 
 namespace TuneLab.UI;
 
-// 脚本入参窗：复用属性面板控制器（PropertyObjectController）渲染 getInputs 的 config schema；用户改任一值即重算
+// 输入表单窗（inputs）：复用属性面板控制器（PropertyObjectController）渲染一份 config schema；用户改任一值即重算
 // schema 并 keyed-diff（响应式条件字段）。数据挂独立 DataDocument，与工程 undo 隔离。确定返回填好的值(PropertyObject)、
-// 取消返回 null。见 docs/script-inputs-and-action-surface.md §2.3。
-internal partial class ScriptInputWindow : Window
+// 取消返回 null。两个用户：脚本工具的 getInputs（见 docs/script-inputs-and-action-surface.md §2.3）与插件按钮里的
+// IDialogService.PromptInputs。表单里的按钮（ButtonConfig）执行完同样触发重算——按钮可能改了插件状态、schema 随之变。
+internal partial class PropertyFormWindow : Window
 {
     readonly PropertyObjectController mController = new();
     readonly DataPropertyObject mData;
@@ -28,7 +29,7 @@ internal partial class ScriptInputWindow : Window
     bool mReconcilePending;
 
     // initialSchema 由调用方以初值算好（保证非空、避免开窗即闪）；compute 供后续响应式重算。
-    public ScriptInputWindow(string title, ObjectConfig initialSchema, Func<PropertyObject, (ObjectConfig? Schema, string? Error)> compute, PropertyObject initialValues)
+    public PropertyFormWindow(string title, ObjectConfig initialSchema, Func<PropertyObject, (ObjectConfig? Schema, string? Error)> compute, PropertyObject initialValues)
     {
         InitializeComponent();
         Focusable = true;
@@ -67,6 +68,7 @@ internal partial class ScriptInputWindow : Window
         // 值改动 → 重算 schema → reconcile。deferred 合帧：commit 可能发生在控件事件回调链内（如 ComboBox 的
         // SelectionChanged），同步重算会重入控件集合；pending 标志合并一拍内多次触发。
         mData.Modified.Subscribe(ScheduleReconcile);
+        mController.ButtonActionCompleted += ScheduleReconcile;
 
         // 重置：圆形回转箭头图标按钮（省地方、不裁字），tooltip 说明。
         var resetButton = new Button() { Width = 32, Height = 28 };

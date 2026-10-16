@@ -43,6 +43,7 @@ DIM 默认体的语义责任：默认体必须是**可长期成立的兜底行�
 | 会话活视图 | `IVoiceSynthesisContext` / `IVoiceSynthesisNote` / `IInstrumentSynthesisContext` / `IInstrumentSynthesisNote` / `IEffectSynthesisContext` / `IEffectSynthesisAudio` / `IEffectSynthesisView` / `ISynthesisAutomation` / `IAutomationEvaluator` / `IAudioSegment` |
 | 声明面 context / 值视图 | `IVoiceSynthesisPartPropertyContext` / `IVoiceSynthesisNotePropertyContext` / `IVoiceSynthesisPartView` / `IVoiceSynthesisNoteView` / `IVoiceSynthesisPhonemeView` / instrument 平行四件（PartPropertyContext / NotePropertyContext / PartView / NoteView） / `IEffectSynthesisPropertyContext` / `IExtensionSettingsContext` |
 | 环境 | `ITuneLabContext` / `ILogger` |
+| 按钮点击 | `IButtonClickContext` / `IDialogService` / `IProgressReporter` |
 | 通知面（Foundation） | `IReadOnlyNotifiable` / `IReadOnlyNotifiableProperty<T>` / `IReadOnlyNotifiablePropertyObject` / `IReadOnlyNotifiableEnumerable<T>` / `IReadOnlyNotifiableCollection<T>` / `IReadOnlyNotifiableList<T>` / `IReadOnlyNotifiableLinkedList<T>` |
 
 ### C. 开放数据结构接口 —— 按插件实现面对待（加成员须 DIM）
@@ -53,7 +54,7 @@ DIM 默认体的语义责任：默认体必须是**可长期成立的兜底行�
 
 ### D. config 封闭族 —— SDK 内封闭实现，可同步改、无 DIM 需要
 
-`IControllerConfig` / `IValueConfig` / `IValueConfig<T>` 及 9 个 config 类（Slider/ComboBox/CheckBox/TextBox/DraggableNumberBox/Automation/Object/Array/List/ExtensibleObject）。
+`IControllerConfig` / `IValueConfig` / `IValueConfig<T>` 及各 config 类（Slider/ComboBox/CheckBox/TextBox/PathPicker/DraggableNumberBox/Automation/Object/Array/List/ExtensibleObject/Button）。
 
 - 实现集封闭在 SDK 内（config 类全 sealed + 私有构造 + 静态工厂/With，见既有"工厂化构造"约定）；宿主渲染器按具体类型分发，未知实现渲染为 unsupported 占位、不崩。
 - 加新 config 类型 = 纯加性（新类 + 宿主新 creator）；给既有 config 加字段走"工厂化构造 + `With` 流式"既有 ABI 韧性机制。
