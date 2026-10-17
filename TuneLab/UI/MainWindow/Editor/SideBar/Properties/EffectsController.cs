@@ -319,7 +319,11 @@ internal class EffectsController : StackPanel
                 // 参数面板：逐字段绑定到（合并的）effect.Properties，值的下发/写回/撤销刷新全自动；多实例走三态合并数据源。
                 // 条件面板：参数 commit 后按当前值重算整棵 config 并 keyed-diff 到控件树；多实例 config 经多实例 context 由引擎合并。
                 // 按钮作用域 = 本槽的这批 effect 实例（part + 链内 id）；执行完重新询问声明（见 ButtonRoot）。
-                mController = new PropertyObjectController { ButtonScope = "effect/" + string.Join(",", mSlotEffects.Select(e => e.Part.RuntimeId + ":" + e.Id)) };
+                mController = new PropertyObjectController
+                {
+                    ButtonScope = "effect/" + string.Join(",", mSlotEffects.Select(e => e.Part.RuntimeId + ":" + e.Id)),
+                    CollapseScope = "effect:" + mSlotEffects[0].Type,   // 折叠记忆按效果器类型记（槽内类型全等才走到这里）
+                };
                 mController.ButtonActionCompleted += ReconcileController;
                 mController.SetConfig(SlotPropertyConfig(), SlotData());
                 foreach (var effect in mSlotEffects)
@@ -375,10 +379,13 @@ internal class EffectsController : StackPanel
                 if (kvp.Value.IsPiecewise)
                     continue;
 
-                var row = new AutomationDefaultRow(mSlotParts, AutomationKey.Effect(mIndex, kvp.Key.Id), kvp.Key.DisplayText ?? kvp.Key.Id, kvp.Value);
+                var row = new AutomationDefaultRow(mSlotParts, AutomationKey.Effect(mIndex, kvp.Key.Id), kvp.Key.DisplayText ?? kvp.Key.Id, kvp.Value,
+                    "effect:" + mSlotEffects[0].Type + "/@automation/" + kvp.Key.Id);
                 mAutomationRows.Add(row);
                 mAutomationContainer.Children.Add(row);
             }
+            if (mAutomationRows.Count > 0)
+                mAutomationRows[^1].IsTrailing = true;   // 末行收起时补底边距（见 FieldFold.IsTrailing）
         }
 
         void RefreshAutomationRows()

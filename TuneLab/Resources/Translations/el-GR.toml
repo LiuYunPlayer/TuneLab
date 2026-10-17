@@ -520,3 +520,9 @@
 [TagController]
 "Stored value \"{0}\" is not among the current tags.\nThe plugin decides how to treat it." = "Η αποθηκευμένη τιμή \"{0}\" δεν βρίσκεται στις τρέχουσες ετικέτες.\nΤο πρόσθετο αποφασίζει πώς θα τη χειριστεί."
 "Only some of the selected items have this tag. Pick it from + to add it to all of them." = "Μόνο ορισμένα από τα επιλεγμένα στοιχεία έχουν αυτήν την ετικέτα. Επιλέξτε την από το + για να την προσθέσετε σε όλα."
+
+[PropertyObjectController]
+"Reset to Default" = "Επαναφορά στις προεπιλογές"
+"{0} items" = "{0} στοιχεία"
+"On" = "Ενεργό"
+"Off" = "Ανενεργό"

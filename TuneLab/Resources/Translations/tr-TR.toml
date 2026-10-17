@@ -520,3 +520,9 @@
 [TagController]
 "Stored value \"{0}\" is not among the current tags.\nThe plugin decides how to treat it." = "Kayıtlı değer \"{0}\" mevcut etiketler arasında değil.\nEklenti bunu nasıl işleyeceğine kendisi karar verir."
 "Only some of the selected items have this tag. Pick it from + to add it to all of them." = "Seçili öğelerin yalnızca bazılarında bu etiket var. Hepsine eklemek için + menüsünden seçin."
+
+[PropertyObjectController]
+"Reset to Default" = "Varsayılana sıfırla"
+"{0} items" = "{0} öğe"
+"On" = "Açık"
+"Off" = "Kapalı"

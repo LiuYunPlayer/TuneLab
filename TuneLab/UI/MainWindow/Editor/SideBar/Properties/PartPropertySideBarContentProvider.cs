@@ -40,8 +40,7 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
 
     public PartPropertySideBarContentProvider()
     {
-        var presetName = new Label() { Content = "Preset".Tr(TC.Property), Height = 38, FontSize = 14, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), Padding = new(24, 0) };
-        mPresetPanel.Title = presetName;
+        SideBarSection.Attach(mPresetPanel, "Preset".Tr(TC.Property));
         mPresetContent.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
 
         mPresetMoreButton = new TuneLab.GUI.Components.Button() { Width = 28, Height = 28 }
@@ -71,20 +70,17 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         presetRow.Children.Add(mPresetMoreButton);
         mPresetButton.Margin = new(0, 0, 8, 0);
         presetRow.Children.Add(mPresetButton);
-        mPresetContent.Children.Add(presetRow);
-
-        mPresetContent.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
+        mPresetContent.Children.Add(presetRow);   // 末尾不画线：下一个分组标题自带顶线（见 SideBarSection）
         mPresetPanel.Content = mPresetContent;
 
-        var voiceName = new Label() { Content = "Voice".Tr(TC.Property), Height = 38, FontSize = 14, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), Padding = new(24, 0) };
-        mVoicePanel.Title = voiceName;
+        SideBarSection.Attach(mVoicePanel, "Voice".Tr(TC.Property));
         mVoiceContent.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
         mVoiceContent.Children.Add(mPartVoiceController);
         mVoicePanel.Content = mVoiceContent;
 
-        var propertiesName = new Label() { Content = "Properties".Tr(TC.Property), Height = 38, FontSize = 14, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), Padding = new(24, 0) };
-        mPartPanel.Title = propertiesName;
+        SideBarSection.Attach(mPartPanel, "Properties".Tr(TC.Property));
         mPartContent.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
+        mPartContent.Children.Add(SideBarSection.CreateInset());
         mPartContent.Children.Add(mPartFixedController);
         mPartContent.Children.Add(mPartPropertiesController);
         // 插件按钮执行完 → 重新询问 part 声明（按钮动的是插件状态，面板选项可能随之变）。
@@ -94,9 +90,9 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         mPartContentPanel.Children.Add(mPartContentMask);
         mPartPanel.Content = mPartContentPanel;
 
-        var automationName = new Label() { Content = "Automation".Tr(TC.Property), Height = 38, FontSize = 14, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), Padding = new(24, 0) };
-        mAutomationPanel.Title = automationName;
+        SideBarSection.Attach(mAutomationPanel, "Automation".Tr(TC.Property));
         mAutomationContent.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
+        mAutomationContent.Children.Add(SideBarSection.CreateInset());
         mAutomationContent.Children.Add(mAutomationController);
         mAutomationPanel.Content = mAutomationContent;
 
@@ -271,8 +267,12 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
             : new MultipleDataPropertyObject(mParts.Select(part => part.Properties).ToList());
         // 按钮作用域 = 选中的这批 part：重选同一批时认得出执行中的按钮（见 ButtonRoot）。
         mPartPropertiesController.ButtonScope = "part/" + string.Join(",", mParts.Select(part => part.RuntimeId));
+        // 折叠记忆按「片段面板 + 声源引擎」记（同引擎多选才走到这里，取首个即可）。
+        mPartPropertiesController.CollapseScope = PartCollapseScope(mParts[0]);
         mPartPropertiesController.SetConfig(mParts[0].SoundSource.GetPartPropertyConfig(BuildPartContext()), data);
     }
+
+    public static string PartCollapseScope(IMidiPart part) => "part:" + part.SoundSource.Kind + ":" + part.SoundSource.Type;
 
     // 重算 defer 到下一 UI 调度：属性 commit 可能发生在控件自身事件回调链中（如 ComboBox 的 SelectionChanged），
     // 同步重算会重入修改控件集合——Avalonia 的 ComboBox 在其 SelectionChanged 处理中 Clear/重填 Items 会抛 IndexOutOfRange。

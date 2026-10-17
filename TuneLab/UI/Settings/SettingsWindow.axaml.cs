@@ -482,7 +482,11 @@ internal partial class SettingsWindow : Window
 
             var ctx = new SettingsContext(data);
             // 按钮作用域按扩展身份：切 tab 再切回、页面重建后仍认得出执行中的按钮（见 ButtonRoot）。
-            var controller = new PropertyObjectController { ButtonScope = "settings/" + entry.PackageId + "/" + entry.ExtensionKey };
+            var controller = new PropertyObjectController
+            {
+                ButtonScope = "settings/" + entry.PackageId + "/" + entry.ExtensionKey,
+                CollapseScope = "settings:" + entry.PackageId + ":" + entry.ExtensionKey,   // 折叠记忆按扩展身份记
+            };
             controller.SetConfig(entry.Settings.GetSettingsConfig(ctx), data);
             listView.Content.Children.Add(controller);
 

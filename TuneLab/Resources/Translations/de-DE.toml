@@ -520,3 +520,9 @@
 [TagController]
 "Stored value \"{0}\" is not among the current tags.\nThe plugin decides how to treat it." = "Der gespeicherte Wert \"{0}\" gehört nicht zu den aktuellen Tags.\nDas Plugin entscheidet, wie er behandelt wird."
 "Only some of the selected items have this tag. Pick it from + to add it to all of them." = "Nur einige der ausgewählten Elemente haben diesen Tag. Wähle ihn über + aus, um ihn allen hinzuzufügen."
+
+[PropertyObjectController]
+"Reset to Default" = "Auf Standard zurücksetzen"
+"{0} items" = "{0} Einträge"
+"On" = "An"
+"Off" = "Aus"

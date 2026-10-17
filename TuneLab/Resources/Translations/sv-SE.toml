@@ -520,3 +520,9 @@
 [TagController]
 "Stored value \"{0}\" is not among the current tags.\nThe plugin decides how to treat it." = "Det sparade värdet \"{0}\" finns inte bland de aktuella taggarna.\nInsticksprogrammet avgör hur det hanteras."
 "Only some of the selected items have this tag. Pick it from + to add it to all of them." = "Bara några av de markerade objekten har den här taggen. Välj den under + för att lägga till den på alla."
+
+[PropertyObjectController]
+"Reset to Default" = "Återställ till standard"
+"{0} items" = "{0} objekt"
+"On" = "På"
+"Off" = "Av"

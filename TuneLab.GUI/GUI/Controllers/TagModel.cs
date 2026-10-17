@@ -77,6 +77,20 @@ internal static class TagModel
     }
 
     public static string Literal(PropertyValue value) => value.ToString() ?? string.Empty;
+
+    // 各成员的 tag 序列（单选 = 一个成员；多选外观逐成员读，见 MultipleDataPropertyObject.Members）。
+    public static List<List<PropertyValue>> ReadAll(IDataPropertyObject parent, string key, PropertyValue defaultValue)
+    {
+        IReadOnlyList<IDataPropertyObject> members = parent is MultipleDataPropertyObject multiple ? multiple.Members : [parent];
+        return members.Select(member => Read(member, key, defaultValue)).ToList();
+    }
+
+    // 收起时的摘要：并集里各 tag 的显示文本，逗号相连（候选外的值用字面量）；没有 tag 时为 null（不显示摘要）。
+    public static string? Summary(IDataPropertyObject parent, string key, TagConfig config)
+    {
+        var view = Union(ReadAll(parent, key, ((IValueConfig)config).DefaultValue));
+        return view.Count == 0 ? null : string.Join(", ", view.Select(v => DisplayTextOf(config.Items, v.Value) ?? Literal(v.Value)));
+    }
 }
 
 // TagItem 的宿主侧呈现投影（同 ComboBoxItemExtensions）：「显示成什么文本」是渲染器的私事。

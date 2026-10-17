@@ -22,6 +22,8 @@ internal static class Style
     public static readonly Color HIGH_LIGHT = new(255, 98, 111, 252);
     public static readonly Color TEXT_NORMAL = new((int)(0.7 * 255), 255, 255, 255);
     public static readonly Color TEXT_LIGHT = new(255, 255, 255, 255);
+    // 属性面板的字段标签：比值（LIGHT_WHITE）暗一档，与白色加粗的分组标题拉开层级——标签暗、值亮、分组最亮。
+    public static readonly Color TEXT_LABEL = new((int)(0.75 * 255), 181, 181, 191);
     public static readonly Color WHITE_KEY = new(255, 39, 39, 54);
     public static readonly Color BLACK_KEY = new(255, 27, 27, 36);
     public static readonly Color BUTTON_PRIMARY = new(255, 96, 96, 192);

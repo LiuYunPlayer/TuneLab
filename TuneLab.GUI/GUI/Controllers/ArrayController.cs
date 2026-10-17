@@ -1291,7 +1291,7 @@ internal static class ArrayControlsFactory
             Content = text,
             FontSize = 12,
             VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center,
-            Foreground = Style.LIGHT_WHITE.ToBrush(),
+            Foreground = Style.TEXT_LABEL.ToBrush(),   // 同字段标签
             Padding = new(24, 0),
         };
     }

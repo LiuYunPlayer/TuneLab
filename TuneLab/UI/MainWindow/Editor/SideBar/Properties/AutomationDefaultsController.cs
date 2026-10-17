@@ -40,10 +40,13 @@ internal class AutomationDefaultsController : StackPanel
             if (kvp.Value.IsPiecewise)
                 continue;
 
-            var row = new AutomationDefaultRow(mParts, AutomationKey.Voice(kvp.Key.Id), kvp.Key.DisplayText ?? kvp.Key.Id, kvp.Value);
+            var row = new AutomationDefaultRow(mParts, AutomationKey.Voice(kvp.Key.Id), kvp.Key.DisplayText ?? kvp.Key.Id, kvp.Value,
+                PartPropertySideBarContentProvider.PartCollapseScope(mParts[0]) + "/@automation/" + kvp.Key.Id);
             mRows.Add(row);
             Children.Add(row);
         }
+        if (mRows.Count > 0)
+            mRows[^1].IsTrailing = true;   // 末行收起时补底边距（见 FieldFold.IsTrailing）
 
         // 默认值外部（undo/redo/preset）改动 → 刷新所有行；自动化轨增减 → 重建；
         // 条件自动化轨随参数 commit 显隐 → 重建（仅轨集合实变时触发）。各 part 都订阅。

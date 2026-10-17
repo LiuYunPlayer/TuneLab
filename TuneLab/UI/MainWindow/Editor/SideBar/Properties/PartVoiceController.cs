@@ -34,8 +34,7 @@ internal class PartVoiceController : StackPanel
 
         mVoiceController.Margin = new(24, 12);
         mVoiceController.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch;
-        Children.Add(mVoiceController);
-        Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
+        Children.Add(mVoiceController);   // 末尾不画线：下一个分组标题自带顶线（见 SideBarSection）
 
         mVoiceController.ValueCommitted.Subscribe(OnVoiceCommitted);
         // 最近列表是本下拉的数据源（右键菜单等处也会改它），订阅其变更信号即时重建选项。控件单例长存，随其生命周期常驻订阅。

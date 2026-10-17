@@ -23,6 +23,7 @@ internal static class PathManager
     public static string EditorStateFilePath => Path.Combine(ConfigsFolder, "EditorState.json");
     public static string RecentSoundSourcesFilePath => Path.Combine(ConfigsFolder, "RecentSoundSources.json");
     public static string ParameterPinsFilePath => Path.Combine(ConfigsFolder, "ParameterPins.json");
+    public static string CollapsedFieldsFilePath => Path.Combine(ConfigsFolder, "CollapsedFields.json");
     // 与用户环境绑定的扩展数据各存各的（同 ExtensionSettings.json，都不进 Settings.json）：
     public static string ExtensionRoutingFilePath => Path.Combine(ConfigsFolder, "ExtensionRouting.json");
     public static string ExtensionActivationFilePath => Path.Combine(ConfigsFolder, "ExtensionActivation.json");

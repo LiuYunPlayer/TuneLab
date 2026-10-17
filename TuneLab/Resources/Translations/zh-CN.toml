@@ -520,3 +520,9 @@
 [TagController]
 "Stored value \"{0}\" is not among the current tags.\nThe plugin decides how to treat it." = "存储的值\"{0}\"不在当前标签中。\n插件将自行决定如何处理它。"
 "Only some of the selected items have this tag. Pick it from + to add it to all of them." = "选中的对象里只有一部分带这个标签。从 + 里选它，即可补给全部对象。"
+
+[PropertyObjectController]
+"Reset to Default" = "重置为默认"
+"{0} items" = "{0} 项"
+"On" = "开"
+"Off" = "关"

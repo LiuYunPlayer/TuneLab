@@ -36,16 +36,15 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         // 插件按钮执行完 → 重新询问 note 声明（按钮动的是插件状态，面板选项可能随之变）。
         mNotePropertiesController.ButtonActionCompleted += mNoteScheduler.InvalidateValues;
 
-        var noteName = new Label() { Content = "Note".Tr(TC.Property), Height = 38, FontSize = 14, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), Padding = new(24, 0) };
-        mNotePanel.Title = noteName;
+        SideBarSection.Attach(mNotePanel, "Note".Tr(TC.Property));
         mNoteContent.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
+        mNoteContent.Children.Add(SideBarSection.CreateInset());
         mNoteContent.Children.Add(mNotePropertiesController);
         mNoteContentPanel.Children.Add(mNoteContent);
         mNoteContentPanel.Children.Add(mNoteContentMask);
         mNotePanel.Content = mNoteContentPanel;
 
-        var phonemeName = new Label() { Content = "Phoneme".Tr(TC.Property), Height = 38, FontSize = 14, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), Padding = new(24, 0) };
-        mPhonemePanel.Title = phonemeName;
+        SideBarSection.Attach(mPhonemePanel, "Phoneme".Tr(TC.Property));
         mPhonemeContent.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
         mPhonemeContent.Children.Add(mPhonemeRowsPanel);
         mPhonemePanel.Content = mPhonemeContent;
@@ -244,6 +243,8 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         mNoteData = new MultipleDataPropertyObject(dataObjects);
         // 按钮作用域 = 所属 part + 选中的这批 note（见 ButtonRoot）。
         mNotePropertiesController.ButtonScope = "note/" + mPart.RuntimeId + "/" + string.Join(",", mPart.Notes.AllSelectedItems().Select(note => note.RuntimeId));
+        // 折叠记忆按「音符面板 + 声源引擎」记：同一引擎的音符字段，收起一次处处收起（见 FieldFolds）。
+        mNotePropertiesController.CollapseScope = "note:" + mPart.SoundSource.Kind + ":" + mPart.SoundSource.Type;
         mNotePropertiesController.SetConfig(mPart.SoundSource.GetNotePropertyConfig(BuildNoteContext()), mNoteData);
         mNoteContentMask.IsVisible = dataObjects.Count == 0;
         mNoteData.Modified.Subscribe(mNoteScheduler.InvalidateValues, mNoteSub);

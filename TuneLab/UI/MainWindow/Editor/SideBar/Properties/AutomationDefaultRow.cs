@@ -21,35 +21,38 @@ namespace TuneLab.UI;
 // 单 part 即 N=1 特例（effect 块仍用单 part 构造）。
 internal sealed class AutomationDefaultRow : StackPanel, IDisposable
 {
-    public AutomationDefaultRow(IMidiPart part, AutomationKey key, string keyName, AutomationConfig config)
-        : this(new[] { part }, key, keyName, config) { }
+    public AutomationDefaultRow(IMidiPart part, AutomationKey key, string keyName, AutomationConfig config, string? foldKey = null)
+        : this(new[] { part }, key, keyName, config, foldKey) { }
 
-    public AutomationDefaultRow(IReadOnlyList<IMidiPart> parts, AutomationKey key, string keyName, AutomationConfig config)
+    // foldKey：折叠记忆的键（与属性面板字段同一套，见 PropertyObjectController.CollapseScope）；null = 不可折叠。
+    public AutomationDefaultRow(IReadOnlyList<IMidiPart> parts, AutomationKey key, string keyName, AutomationConfig config, string? foldKey = null)
     {
         mParts = parts;
         mKey = key;
         mConfig = config;
         Orientation = Orientation.Vertical;
 
-        Children.Add(new Label()
+        var title = new Label()
         {
             Height = 30,
             FontSize = 12,
-            VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Bottom,
-            Foreground = Style.LIGHT_WHITE.ToBrush(),
+            VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center,   // 同属性面板字段标题：文字居中
+            Foreground = Style.TEXT_LABEL.ToBrush(),   // 同属性面板字段标签
             Content = keyName,
             Padding = new(24, 0),
-        });
+        };
 
-        mSlider = new SliderController() { Margin = new(24, 12) };
+        mSlider = new SliderController() { Margin = new(24, 5, 24, 12) };   // 上边距同属性面板字段（标题文字 → 控件 12）
         mSlider.SetScale(config.Scale);
         mSlider.NumberFormat = config.Format;
         mSlider.SetDefaultValue(config.DefaultValue);
         mSlider.ShowRandomButton = config.Randomizable;
         mSlider.SetBoundLabels(config.MinLabel, config.MaxLabel);
+        // 收起时标题行显示当前默认值（多选不一致时 "(Multiple)"）。
+        mFold = new FieldFold(title, [mSlider], foldKey, summary: Summary);
+        Children.Add(mFold.Header);
         Children.Add(mSlider);
-
-        Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
+        // 字段之间不画线（只有分组边界有线，见 SideBarSection）。
 
         mSlider.ValueWillChange.Subscribe(OnValueWillChange, s);
         mSlider.ValueChanged.Subscribe(OnValueChanged, s);
@@ -76,6 +79,21 @@ internal sealed class AutomationDefaultRow : StackPanel, IDisposable
             }
         }
         mSlider.Display(first);
+        mFold.RefreshSummary();
+    }
+
+    // 是否所在列表的最后一行（末行收起时才补底边距，见 FieldFold.IsTrailing）。
+    public bool IsTrailing { set => mFold.IsTrailing = value; }
+
+    string? Summary()
+    {
+        if (mParts.Count == 0)
+            return null;
+        var first = ValueOf(mParts[0]);
+        for (int i = 1; i < mParts.Count; i++)
+            if (ValueOf(mParts[i]) != first)
+                return "(Multiple)";
+        return (mConfig.Format ?? NumberFormat.Decimals(2)).Format(first);   // 插件没给格式时同滑条的回退（两位小数）
     }
 
     double ValueOf(IMidiPart part) => part.GetEffectiveAutomation(mKey)?.DefaultValue.Value ?? mConfig.DefaultValue;
@@ -127,6 +145,7 @@ internal sealed class AutomationDefaultRow : StackPanel, IDisposable
     public void Dispose()
     {
         EndMerge();
+        mFold.Dispose();
         s.DisposeAll();
     }
 
@@ -134,6 +153,7 @@ internal sealed class AutomationDefaultRow : StackPanel, IDisposable
     readonly AutomationKey mKey;
     readonly AutomationConfig mConfig;
     readonly SliderController mSlider;
+    readonly FieldFold mFold;
     Head mHead;
     bool mMerging;
     readonly DisposableManager s = new();

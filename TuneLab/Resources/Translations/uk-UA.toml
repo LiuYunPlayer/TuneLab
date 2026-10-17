@@ -520,3 +520,9 @@
 [TagController]
 "Stored value \"{0}\" is not among the current tags.\nThe plugin decides how to treat it." = "Збережене значення \"{0}\" відсутнє серед поточних тегів.\nПлагін сам вирішує, як його обробити."
 "Only some of the selected items have this tag. Pick it from + to add it to all of them." = "Цей тег є лише в частини вибраних елементів. Виберіть його в +, щоб додати всім."
+
+[PropertyObjectController]
+"Reset to Default" = "Скинути до типового"
+"{0} items" = "Елементів: {0}"
+"On" = "Увімк"
+"Off" = "Вимк"
