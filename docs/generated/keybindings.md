@@ -31,11 +31,19 @@
 | 颤音工具 | 5 | Editor | `tool.vibrato` |
 | 设置 | — | Global | `app.settings` |
 | 片段面板 | — | Editor | `sidebar.showPart` |
+| 隐藏片段面板 | — | Editor | `sidebar.hidePart` |
+| 效果面板 | — | Editor | `sidebar.showEffects` |
+| 隐藏效果面板 | — | Editor | `sidebar.hideEffects` |
 | 音符面板 | — | Editor | `sidebar.showNote` |
+| 隐藏音符面板 | — | Editor | `sidebar.hideNote` |
 | Agent 面板 | — | Editor | `sidebar.showAgent` |
+| 隐藏Agent 面板 | — | Editor | `sidebar.hideAgent` |
 | 脚本面板 | — | Editor | `sidebar.showScript` |
+| 隐藏脚本面板 | — | Editor | `sidebar.hideScript` |
 | 扩展面板 | — | Editor | `sidebar.showExtensions` |
+| 隐藏扩展面板 | — | Editor | `sidebar.hideExtensions` |
 | 导出面板 | — | Editor | `sidebar.showExport` |
+| 隐藏导出面板 | — | Editor | `sidebar.hideExport` |
 | 隐藏侧栏 | — | Editor | `sidebar.hide` |
 | 显示/隐藏波形 | — | Editor | `view.toggleWaveform` |
 | 量化更细 | — | Editor | `quantization.finer` |
