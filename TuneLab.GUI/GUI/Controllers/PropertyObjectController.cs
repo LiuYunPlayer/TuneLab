@@ -629,6 +629,33 @@ internal class PropertyObjectController : StackPanel
         readonly ListController mController;
     }
 
+    // tag 组字段：字段带 key 标题，内容是 chip 横排的 TagController（见 TagController.cs）。按整段值读写，
+    // 故绑的是父对象 + 键，而不是 Array(key) 的逐元素外观。
+    class TagCreator : Creator
+    {
+        public TagCreator(PropertyObjectController parent, PropertyKey key, TagConfig config) : base(parent)
+        {
+            mTitle = CreateTitle(key.DisplayText ?? key.Id, 30, ArrayControlsFactory.TitleGap);
+            mController = new TagController();
+            mController.Bind(parent.DataObject, key.Id);
+            mController.Apply(config);
+        }
+
+        public override Type ConfigType => typeof(TagConfig);
+        public override IEnumerable<Control> Views => [mTitle, mController];
+        public override void Update(IControllerConfig config) => mController.Apply((TagConfig)config);
+
+        public override void Dispose()
+        {
+            base.Dispose();
+            mController.Unbind();
+            ObjectPoolManager.Return(mTitle);
+        }
+
+        readonly Label mTitle;
+        readonly TagController mController;
+    }
+
     // 变长键控容器字段：字段带 key 标题，内容是 ExtensibleObjectController（命名条目 + 增删，见 ExtensibleObjectController.cs）。
     // 绑到 Object(key.Id) 的嵌套对象——条目是该对象内的键。
     class ExtensibleObjectCreator : Creator
@@ -802,6 +829,7 @@ internal class PropertyObjectController : StackPanel
         { typeof(CheckBoxConfig), (parent, key, config) => new CheckBoxCreator(parent, key, (CheckBoxConfig)config) },
         { typeof(ArrayConfig), (parent, key, config) => new ArrayCreator(parent, key, (ArrayConfig)config) },
         { typeof(ListConfig), (parent, key, config) => new ListCreator(parent, key, (ListConfig)config) },
+        { typeof(TagConfig), (parent, key, config) => new TagCreator(parent, key, (TagConfig)config) },
         { typeof(ExtensibleObjectConfig), (parent, key, config) => new ExtensibleObjectCreator(parent, key, (ExtensibleObjectConfig)config) },
         { typeof(ButtonConfig), (parent, key, config) => new ButtonCreator(parent, key, (ButtonConfig)config) },
     };

@@ -516,3 +516,7 @@
 [DropDownMenu]
 "Search" = "Поиск"
 "No matches" = "Нет совпадений"
+
+[TagController]
+"Stored value \"{0}\" is not among the current tags.\nThe plugin decides how to treat it." = "Сохранённое значение \"{0}\" отсутствует среди текущих тегов.\nПлагин сам решает, как его обработать."
+"Only some of the selected items have this tag. Pick it from + to add it to all of them." = "Этот тег есть только у части выбранных элементов. Выберите его в + , чтобы добавить всем."

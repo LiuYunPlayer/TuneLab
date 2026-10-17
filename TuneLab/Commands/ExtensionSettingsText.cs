@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using TuneLab.Extensions;
@@ -110,6 +111,38 @@ internal static class ExtensionSettingsText
                             return (option.Value, null);   // 值形态照声明原样（可能是文本/数字/布尔）
                     }
                 return (default, string.Format("\"{0}\" is not an allowed value for \"{1}\": {2}.", given, key, ConfigText.Describe(combo)));
+            }
+
+            // tag 组：JSON 数组，逐个按候选比对（同下拉的宽容口径：先区分大小写、再不区分）；重复的只留第一个
+            //（有序、不重复，见 TagConfig）。整组一个都不能错——错一个就整条拒绝并点名，不悄悄丢掉它写其余的。
+            case TagConfig tags:
+            {
+                if (raw.ValueKind != JsonValueKind.Array)
+                    return (default, string.Format("\"{0}\" is a list of tags; give a JSON array such as [\"a\", \"b\"]. Allowed: {1}.", key, ConfigText.Describe(tags)));
+                var values = new List<PropertyValue>();
+                foreach (var element in raw.EnumerateArray())
+                {
+                    var given = JsonScalar.Text(element);
+                    PropertyValue? match = null;
+                    foreach (var pass in new[] { StringComparison.Ordinal, StringComparison.OrdinalIgnoreCase })
+                    {
+                        foreach (var candidate in tags.Items.Leaves())
+                        {
+                            if (!candidate.Value.IsNull() && string.Equals(JsonScalar.Literal(candidate.Value), given, pass))
+                            {
+                                match = candidate.Value;
+                                break;
+                            }
+                        }
+                        if (match != null)
+                            break;
+                    }
+                    if (match is not { } value)
+                        return (default, string.Format("\"{0}\" is not an allowed tag for \"{1}\": {2}.", given, key, ConfigText.Describe(tags)));
+                    if (!values.Contains(value))
+                        values.Add(value);
+                }
+                return (new PropertyArray(values), null);
             }
 
             // 路径也是文本：宿主不校验存不存在（合法与否只有插件知道，见 PathPickerConfig 注释），与手填文本同路。

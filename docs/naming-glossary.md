@@ -40,7 +40,8 @@
 | 命令面上一条**外部可调条目**（CLI / agent 工具 / MCP 的同一个末端） | `command`（`ICommand` / `CommandRegistry` / `CommandKind`） | 命令 | 「末端动作」（已改口"末端命令"）；别用 `action` 指它 |
 | 吸附网格的档位（1/16、三连的 1/12…） | `quantization`（`IQuantization` / `QuantizationBase` / `QuantizationDivision` / 动作 id `quantization.*`） | 量化 | 符号面别写 `snap` / `grid`（模型可见的句子里可以用 "the snap grid" 作解释性同位语，如 `editor status` 那行；**符号与 id 一律 quantization**） |
 | 一条动作要作用在哪个成员上（一个动词 × 一个闭集里的成员） | `argument`（`ActionParameter` / `ActionArgument` / `run_action` 的 `argument` 字段），那一批统称**选择器参数** selector parameter | 选择器参数 | 别写 `option` / `value` / `target` 指它；命令自己的入参仍叫 `parameter`（`ParametersJsonSchema`），动作的这一个是 `argument`——两个词分工见 command-surface.md §5.6 |
-| 右侧那条可开合的容器 + 它的页签 | `sidebar`（动作 id `sidebar.*` / `editor status` 的 `sidebar` 字段 / `SideTabBar`、`SideBarTab`） | 侧栏 | 「侧边栏」「抽屉」；容器叫**侧栏**，里面显示的那一块叫**面板**（`Part Panel`…），两个词别互换 |
+| 右侧那条可开合的容器 + 它的页签 | `sidebar`（动作 id `sidebar.*` / `editor status` 的 `sidebars` 字段 / `SideTabBar`、`SideBarTab`） | 侧栏 | 「侧边栏」「抽屉」；容器叫**侧栏**，里面显示的那一块叫**面板**（`Part Panel`…），两个词别互换 |
+| 从一组固定候选里挑若干个值（有序、不重复）的字段及其候选 | `TagConfig` / `TagItem`（SDK）；`TagController`（GUI） | 标签 | `MultiSelect*`（「多选」在本仓指同时选中多个音符/片段，撞词）；`ChipConfig`（描述的是界面形态不是语义）；候选别复用 `ComboBoxItem`（两者各自演进） |
 
 ### 三条边界的说明
 

@@ -25,6 +25,8 @@ internal static class ConfigText
         SliderConfig s => string.Format("number in [{0}, {1}]", FormatNum(s.Scale.ToValue(0)), FormatNum(s.Scale.ToValue(1))),
         DraggableNumberBoxConfig d => "number" + RangeHint(d),
         ComboBoxConfig c => "one of " + Options(c),
+        // 有序、不重复是这类字段与「下拉列表」的本质区别，写给模型看：顺序有意义、同一个值不要写两次。
+        TagConfig t => "tags: an ordered list of distinct values, each one of " + Options(t),
         CheckBoxConfig => "boolean (true/false)",
         // 多行要点明：模型据此才知道值里可以有换行（单行字段里塞 \n 是它常犯的错）。
         TextBoxConfig t => t.IsPassword ? "text (masked)"
@@ -56,6 +58,23 @@ internal static class ConfigText
         return parts.ToString();
     }
 
+    static string Options(TagConfig t)
+    {
+        var sb = new StringBuilder("[");
+        bool first = true;
+        foreach (var item in t.Items.Leaves())   // 分组展开成其中的候选
+        {
+            if (item.Value.IsNull())
+                continue;
+            if (!first) sb.Append(", ");
+            first = false;
+            sb.Append(FormatValue(item.Value));
+            if (!string.IsNullOrEmpty(item.DisplayText) && item.DisplayText != FormatValue(item.Value))
+                sb.Append(" (\"").Append(item.DisplayText).Append("\")");
+        }
+        return sb.Append(']').ToString();
+    }
+
     static string Options(ComboBoxConfig c)
     {
         var sb = new StringBuilder("[");
@@ -79,6 +98,7 @@ internal static class ConfigText
         if (v.ToBoolean(out var b)) return b ? "true" : "false";
         if (v.ToDouble(out var d)) return FormatNum(d);
         if (v.ToString(out var s)) return "\"" + s + "\"";
+        if (v.ToArray(out var array)) return "[" + string.Join(", ", array.Select(FormatValue)) + "]";
         return "(none)";
     }
 
@@ -98,6 +118,7 @@ internal static class ConfigText
         if (v.ToBoolean(out var b)) return b;
         if (v.ToDouble(out var d)) return d;
         if (v.ToString(out var s)) return s;
+        if (v.ToArray(out var array)) return new JsonArray(array.Select(ToJson).ToArray());
         return null;
     }
 

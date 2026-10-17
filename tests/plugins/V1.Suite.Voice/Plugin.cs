@@ -61,6 +61,10 @@ public sealed class SuiteVoiceEngine : IVoiceSynthesisEngine, IExtensionSettings
         var map = new OrderedMap<PropertyKey, AutomationConfig>();
         foreach (var id in InCatalogOrder(selected, kSpeakers))
             map.Add((id, SpeakerName(id)), AutomationConfig.Create(0, 100).WithColor("#73E5A5").WithDefault(0));
+        // 音色 tag：每选一个派生一条强度曲线，**按 tag 的顺序**排——拖动调序后参数面板的曲线顺序随之变，
+        // 用来观察 tag 组是有序的。
+        foreach (var timbre in SelectedTimbres(context))
+            map.Add(("timbre_" + timbre, TimbreName(timbre) + " Amount"), AutomationConfig.Create(0, 1).WithColor("#E5A573").WithDefault(0.5));
         return map;
     }
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IVoiceSynthesisPartPropertyContext context) => sEmptyConfigs;
@@ -88,8 +92,39 @@ public sealed class SuiteVoiceEngine : IVoiceSynthesisEngine, IExtensionSettings
                 new AddableKey("Male", kSpeakers.Where(s => s.id == "bob").Select(SpeakerKey)),
             ]));
 
+        // tag 组：音色（分组 + 分隔线 + 顶层叶子）。有序、不重复；选中的音色各派生一条曲线（见 GetAutomationConfigs）。
+        map.Add(("timbres", "Timbres"), TagConfig.Create(
+            [
+                new TagItem("Bright", [new TagItem("resonant", "Resonant"), new TagItem("power", "Power")]),
+                new TagItem("Soft", [new TagItem("mellow", "Mellow"), new TagItem("breathy", "Breathy")]),
+                TagItem.Separator(),
+                new TagItem("raw", "Raw"),
+            ]));
+
         return ObjectConfig.Create(map);
     }
+
+    // 已选音色（多选 part 取首个——演示用，够看出顺序即可）。
+    static IEnumerable<string> SelectedTimbres(IVoiceSynthesisPartPropertyContext context)
+    {
+        if (context.Parts.Count == 0)
+            yield break;
+        var array = context.Parts[0].PartProperties.GetValue("timbres", PropertyArray.Empty);
+        var seen = new HashSet<string>();
+        foreach (var value in array)
+            if (value.ToString(out string? id) && seen.Add(id))
+                yield return id;
+    }
+
+    static string TimbreName(string id) => id switch
+    {
+        "resonant" => "Resonant",
+        "power" => "Power",
+        "mellow" => "Mellow",
+        "breathy" => "Breathy",
+        "raw" => "Raw",
+        _ => id,
+    };
 
     static readonly (string id, string name)[] kSpeakers = { ("alice", "Alice"), ("bob", "Bob"), ("carol", "Carol") };
 
@@ -196,6 +231,17 @@ public sealed class SuiteVoiceEngine : IVoiceSynthesisEngine, IExtensionSettings
                 SliderConfig.Linear(0.2, 0, 1),
                 SliderConfig.Linear(0.8, 0, 1),
             ]));
+
+        // ④-E note 级 tag 组 moods（TagConfig）：12 个候选（≥ 10 → + 菜单出搜索框）、默认已选 calm；
+        //   含数值型的值（1/2/3 显示为 Level N），供多选下「部分有」的半透明态与按值增删的真机测试。
+        map.Add(("moods", "Moods"), TagConfig.Create(
+            [
+                new TagItem("Gentle", [new TagItem("calm", "Calm"), new TagItem("warm", "Warm"), new TagItem("tender", "Tender"), new TagItem("dreamy", "Dreamy")]),
+                new TagItem("Strong", [new TagItem("bold", "Bold"), new TagItem("angry", "Angry"), new TagItem("proud", "Proud"), new TagItem("tense", "Tense")]),
+                TagItem.Separator("Intensity"),
+                new TagItem(1, "Level 1"), new TagItem(2, "Level 2"), new TagItem(3, "Level 3"),
+                "plain",
+            ]).WithDefault(["calm"]));
 
         // ④-D note 级变长键控容器 tags（ExtensibleObjectConfig）：part 面板的 Mixed Speakers 是单选场景，
         //   这里放一个到可多选的 note 面板，供多选下「键并集合并 + 公共键编辑扇出」真机测试。

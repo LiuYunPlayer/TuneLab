@@ -516,3 +516,7 @@
 [DropDownMenu]
 "Search" = "Buscar"
 "No matches" = "Sin coincidencias"
+
+[TagController]
+"Stored value \"{0}\" is not among the current tags.\nThe plugin decides how to treat it." = "El valor guardado \"{0}\" no está entre las etiquetas actuales.\nEl plugin decide cómo tratarlo."
+"Only some of the selected items have this tag. Pick it from + to add it to all of them." = "Solo algunos de los elementos seleccionados tienen esta etiqueta. Elígela en + para añadirla a todos."

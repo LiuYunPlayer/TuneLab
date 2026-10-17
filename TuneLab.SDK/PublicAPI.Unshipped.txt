@@ -1,5 +1,16 @@
 #nullable enable
+override TuneLab.SDK.TagItem.Equals(object? obj) -> bool
+override TuneLab.SDK.TagItem.GetHashCode() -> int
 static TuneLab.SDK.ButtonConfig.Create(string! text, System.Func<TuneLab.SDK.IButtonClickContext!, System.Threading.Tasks.Task!>! onClick) -> TuneLab.SDK.ButtonConfig!
+static TuneLab.SDK.TagConfig.Create(System.Collections.Generic.IReadOnlyList<TuneLab.SDK.TagItem>! items) -> TuneLab.SDK.TagConfig!
+static TuneLab.SDK.TagItem.implicit operator TuneLab.SDK.TagItem(bool value) -> TuneLab.SDK.TagItem
+static TuneLab.SDK.TagItem.implicit operator TuneLab.SDK.TagItem(double value) -> TuneLab.SDK.TagItem
+static TuneLab.SDK.TagItem.implicit operator TuneLab.SDK.TagItem(float value) -> TuneLab.SDK.TagItem
+static TuneLab.SDK.TagItem.implicit operator TuneLab.SDK.TagItem(int value) -> TuneLab.SDK.TagItem
+static TuneLab.SDK.TagItem.implicit operator TuneLab.SDK.TagItem(long value) -> TuneLab.SDK.TagItem
+static TuneLab.SDK.TagItem.implicit operator TuneLab.SDK.TagItem(string! value) -> TuneLab.SDK.TagItem
+static TuneLab.SDK.TagItem.implicit operator TuneLab.SDK.TagItem(TuneLab.Foundation.PropertyValue value) -> TuneLab.SDK.TagItem
+static TuneLab.SDK.TagItem.Separator(string? label = null) -> TuneLab.SDK.TagItem
 TuneLab.SDK.ButtonConfig
 TuneLab.SDK.ButtonConfig.OnClick.get -> System.Func<TuneLab.SDK.IButtonClickContext!, System.Threading.Tasks.Task!>!
 TuneLab.SDK.ButtonConfig.Text.get -> string!
@@ -31,3 +42,15 @@ TuneLab.SDK.AddableKey.SubItems.get -> System.Collections.Generic.IReadOnlyList<
 static TuneLab.SDK.AddableElement.Separator(string? label = null) -> TuneLab.SDK.AddableElement
 static TuneLab.SDK.AddableKey.Separator(string? label = null) -> TuneLab.SDK.AddableKey
 static TuneLab.SDK.ComboBoxItem.Separator(string? label = null) -> TuneLab.SDK.ComboBoxItem
+TuneLab.SDK.TagConfig
+TuneLab.SDK.TagConfig.DefaultTags.get -> System.Collections.Generic.IReadOnlyList<TuneLab.Foundation.PropertyValue>!
+TuneLab.SDK.TagConfig.Items.get -> System.Collections.Generic.IReadOnlyList<TuneLab.SDK.TagItem>!
+TuneLab.SDK.TagConfig.WithDefault(System.Collections.Generic.IReadOnlyList<TuneLab.Foundation.PropertyValue>! tags) -> TuneLab.SDK.TagConfig!
+TuneLab.SDK.TagItem
+TuneLab.SDK.TagItem.DisplayText.get -> string?
+TuneLab.SDK.TagItem.Equals(TuneLab.SDK.TagItem other) -> bool
+TuneLab.SDK.TagItem.SubItems.get -> System.Collections.Generic.IReadOnlyList<TuneLab.SDK.TagItem>?
+TuneLab.SDK.TagItem.TagItem() -> void
+TuneLab.SDK.TagItem.TagItem(string! displayText, System.Collections.Generic.IEnumerable<TuneLab.SDK.TagItem>! subItems) -> void
+TuneLab.SDK.TagItem.TagItem(TuneLab.Foundation.PropertyValue value, string? displayText = null) -> void
+TuneLab.SDK.TagItem.Value.get -> TuneLab.Foundation.PropertyValue

@@ -24,6 +24,9 @@ public class MultipleDataPropertyObject : IDataPropertyObject
         mRoot = mDataObjects.Count > 0 ? mDataObjects[0] : null;
     }
 
+    // 各成员本身：三态合并之外，需要逐成员读写的控件用（如 tag 组按值逐成员增删，见 TagController）。
+    public IReadOnlyList<IDataPropertyObject> Members => mDataObjects;
+
     public IDataPropertyObject Object(string key)
     {
         var members = new List<IDataPropertyObject>(mDataObjects.Count);

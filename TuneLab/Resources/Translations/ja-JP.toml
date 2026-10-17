@@ -516,3 +516,7 @@
 [DropDownMenu]
 "Search" = "検索"
 "No matches" = "一致する項目がありません"
+
+[TagController]
+"Stored value \"{0}\" is not among the current tags.\nThe plugin decides how to treat it." = "保存された値 \"{0}\" は現在のタグにありません。\nプラグイン側で処理方法が決定されます。"
+"Only some of the selected items have this tag. Pick it from + to add it to all of them." = "選択中の一部の項目だけがこのタグを持っています。+ から選ぶとすべてに追加されます。"

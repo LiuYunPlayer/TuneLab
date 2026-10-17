@@ -1,11 +1,12 @@
 using System;
 using System.Collections.Generic;
+using TuneLab.Foundation;
 using TuneLab.GUI.Components;
 using TuneLab.SDK;
 
 namespace TuneLab.GUI.Controllers;
 
-// 「+」菜单的候选 → 菜单项投影，列表（AddableElement）与键控容器（AddableKey）共用。候选的分组 / 分隔线与
+// 「+」菜单的候选 → 菜单项投影，列表（AddableElement）、键控容器（AddableKey）与 tag 组（TagItem）共用。候选的分组 / 分隔线与
 // ComboBoxItem 同构，投影成同一套 DropDownItem 后交给 DropDownMenu，故 + 菜单与下拉在分组、分隔线、搜索上行为一致。
 // 叶子的 Tag 携候选本身，选中后由控制器取其 Template 落默认值。
 internal static class AddableMenu
@@ -60,8 +61,44 @@ internal static class AddableMenu
         return filtered ? DropEmptySections(items) : items;
     }
 
-    // 去掉所辖区段为空的分隔线：区段 = 它之后、下一条分隔线（或末尾）之前的项。只在发生过过滤时调用，
-    // 作者原样写下的结构不受影响。
+    // tag 候选（TagConfig）：与键控候选同一套过滤——已选的值隐藏（不重复），因过滤而空的分组 / 区段一并隐藏。
+    // isPresent 由控制器按「是否每个成员都已有它」回答：多选里只部分成员有的值留在菜单里，点了补给其余成员。
+    // 叶子的 Tag 携候选的值。
+    public static List<DropDownItem> Build(IReadOnlyList<TagItem> candidates, Func<PropertyValue, bool> isPresent)
+    {
+        var items = new List<DropDownItem>(candidates.Count);
+        bool filtered = false;
+        foreach (var candidate in candidates)
+        {
+            if (candidate.IsSeparator)
+            {
+                items.Add(new DropDownItem() { Text = candidate.DisplayText ?? string.Empty, IsSeparator = true });
+            }
+            else if (candidate.SubItems is not null)
+            {
+                var children = Build(candidate.SubItems, isPresent);
+                if (children.Count == 0 && candidate.SubItems.Count > 0)
+                {
+                    filtered = true;
+                    continue;
+                }
+                items.Add(new DropDownItem() { Text = candidate.DisplayText ?? string.Empty, Children = children });
+            }
+            else if (isPresent(candidate.Value))
+            {
+                filtered = true;
+            }
+            else
+            {
+                items.Add(new DropDownItem() { Text = candidate.ShowText(), Tag = candidate.Value });
+            }
+        }
+        return filtered ? DropEmptySections(items) : items;
+    }
+
+    // 去掉所辖区段为空的分隔线：区段 = 它之后、下一条分隔线（或末尾）之前的项。另外，过滤后排到最前面的
+    // 无标签分隔线也去掉——它上方的东西都被滤掉了，只剩一条什么也不隔的线；带标签的保留，那是段标题。
+    // 只在发生过过滤时调用，作者原样写下的结构不受影响。
     static List<DropDownItem> DropEmptySections(List<DropDownItem> items)
     {
         var result = new List<DropDownItem>(items.Count);
@@ -72,6 +109,8 @@ internal static class AddableMenu
                 int next = i + 1;
                 if (next == items.Count || items[next].IsSeparator)
                     continue;   // 区段为空
+                if (result.Count == 0 && string.IsNullOrEmpty(items[i].Text))
+                    continue;   // 打头的无标签线
             }
             result.Add(items[i]);
         }

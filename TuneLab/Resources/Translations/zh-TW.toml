@@ -516,3 +516,7 @@
 [DropDownMenu]
 "Search" = "搜尋"
 "No matches" = "無符合項目"
+
+[TagController]
+"Stored value \"{0}\" is not among the current tags.\nThe plugin decides how to treat it." = "儲存的值\"{0}\"不在目前標籤中。\n擴充功能將自行決定如何處理它。"
+"Only some of the selected items have this tag. Pick it from + to add it to all of them." = "選取的物件裡只有一部分帶這個標籤。從 + 裡選它，即可補給全部物件。"

@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "tempos": [{ "pos": 0, "bpm": 120 }],
+  "timeSignatures": [{ "barIndex": 0, "numerator": 4, "denominator": 4 }],
+  "tracks": [
+    {
+      "name": "Tags",
+      "gain": 0, "pan": 0, "mute": false, "solo": false,
+      "parts": [
+        {
+          "type": "midi", "name": "tags", "pos": 0, "startOffset": 0, "endOffset": 3840, "gain": 0,
+          "properties": { "timbres": ["power", "mellow"] },
+          "voice": { "type": "TLSuiteVoice", "id": "suite-conditional" },
+          "notes": [
+            { "pos": 0,    "dur": 960, "pitch": 60, "lyric": "a", "pronunciation": "", "properties": {} },
+            { "pos": 960,  "dur": 960, "pitch": 62, "lyric": "a", "pronunciation": "", "properties": { "moods": ["warm", "bold"] } },
+            { "pos": 1920, "dur": 960, "pitch": 64, "lyric": "a", "pronunciation": "", "properties": { "moods": ["bold", 2] } },
+            { "pos": 2880, "dur": 960, "pitch": 65, "lyric": "a", "pronunciation": "", "properties": { "moods": ["warm", "gone", "warm"] } }
+          ]
+        }
+      ]
+    }
+  ]
+}
