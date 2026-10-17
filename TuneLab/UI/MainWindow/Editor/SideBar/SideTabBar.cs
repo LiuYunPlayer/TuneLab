@@ -27,7 +27,7 @@ internal class SideTabBar : ListView
         void AddTab(SideBarTab tab, string tooltip, SvgIcon icon)
         {
             var toggle = new Toggle() { Width = 48, Height = 48 }
-                        .AddContent(new() { Item = new IconItem() { Icon = icon }, CheckedColorSet = new() { Color = Colors.White }, UncheckedColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5), HoveredColor = Style.LIGHT_WHITE } });
+                        .AddContent(new() { Item = new IconItem() { Icon = icon }, CheckedColorSet = new() { Color = Style.TEXT_LIGHT }, UncheckedColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5), HoveredColor = Style.LIGHT_WHITE } });
             toggle.SetupToolTip(tooltip, placementMode: PlacementMode.Left, verticalOffset: 0, horizontalOffset: -8, showDelay: 500);
             // 放不下时拦住「打开」这一下（关闭不拦）：Toggle 在翻转前问 AllowSwitch，拒绝即原样不动。
             toggle.AllowSwitch += () => IsOpen(tab) || CanOpen == null || CanOpen(tab);

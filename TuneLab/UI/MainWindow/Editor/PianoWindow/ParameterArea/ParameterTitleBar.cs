@@ -47,7 +47,7 @@ internal class ParameterTitleBar : LayerPanel
     public ParameterTitleBar(IDependency dependency)
     {
         mDependency = dependency;
-        Background = new Color(255, 51, 51, 64).ToBrush();
+        Background = new Color(255, 226, 228, 236).ToBrush();
 
         // 底层拖拽把手：Moved 换算成标题栏在父容器内的目标 top（把手在标题栏内恒为 (0,0)，补上自身位置即可）。
         var dragHandle = new MovableComponent();
@@ -232,9 +232,9 @@ internal class ParameterTitleBar : LayerPanel
     const double ChipHitPadding = 6;
     const string DividerText = "|";
 
-    static readonly Color EyeOffColor = new(102, 255, 255, 255);
+    static readonly Color EyeOffColor = new(140, 21, 21, 30);
     // 暗态（隐藏）图标的悬浮提亮档：仍低于点亮态，保持状态可辨。
-    static readonly Color HoverOffColor = new(180, 255, 255, 255);
+    static readonly Color HoverOffColor = new(220, 21, 21, 30);
     // 源标签略亮（灰底上要看清）；分隔符更淡，对齐底部 tabbar 的分隔线（LIGHT_WHITE @ 0.25）。
     static readonly IBrush LabelColor = Style.LIGHT_WHITE.Opacity(0.55).ToBrush();
     static readonly IBrush DividerColor = Style.LIGHT_WHITE.Opacity(0.25).ToBrush();

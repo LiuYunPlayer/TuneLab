@@ -209,7 +209,7 @@ internal partial class AutomationRenderer
 
         public override void Render(DrawingContext context)
         {
-            AutomationRenderer.DrawPiecewiseCurve(context, PiecewiseAutomation, Scale, Colors.White);
+            AutomationRenderer.DrawPiecewiseCurve(context, PiecewiseAutomation, Scale, GUI.Style.TEXT_LIGHT);
         }
     }
 
@@ -247,7 +247,7 @@ internal partial class AutomationRenderer
             if (AnchorPoint.IsSelected)
                 context.DrawEllipse(null, new Pen(pointBrush), center, 5.5, 5.5);
             else if (AnchorPoint == hoverAnchor)
-                context.DrawEllipse(null, new Pen(Brushes.White), center, 5.5, 5.5);
+                context.DrawEllipse(null, new Pen(GUI.Style.TEXT_LIGHT.ToBrush()), center, 5.5, 5.5);
         }
     }
 

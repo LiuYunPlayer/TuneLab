@@ -91,7 +91,7 @@ internal sealed class DropDownMenu : Panel
             {
                 Height = 26,
                 Margin = new(6, 2, 6, 4),
-                Background = Style.INTERFACE.ToBrush(),
+                Background = new Color(255, 232, 233, 240).ToBrush(),
                 Watermark = "Search".Tr(this),
             };
             mSearchBox.TextChanged.Subscribe(OnQueryChanged);
@@ -125,11 +125,11 @@ internal sealed class DropDownMenu : Panel
     {
         var border = new Border()
         {
-            Background = Style.BACK.ToBrush(),
+            Background = new Color(255, 252, 252, 254).ToBrush(),
             CornerRadius = new(4),
             Padding = new(0, 4),
             BorderThickness = new(1),
-            BorderBrush = Style.INTERFACE.ToBrush(),
+            BorderBrush = new Color(255, 198, 200, 212).ToBrush(),
             Child = content,
         };
         // 屏蔽滚轮穿透：ScrollViewer 能滚则先消费（标 Handled）；滚到尽头未处理者冒泡至此 → 吞掉，不传到后面面板。

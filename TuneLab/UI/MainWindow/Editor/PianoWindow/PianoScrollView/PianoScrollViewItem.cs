@@ -293,9 +293,9 @@ internal partial class PianoScrollView
             }
         }
 
-        static IBrush PointBrush = Brushes.White;
+        static IBrush PointBrush = GUI.Style.TEXT_LIGHT.ToBrush();
         static IPen SelectedPointPen = new Pen(PointBrush);
-        static IPen HoverPointPen = new Pen(Brushes.White);
+        static IPen HoverPointPen = new Pen(GUI.Style.TEXT_LIGHT.ToBrush());
     }
 
     class PreviewAnchorGroupItem(PianoScrollView pianoScrollView) : PianoScrollViewItem(pianoScrollView)
@@ -308,7 +308,7 @@ internal partial class PianoScrollView
             if (PianoScrollView.Part == null)
                 return;
 
-            PianoScrollView.DrawPitch(context, 0, PianoScrollView.Bounds.Width, PiecewiseAutomation.GetValues, Colors.White, 1);
+            PianoScrollView.DrawPitch(context, 0, PianoScrollView.Bounds.Width, PiecewiseAutomation.GetValues, GUI.Style.TEXT_LIGHT, 1);
         }
     }
 

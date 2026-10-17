@@ -28,7 +28,7 @@
 			</Grid.ColumnDefinitions>
 
 			<StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center" Orientation="Horizontal" IsHitTestVisible="False">
-				<Label x:Name="TitleLabel" Content="Update" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="White" />
+				<Label x:Name="TitleLabel" Content="Update" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="#15151E" />
 			</StackPanel>
 		</Grid>
 
@@ -41,7 +41,7 @@
 				</Grid.RowDefinitions>
 
 				<StackPanel Grid.Row="0" Orientation="Vertical" Margin="12,0" VerticalAlignment="Center" x:Name="MessageStackPanel">
-					<SelectableTextBlock x:Name="MessageTextBlock" Text="This is a modal window." Foreground="White" TextWrapping="Wrap" TextAlignment="Start" FontSize="14" Padding="0" Margin="0" />
+					<SelectableTextBlock x:Name="MessageTextBlock" Text="This is a modal window." Foreground="#15151E" TextWrapping="Wrap" TextAlignment="Start" FontSize="14" Padding="0" Margin="0" />
 				</StackPanel>
 				
 				<StackPanel Grid.Row="1" Orientation="Vertical" Margin="12,0" x:Name="MarkDownStackPanel">

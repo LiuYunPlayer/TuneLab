@@ -45,7 +45,7 @@ internal partial class AboutDialog : Window
         // 标题栏关闭按钮
         var close = new Button { Width = 46, Height = 40 };
         close.AddContent(new() { Item = new BorderItem(), ColorSet = new() { Color = Style.TRANSPARENT, HoveredColor = Style.SYNTHESIS_FAILED } });
-        close.AddContent(new() { Item = new IconItem() { Icon = Assets.WindowClose }, ColorSet = new() { Color = Style.LIGHT_WHITE, HoveredColor = Colors.White } });
+        close.AddContent(new() { Item = new IconItem() { Icon = Assets.WindowClose }, ColorSet = new() { Color = Style.LIGHT_WHITE, HoveredColor = Style.TEXT_LIGHT } });
         close.Clicked += Close;
         closeSlot.Children.Add(close);
 

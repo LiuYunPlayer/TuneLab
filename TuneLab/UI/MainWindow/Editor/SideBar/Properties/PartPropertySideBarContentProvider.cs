@@ -45,7 +45,7 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
 
         mPresetMoreButton = new TuneLab.GUI.Components.Button() { Width = 28, Height = 28 }
             .AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, ColorSet = new() { Color = Style.BUTTON_NORMAL, HoveredColor = Style.BUTTON_NORMAL_HOVER, PressedColor = Style.INTERFACE } })
-            .AddContent(new() { Item = new TextItem() { Text = "⋯", FontSize = 16 }, ColorSet = new() { Color = Colors.White } });
+            .AddContent(new() { Item = new TextItem() { Text = "⋯", FontSize = 16 }, ColorSet = new() { Color = Style.TEXT_LIGHT } });
         mPresetMoreButton.Clicked += OnPresetMoreButtonClicked;
 
         // 点开自定义 Flyout，列 None + 各 preset（点击应用、行右侧 ✕ 删除）。钮文字显示当前 part 关联的 preset。
@@ -259,6 +259,7 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         if (!ShowsMerged())
         {
             mPartPropertiesController.ResetConfig();
+            SyncGainTrailing();
             return;
         }
 
@@ -270,7 +271,11 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         // 折叠记忆按「片段面板 + 声源引擎」记（同引擎多选才走到这里，取首个即可）。
         mPartPropertiesController.CollapseScope = PartCollapseScope(mParts[0]);
         mPartPropertiesController.SetConfig(mParts[0].SoundSource.GetPartPropertyConfig(BuildPartContext()), data);
+        SyncGainTrailing();
     }
+
+    // 增益与声源的片段属性同在「属性」分组：声源没有片段属性时增益就是分组末项。
+    void SyncGainTrailing() => mPartFixedController.IsTrailing = mPartPropertiesController.IsEmpty;
 
     public static string PartCollapseScope(IMidiPart part) => "part:" + part.SoundSource.Kind + ":" + part.SoundSource.Type;
 
@@ -288,6 +293,7 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
             if (!ShowsMerged())
                 return;
             mPartPropertiesController.Reconcile(mParts[0].SoundSource.GetPartPropertyConfig(BuildPartContext()));
+            SyncGainTrailing();
         });
     }
 
@@ -558,7 +564,7 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
     readonly CollapsiblePanel mVoicePanel = new() { Orientation = Orientation.Vertical };
     readonly PartVoiceController mPartVoiceController = new();
     readonly LayerPanel mPartContentPanel = new();
-    readonly Border mPartContentMask = new() { Background = Colors.Black.Opacity(0.3).ToBrush() };
+    readonly Border mPartContentMask = new() { Background = new Color(153, 244, 244, 248).ToBrush() };
 
     readonly TuneLab.GUI.Components.Button mPresetButton;
     readonly ButtonContent mPresetLabel;

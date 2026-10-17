@@ -130,9 +130,9 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         {
             // 页签竖条的左缘分隔线：侧栏收起时它直接挨着内容区，同样不能靠露底色的缝分界。
             panel.AddDock(new Border() { Width = 1, Background = Style.DARK.ToBrush() }, Dock.Left);
-            var hoverBack = Colors.White.Opacity(0.05);
+            var hoverBack = Style.TEXT_LIGHT.Opacity(0.05);
             var settingsButton = new GUI.Components.Button() { Width = 48, Height = 48 }
-            .AddContent(new() { Item = new IconItem() { Icon = Assets.Settings, Scale = 4.0 / 3.0 }, ColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5), HoveredColor = Colors.White, PressedColor = Colors.White } });
+            .AddContent(new() { Item = new IconItem() { Icon = Assets.Settings, Scale = 4.0 / 3.0 }, ColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5), HoveredColor = Style.TEXT_LIGHT, PressedColor = Style.TEXT_LIGHT } });
             settingsButton.SetAction("app.settings");
             panel.AddDock(settingsButton, Dock.Bottom);
             panel.AddDock(mRightSideTabBar);

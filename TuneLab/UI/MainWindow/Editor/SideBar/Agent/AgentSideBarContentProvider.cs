@@ -159,7 +159,7 @@ internal sealed class AgentSideBarContentProvider
                 // 若 hover 也是纯白，悬浮时看起来就和已展开一样、无从分辨。展开态已是纯白，故不再给 hover 色。
                 // press 与 hover 同值：不设 PressedColor 会在按下时回退到 Color(0.5)，于是点击途中
                 // hover(0.8) → 按下变暗(0.5) → 松开转纯白，中间那下变暗是突兀的闪烁。
-                CheckedColorSet = new() { Color = Colors.White },
+                CheckedColorSet = new() { Color = Style.TEXT_LIGHT },
                 UncheckedColorSet = new()
                 {
                     Color = Style.LIGHT_WHITE.Opacity(0.5),
@@ -187,7 +187,7 @@ internal sealed class AgentSideBarContentProvider
             Dispatcher.UIThread.Post(() => mMenuJustClosed = false, DispatcherPriority.Input);
         };
 
-        var settingsButton = IconButton(Assets.Settings, Style.LIGHT_WHITE.Opacity(0.6), Colors.White);
+        var settingsButton = IconButton(Assets.Settings, Style.LIGHT_WHITE.Opacity(0.6), Style.TEXT_LIGHT);
         settingsButton.Clicked += ShowSettings;
         DockPanel.SetDock(settingsButton, Dock.Right);
         header.Children.Add(settingsButton);
@@ -224,18 +224,18 @@ internal sealed class AgentSideBarContentProvider
 
         // 底部圆角输入区（描边 + 背景，和上方滚动区分隔）。
         var inputRow = new DockPanel() { LastChildFill = true };
-        mSendButton = IconButton(Assets.Send, Style.LIGHT_WHITE.Opacity(0.85), Colors.White);
+        mSendButton = IconButton(Assets.Send, Style.LIGHT_WHITE.Opacity(0.85), Style.TEXT_LIGHT);
         mSendButton.Clicked += () => _ = OnSend();
         DockPanel.SetDock(mSendButton, Dock.Right);
         inputRow.Children.Add(mSendButton);
         // 停止键：与发送键同位、仅响应期可见，点击取消正在进行的请求。
-        mStopButton = IconButton(Assets.Stop, Style.LIGHT_WHITE.Opacity(0.85), Colors.White);
+        mStopButton = IconButton(Assets.Stop, Style.LIGHT_WHITE.Opacity(0.85), Style.TEXT_LIGHT);
         mStopButton.IsVisible = false;
         mStopButton.Clicked += () => mActive?.Cts?.Cancel(); // 停止键只取消当前可见会话的在飞请求
         DockPanel.SetDock(mStopButton, Dock.Right);
         inputRow.Children.Add(mStopButton);
         // 图片附件按钮：左侧，仅当前连接的会话声明支持图片输入时可见（见 RefreshAttachAvailability）。
-        mAttachButton = IconButton(Assets.Image, Style.LIGHT_WHITE.Opacity(0.6), Colors.White);
+        mAttachButton = IconButton(Assets.Image, Style.LIGHT_WHITE.Opacity(0.6), Style.TEXT_LIGHT);
         mAttachButton.IsVisible = false;
         ToolTip.SetTip(mAttachButton, "Attach image".Tr(this));
         mAttachButton.Clicked += () => _ = OnAttachClicked();
@@ -556,7 +556,7 @@ internal sealed class AgentSideBarContentProvider
             TextTrimming = TextTrimming.CharacterEllipsis,
             MaxWidth = 220,
             VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-            Foreground = Colors.White.ToBrush(),
+            Foreground = Style.TEXT_LIGHT.ToBrush(),
         };
         var dock = new DockPanel();
 
@@ -835,7 +835,7 @@ internal sealed class AgentSideBarContentProvider
             turn.MarkPendingAborted(); // 失败/取消轮：未完成的工具步标为中止（与实时 catch 一致）
         turn.EndThinking(); // 重载即已完成，移除"生成中"指示
         if (turn.IsEmpty)
-            return AssistantContainer(BubbleText("(no text reply)", Colors.White.ToBrush()));
+            return AssistantContainer(BubbleText("(no text reply)", Style.TEXT_LIGHT.ToBrush()));
         var usage = hasUsage ? new AgentTokenUsage { PromptTokens = prompt, CompletionTokens = completion, TotalTokens = total } : null;
         // 失败/取消轮不显脚注——与实时一致（实时 catch 不 BuildFooter，只接结局行）。
         if (!aborted)
@@ -1298,7 +1298,7 @@ internal sealed class AgentSideBarContentProvider
                 turn.Append(NoticeLine(reply.StopNotice, Style.LIGHT_WHITE.Opacity(0.5).ToBrush()));
             }
             if (turn.IsEmpty)
-                bubble.Child = BubbleText("(no text reply)", Colors.White.ToBrush());
+                bubble.Child = BubbleText("(no text reply)", Style.TEXT_LIGHT.ToBrush());
             else
             {
                 var (calls, lastCtx) = TurnBreakdown(reply.Trajectory);
@@ -1603,7 +1603,7 @@ internal sealed class AgentSideBarContentProvider
                 Text = "✕",
                 FontSize = 10,
                 Padding = new(2, 0),
-                Foreground = Colors.White.ToBrush(),
+                Foreground = Style.TEXT_LIGHT.ToBrush(),
                 Background = Style.BACK.Opacity(0.75).ToBrush(),
                 HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
                 VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top,
@@ -1849,7 +1849,7 @@ internal sealed class AgentSideBarContentProvider
     {
         var header = new DockPanel() { Height = 32, LastChildFill = true, Background = Style.INTERFACE.ToBrush() };
         // 返回键放右上角，与对话页 ⚙ 同位置；无底色、icon hover 变色。有未应用改动时点它弹「应用/忽略」。
-        var back = IconButton(Assets.WindowClose, Style.LIGHT_WHITE.Opacity(0.6), Colors.White);
+        var back = IconButton(Assets.WindowClose, Style.LIGHT_WHITE.Opacity(0.6), Style.TEXT_LIGHT);
         back.Clicked += OnSettingsBack;
         DockPanel.SetDock(back, Dock.Right);
         header.Children.Add(back);
@@ -1927,7 +1927,7 @@ internal sealed class AgentSideBarContentProvider
     Control BuildAuthRow(AgentAuthorization level, string text, AgentAuthorization current)
     {
         var check = new TextBlock() { Text = level == current ? "✓" : string.Empty, Width = 16, FontSize = 11, Foreground = Style.BUTTON_PRIMARY.ToBrush(), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
-        var title = new TextBlock() { Text = text, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Colors.White.ToBrush() };
+        var title = new TextBlock() { Text = text, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.TEXT_LIGHT.ToBrush() };
         var dock = new DockPanel();
         DockPanel.SetDock(check, Dock.Left);
         dock.Children.Add(check);
@@ -2019,7 +2019,7 @@ internal sealed class AgentSideBarContentProvider
             Text = question,
             FontSize = 12,
             TextWrapping = TextWrapping.Wrap,
-            Foreground = Colors.White.ToBrush(),
+            Foreground = Style.TEXT_LIGHT.ToBrush(),
         });
         if (options.Count > 0)
         {
@@ -2043,7 +2043,7 @@ internal sealed class AgentSideBarContentProvider
                     FontSize = 12,
                     TextWrapping = TextWrapping.Wrap,
                     // 没选中的压暗：一眼看出选了哪个，不必逐个去看勾。
-                    Foreground = (on ? Colors.White : Style.LIGHT_WHITE.Opacity(0.45)).ToBrush(),
+                    Foreground = (on ? Style.TEXT_LIGHT : Style.LIGHT_WHITE.Opacity(0.45)).ToBrush(),
                     VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
                 });
                 list.Children.Add(row);
@@ -2059,7 +2059,7 @@ internal sealed class AgentSideBarContentProvider
                 Text = prefix + text,
                 FontSize = 12,
                 TextWrapping = TextWrapping.Wrap,
-                Foreground = Colors.White.ToBrush(),
+                Foreground = Style.TEXT_LIGHT.ToBrush(),
                 Margin = new(0, 8, 0, 0),
             });
         }
@@ -2152,7 +2152,7 @@ internal sealed class AgentSideBarContentProvider
             Text = question.Question,
             FontSize = 12,
             TextWrapping = TextWrapping.Wrap,
-            Foreground = Colors.White.ToBrush(),
+            Foreground = Style.TEXT_LIGHT.ToBrush(),
         });
 
         var selected = new List<string>();
@@ -2178,7 +2178,7 @@ internal sealed class AgentSideBarContentProvider
                     Text = captured,
                     FontSize = 12,
                     TextWrapping = TextWrapping.Wrap,
-                    Foreground = Colors.White.ToBrush(),
+                    Foreground = Style.TEXT_LIGHT.ToBrush(),
                     VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
                 };
                 var row = new DockPanel() { LastChildFill = true };
@@ -2275,7 +2275,7 @@ internal sealed class AgentSideBarContentProvider
         {
             bool on = CanSubmit();
             submitButton.Background = (on ? Style.BUTTON_PRIMARY : Style.LIGHT_WHITE.Opacity(0.08)).ToBrush();
-            submitLabel.Foreground = (on ? Colors.White : Style.LIGHT_WHITE.Opacity(0.35)).ToBrush();
+            submitLabel.Foreground = (on ? Style.TEXT_LIGHT : Style.LIGHT_WHITE.Opacity(0.35)).ToBrush();
             submitButton.Cursor = new Cursor(on ? StandardCursorType.Hand : StandardCursorType.Arrow);
         }
         submitButton.PointerEntered += (_, _) => { if (CanSubmit()) submitButton.Background = Style.BUTTON_PRIMARY_HOVER.ToBrush(); };
@@ -2327,7 +2327,7 @@ internal sealed class AgentSideBarContentProvider
             Text = AuthorizationCardText.For(request, s => s.Tr(this)),
             FontSize = 12,
             TextWrapping = TextWrapping.Wrap,
-            Foreground = Colors.White.ToBrush(),
+            Foreground = Style.TEXT_LIGHT.ToBrush(),
         };
         // 水平按钮排：用按内容自适应的 Border 按钮（TuneLab.GUI Button 是自绘 Component、不自量宽，水平摆会塌成 0 宽）。
         // 右对齐——操作按钮靠右、与左对齐的说明文字形成左右呼应，不再"全左对齐"。
@@ -2503,7 +2503,7 @@ internal sealed class AgentSideBarContentProvider
             Foreground = Style.LIGHT_WHITE.Opacity(0.45).ToBrush(),
             Cursor = new Cursor(StandardCursorType.Hand),
         };
-        t.PointerEntered += (_, _) => t.Foreground = Colors.White.ToBrush();
+        t.PointerEntered += (_, _) => t.Foreground = Style.TEXT_LIGHT.ToBrush();
         t.PointerExited += (_, _) => t.Foreground = Style.LIGHT_WHITE.Opacity(0.45).ToBrush();
         t.PointerPressed += (_, e) => { e.Handled = true; onClick(); };
         return t;
@@ -2512,7 +2512,7 @@ internal sealed class AgentSideBarContentProvider
     // 升级卡片的小按钮：按内容自适应的 Border（含文字 + padding + hover）。主按钮用主色，次按钮在深色卡片上用半透明白以保对比。
     Border CardButton(string text, bool primary, Action onClick)
     {
-        var label = new TextBlock() { Text = text, FontSize = 12, Foreground = Colors.White.ToBrush(), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center };
+        var label = new TextBlock() { Text = text, FontSize = 12, Foreground = Style.TEXT_LIGHT.ToBrush(), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center };
         var baseColor = primary ? Style.BUTTON_PRIMARY : Style.LIGHT_WHITE.Opacity(0.1);
         var hoverColor = primary ? Style.BUTTON_PRIMARY_HOVER : Style.LIGHT_WHITE.Opacity(0.2);
         var b = new Border()

@@ -13,7 +13,7 @@
 		SizeChanged="Window_SizeChanged">
 	
 	<Window.Resources>
-		<SolidColorBrush x:Key="MenuFlyoutPresenterBackground">#272736</SolidColorBrush>
+		<SolidColorBrush x:Key="MenuFlyoutPresenterBackground">#F4F4F8</SolidColorBrush>
 	</Window.Resources>
 		
 	<DockPanel Margin="{Binding $parent[Window].OffScreenMargin}">

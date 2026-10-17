@@ -177,7 +177,7 @@ internal sealed class ManualWindow : Window
                 .AddContent(new()
                 {
                     Item = new BorderItem { CornerRadius = 0 },
-                    ColorSet = new() { HoveredColor = Colors.White.Opacity(0.05), PressedColor = Colors.White.Opacity(0.08) },
+                    ColorSet = new() { HoveredColor = Style.TEXT_LIGHT.Opacity(0.05), PressedColor = Style.TEXT_LIGHT.Opacity(0.08) },
                 });
             var layer = new LayerPanel();
             layer.Children.Add(row);

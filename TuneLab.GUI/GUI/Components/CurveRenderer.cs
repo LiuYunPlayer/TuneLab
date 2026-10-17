@@ -87,6 +87,6 @@ internal class CurveRenderer : Component
 
     double mStep = 1;
     double mLineWidth = 1;
-    Color mLineColor = Colors.White;
+    Color mLineColor = Style.TEXT_LIGHT;
     Color mBackColor = Colors.Transparent;
 }

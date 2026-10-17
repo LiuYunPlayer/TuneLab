@@ -40,7 +40,7 @@ internal partial class PianoRoll
             return Rect.Contains(point);
         }
 
-        static readonly IBrush WhiteKeyBrush = new Color(255, 204, 204, 204).ToBrush();
+        static readonly IBrush WhiteKeyBrush = new Color(255, 252, 252, 253).ToBrush();
     }
 
     class BlackKeyItem(PianoRoll pianoRoll) : PianoRollItem(pianoRoll), IKeyItem
@@ -59,7 +59,7 @@ internal partial class PianoRoll
             return Rect.Contains(point);
         }
 
-        static readonly IBrush BlackKeyBrush = Style.BACK.ToBrush();
+        static readonly IBrush BlackKeyBrush = new Color(255, 58, 60, 74).ToBrush();
     }
 
     class TextItem(PianoRoll pianoRoll) : PianoRollItem(pianoRoll)

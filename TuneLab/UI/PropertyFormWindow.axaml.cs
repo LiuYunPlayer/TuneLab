@@ -47,7 +47,7 @@ internal partial class PropertyFormWindow : Window
         mCompute = compute;
 
         var closeButton = new Button() { Width = 48, Height = 40 }
-            .AddContent(new() { Item = new BorderItem() { CornerRadius = 0 }, ColorSet = new() { HoveredColor = Colors.White.Opacity(0.2), PressedColor = Colors.White.Opacity(0.2) } })
+            .AddContent(new() { Item = new BorderItem() { CornerRadius = 0 }, ColorSet = new() { HoveredColor = Style.TEXT_LIGHT.Opacity(0.2), PressedColor = Style.TEXT_LIGHT.Opacity(0.2) } })
             .AddContent(new() { Item = new IconItem() { Icon = Assets.WindowClose }, ColorSet = new() { Color = Style.TEXT_LIGHT.Opacity(0.7) } });
         closeButton.Clicked += () => Close(null);
         WindowControl.Children.Add(closeButton);
@@ -72,7 +72,7 @@ internal partial class PropertyFormWindow : Window
 
         // 重置：圆形回转箭头图标按钮（省地方、不裁字），tooltip 说明。
         var resetButton = new Button() { Width = 32, Height = 28 };
-        resetButton.AddContent(new() { Item = new BorderItem() { CornerRadius = 6 }, ColorSet = new() { HoveredColor = Colors.White.Opacity(0.15), PressedColor = Colors.White.Opacity(0.15) } });
+        resetButton.AddContent(new() { Item = new BorderItem() { CornerRadius = 6 }, ColorSet = new() { HoveredColor = Style.TEXT_LIGHT.Opacity(0.15), PressedColor = Style.TEXT_LIGHT.Opacity(0.15) } });
         resetButton.AddContent(new() { Item = new IconItem() { Icon = Assets.Reset }, ColorSet = new() { Color = Style.LIGHT_WHITE } });
         ToolTip.SetTip(resetButton, "Reset to Default".Tr(TC.Dialog));
         resetButton.Clicked += ResetToDefault;

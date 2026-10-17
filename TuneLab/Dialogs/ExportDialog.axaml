@@ -27,7 +27,7 @@
 			</Grid.ColumnDefinitions>
 
 			<StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Orientation="Horizontal" IsHitTestVisible="False">
-				<Label x:Name="TitleLabel" Content="Export" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="White" />
+				<Label x:Name="TitleLabel" Content="Export" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="#15151E" />
 			</StackPanel>
 		</Grid>
 
@@ -39,14 +39,14 @@
 					<RowDefinition Height="*" />
 				</Grid.RowDefinitions>
 
-				<TextBlock Grid.Row="0" x:Name="MessageTextBlock" Text="Exporting..." Foreground="White" TextWrapping="Wrap" TextAlignment="Center" FontSize="14" HorizontalAlignment="Center" Margin="36,24,36,0" />
+				<TextBlock Grid.Row="0" x:Name="MessageTextBlock" Text="Exporting..." Foreground="#15151E" TextWrapping="Wrap" TextAlignment="Center" FontSize="14" HorizontalAlignment="Center" Margin="36,24,36,0" />
 
 				<Grid Grid.Row="1" Margin="36,16,36,0" Height="28" x:Name="ProgressBarContainer">
-					<Border Background="#1B1B24" CornerRadius="4" />
+					<Border Background="#C6C8D4" CornerRadius="4" />
 					<Border x:Name="ProgressBarFill" Background="#6060C0" CornerRadius="4" HorizontalAlignment="Left" Width="0" />
 				</Grid>
 
-				<TextBlock Grid.Row="2" x:Name="StatusTextBlock" Text="" Foreground="#99FFFFFF" FontSize="12" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="36,12,36,0" TextTrimming="CharacterEllipsis" />
+				<TextBlock Grid.Row="2" x:Name="StatusTextBlock" Text="" Foreground="#99151E26" FontSize="12" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="36,12,36,0" TextTrimming="CharacterEllipsis" />
 			</Grid>
 		</ContentControl>
 	</DockPanel>

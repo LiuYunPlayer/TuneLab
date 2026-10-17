@@ -157,6 +157,7 @@ internal class ParameterButton : Panel
         mEyeColor = mBeforeEyeColor.Lerp(mAfterEyeColor, progress);
         mImage.Source = EyeImage(mEyeColor);
         mButtonBack.Color = mBeforeButtonColor.Lerp(mAfterButtonColor, progress);
+        mLabel.Foreground = State == ButtonState.Edit ? Brushes.White : GUI.Style.TEXT_LIGHT.ToBrush();
     }
 
     class ButtonBack : Control
@@ -209,8 +210,8 @@ internal class ParameterButton : Panel
         return GUI.Assets.Eye.GetImage(color);
     }
 
-    static readonly Color HoverColor = new Color(12, 255, 255, 255);
-    static readonly Color EyeOffColor = new Color(102, 255, 255, 255);
+    static readonly Color HoverColor = new Color(14, 21, 21, 30);
+    static readonly Color EyeOffColor = new Color(140, 21, 21, 30);
 
     AnimationController mColorProgressAnimation = new();
     ButtonState mState = ButtonState.Off;

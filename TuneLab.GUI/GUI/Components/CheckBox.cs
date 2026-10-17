@@ -22,7 +22,7 @@ internal class CheckBox : Toggle, IDataValueController<bool>
     {
         Width = 16;
         Height = 16;
-        AddContent(new() { Item = new IconItem() { Icon = Assets.CheckBoxFrame }, UncheckedColorSet = new() { Color = Colors.White } });
+        AddContent(new() { Item = new IconItem() { Icon = Assets.CheckBoxFrame }, UncheckedColorSet = new() { Color = Style.TEXT_LIGHT } });
         AddContent(mBackContent);
         AddContent(new() { Item = mCheckItem, CheckedColorSet = new() { Color = Colors.White } });
     }

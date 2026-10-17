@@ -209,7 +209,7 @@ internal sealed class ScriptSideBarContentProvider
         // ⋯ 菜单钮（仿 preset 的收起钮：圆角底 + ⋯）；脚本选择钮填充其左侧剩余宽。
         mMoreButton = new TuneLab.GUI.Components.Button { Width = 28, Height = 28 }
             .AddContent(new() { Item = new BorderItem { CornerRadius = 4 }, ColorSet = new() { Color = Style.BUTTON_NORMAL, HoveredColor = Style.BUTTON_NORMAL_HOVER, PressedColor = Style.INTERFACE } })
-            .AddContent(new() { Item = new TextItem { Text = "⋯", FontSize = 16 }, ColorSet = new() { Color = Colors.White } });
+            .AddContent(new() { Item = new TextItem { Text = "⋯", FontSize = 16 }, ColorSet = new() { Color = Style.TEXT_LIGHT } });
         mMoreButton.Clicked += OnMoreButtonClicked;
 
         mScriptButton = new TuneLab.GUI.Components.Button { Height = 28, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch }
@@ -527,7 +527,7 @@ internal sealed class ScriptSideBarContentProvider
         {
             var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center, Margin = new(0, 12, 0, 0) };
             row.Children.Add(applyToAllBox);
-            row.Children.Add(new TextBlock { Text = "Do this for all remaining items".Tr(this), Foreground = Colors.White.ToBrush(), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center });
+            row.Children.Add(new TextBlock { Text = "Do this for all remaining items".Tr(this), Foreground = Style.TEXT_LIGHT.ToBrush(), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center });
             messageStack.Children.Add(row);
         }
 

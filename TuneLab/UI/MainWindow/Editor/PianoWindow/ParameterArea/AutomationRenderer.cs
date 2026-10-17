@@ -203,7 +203,7 @@ internal partial class AutomationRenderer : View
 
     protected override void OnRender(DrawingContext context)
     {
-        context.FillRectangle(Colors.Black.Opacity(0.25).ToBrush(), this.Rect());
+        context.FillRectangle(Colors.Black.Opacity(0.04).ToBrush(), this.Rect());
         if (Part == null)
             return;
 
@@ -427,7 +427,7 @@ internal partial class AutomationRenderer : View
             Draw(automation, false);
         }
 
-        context.FillRectangle(Colors.Black.Opacity(0.25).ToBrush(), this.Rect());
+        context.FillRectangle(Colors.Black.Opacity(0.04).ToBrush(), this.Rect());
 
         // 合成参数回显轨（只读）：在可编辑轨之上、活动轨之下绘制为半透明积分面积。可独立显隐（标题栏管控）。
         DrawSynthesizedParameters(context);
@@ -557,13 +557,13 @@ internal partial class AutomationRenderer : View
                 double x = TickAxis.Tick2X(vibrato.GlobalStartPos() + vibrato.Dur / 2);
                 if (!vibrato.IsAssociated(active))
                 {
-                    context.DrawString("Drag to associate the vibrato".Tr(this), new Point(x, 8), Brushes.White, 12, Alignment.CenterTop);
+                    context.DrawString("Drag to associate the vibrato".Tr(this), new Point(x, 8), GUI.Style.TEXT_LIGHT.ToBrush(), 12, Alignment.CenterTop);
                 }
                 else if (activePiecewise && !HasAnyValueIn(vibrato.GlobalStartPos(), vibrato.GlobalEndPos()))
                 {
                     // 已关联但该轨在颤音覆盖区内整段无值：颤音无处可叠，明说而不是静默无效
                     //（替代路径：用固定笔刷把模型输出刷成已画值，见 SynthesisLock）。
-                    context.DrawString("No value here, vibrato has no effect".Tr(this), new Point(x, 8), Brushes.White, 12, Alignment.CenterTop);
+                    context.DrawString("No value here, vibrato has no effect".Tr(this), new Point(x, 8), GUI.Style.TEXT_LIGHT.ToBrush(), 12, Alignment.CenterTop);
                 }
             }
         }

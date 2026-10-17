@@ -108,7 +108,7 @@ internal sealed class AgentTurnView
             {
                 Text = text,
                 FontSize = 12,
-                Foreground = Colors.White.ToBrush(),
+                Foreground = Style.TEXT_LIGHT.ToBrush(),
                 TextWrapping = TextWrapping.Wrap,
             },
         };
@@ -154,7 +154,7 @@ internal sealed class AgentTurnView
             HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
             Margin = new(0, 2, 0, 2),
         };
-        copy.PointerEntered += (_, _) => copy.Foreground = Colors.White.ToBrush();
+        copy.PointerEntered += (_, _) => copy.Foreground = Style.TEXT_LIGHT.ToBrush();
         copy.PointerExited += (_, _) => copy.Foreground = Style.LIGHT_WHITE.Opacity(0.45).ToBrush();
         copy.PointerPressed += (_, e) => { e.Handled = true; _ = TopLevel.GetTopLevel(copy)?.Clipboard?.SetTextAsync(raw); };
         return copy;
@@ -279,7 +279,7 @@ internal sealed class AgentTurnView
                 Text = name,
                 FontSize = 12,
                 FontWeight = FontWeight.SemiBold,
-                Foreground = Colors.White.ToBrush(),
+                Foreground = Style.TEXT_LIGHT.ToBrush(),
                 VerticalAlignment = VerticalAlignment.Center,
             };
             mChevron = new TextBlock
@@ -448,7 +448,7 @@ internal sealed class AgentTurnView
     public static Control ThinkingDots()
     {
         string[] frames = { "•", "• •", "• • •" };
-        var tb = new TextBlock { Text = frames[0], FontSize = 14, Foreground = Colors.White.ToBrush(), Margin = new(2, 4, 0, 2) };
+        var tb = new TextBlock { Text = frames[0], FontSize = 14, Foreground = Style.TEXT_LIGHT.ToBrush(), Margin = new(2, 4, 0, 2) };
         DispatcherTimer? timer = null;
         int i = 0;
         tb.AttachedToVisualTree += (_, _) =>

@@ -62,12 +62,12 @@ public partial class MainWindow : Window
 	    TitleLabel.Bind(TextBlock.TextProperty, new Avalonia.Data.Binding{Path="Title",Source=this});
  
         var binimizeButton = new Button() { Width = 48, Height = 40 }
-            .AddContent(new() { Item = new BorderItem() { CornerRadius = 0 }, ColorSet = new() { HoveredColor = Colors.White.Opacity(0.2), PressedColor = Colors.White.Opacity(0.2) } })
+            .AddContent(new() { Item = new BorderItem() { CornerRadius = 0 }, ColorSet = new() { HoveredColor = Style.TEXT_LIGHT.Opacity(0.2), PressedColor = Style.TEXT_LIGHT.Opacity(0.2) } })
             .AddContent(new() { Item = new IconItem() { Icon = Assets.WindowMin }, ColorSet = new() { Color = Style.TEXT_LIGHT.Opacity(0.7) } });
         binimizeButton.SetAction("app.minimize");
 
         maximizeButton = new Button() { Width = 48, Height = 40 }
-           .AddContent(new() { Item = new BorderItem() { CornerRadius = 0 }, ColorSet = new() { HoveredColor = Colors.White.Opacity(0.2), PressedColor = Colors.White.Opacity(0.2) } })
+           .AddContent(new() { Item = new BorderItem() { CornerRadius = 0 }, ColorSet = new() { HoveredColor = Style.TEXT_LIGHT.Opacity(0.2), PressedColor = Style.TEXT_LIGHT.Opacity(0.2) } })
            .AddContent(maximizeIconContent);
         maximizeButton.Clicked += () => WindowState = WindowState == WindowState.Normal ? WindowState.Maximized : WindowState.Normal;
 

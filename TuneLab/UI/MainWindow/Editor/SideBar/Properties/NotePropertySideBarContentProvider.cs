@@ -642,7 +642,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
     // 音素属性逐 slot 呈现：按 IsLead 分界、核=0 的有符号对齐索引把各 note 音素合并成 slot，每 slot 一行（符号标签 + 控制器）。
     readonly StackPanel mPhonemeRowsPanel = new() { Orientation = Orientation.Vertical };
 
-    readonly Border mNoteContentMask = new() { Background = Colors.Black.Opacity(0.3).ToBrush() };
+    readonly Border mNoteContentMask = new() { Background = new Color(153, 244, 244, 248).ToBrush() };
 
     IMidiPart? mPart = null;
     MultipleDataPropertyObject? mNoteData = null;

@@ -19,7 +19,7 @@ internal static class FlyoutMenuRow
             TextTrimming = TextTrimming.CharacterEllipsis,
             MaxWidth = 220,
             VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-            Foreground = Colors.White.ToBrush(),
+            Foreground = Style.TEXT_LIGHT.ToBrush(),
         };
         var dock = new DockPanel();
 

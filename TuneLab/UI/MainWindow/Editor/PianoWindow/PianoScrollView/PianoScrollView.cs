@@ -391,7 +391,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
         context.DrawRectangle(Style.DARK.Opacity(0.92 * opacity).ToBrush(), new Pen(Style.LINE.Opacity(opacity).ToBrush(), 1), new RoundedRect(rect, 6));
 
         double cy = y + h / 2;
-        context.DrawString(text, new Point(x + padH, cy), Colors.White.Opacity(opacity).ToBrush(), 12, Alignment.LeftCenter);
+        context.DrawString(text, new Point(x + padH, cy), Style.TEXT_LIGHT.Opacity(opacity).ToBrush(), 12, Alignment.LeftCenter);
         if (fHint != null)
             context.DrawString(hint!, new Point(x + padH + fMain.Width + gap, cy), Style.LIGHT_WHITE.Opacity(opacity).ToBrush(), 12, Alignment.LeftCenter);
     }
@@ -584,7 +584,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
         IBrush selectedNoteBrush = Style.HIGH_LIGHT.ToBrush();
         IBrush lyricBrush = Colors.White.Opacity(0.7).ToBrush();
         IBrush pronunciationBrush = Style.LIGHT_WHITE.ToBrush();
-        IBrush overlapCoverBrush = Colors.Black.Opacity(0.45).ToBrush();
+        IBrush overlapCoverBrush = new Color(140, 250, 250, 252).ToBrush();
         foreach (var note in Part.Notes)
         {
             if (note.GlobalEndPos() < minVisibleTick)
@@ -642,16 +642,16 @@ internal partial class PianoScrollView : View, IPianoScrollView
         {
             // 缩放太小：省略 pitch 曲线绘制，但遮罩仍要画（原先被这处跳转连遮罩一起省略了——bug）。
             if (pitchEditTool)
-                context.FillRectangle(Colors.Black.Opacity(0.25).ToBrush(), this.Rect());
+                context.FillRectangle(Colors.Black.Opacity(0.04).ToBrush(), this.Rect());
             goto FinishDrawPitch;
         }
 
-        Color pitchColor = Colors.White.Opacity(pitchOpacity * (mDependency.PianoTool.Value == PianoTool.Note ? 0.3 : 1));
+        Color pitchColor = Style.TEXT_LIGHT.Opacity(pitchOpacity * (mDependency.PianoTool.Value == PianoTool.Note ? 0.3 : 1));
 
         DrawSynthesizedPitch(context, pitchColor);
 
         if (pitchEditTool)
-            context.FillRectangle(Colors.Black.Opacity(0.25).ToBrush(), this.Rect());
+            context.FillRectangle(Colors.Black.Opacity(0.04).ToBrush(), this.Rect());
 
         DrawVibratos(context);
 
@@ -686,13 +686,13 @@ internal partial class PianoScrollView : View, IPianoScrollView
         double start = TickAxis.Tick2X(Part.StartPos());
         if (start > 0)
         {
-            context.FillRectangle(Colors.Black.Opacity(0.3).ToBrush(), this.Rect().Adjusted(0, 0, start - Bounds.Width, 0));
+            context.FillRectangle(Colors.Black.Opacity(0.05).ToBrush(), this.Rect().Adjusted(0, 0, start - Bounds.Width, 0));
         }
 
         double end = TickAxis.Tick2X(Part.EndPos());
         if (end < Bounds.Width)
         {
-            context.FillRectangle(Colors.Black.Opacity(0.3).ToBrush(), this.Rect().Adjusted(end, 0, 0, 0));
+            context.FillRectangle(Colors.Black.Opacity(0.05).ToBrush(), this.Rect().Adjusted(end, 0, 0, 0));
         }
 
         // draw region selection（DAW 式范围选区：白罩 + 左右两条纯白虚线竖边）。
@@ -899,7 +899,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
         double maxVisibleTick = TickAxis.MaxVisibleTick;
 
         IBrush vibratoBrush = Colors.Black.Opacity(0.25).ToBrush();
-        IPen vibratoSelectedPen = new Pen(Colors.White.ToUInt32(), 1);
+        IPen vibratoSelectedPen = new Pen(Style.TEXT_LIGHT.ToUInt32(), 1);
 
         foreach (var vibrato in Part.Vibratos)
         {
@@ -913,13 +913,13 @@ internal partial class PianoScrollView : View, IPianoScrollView
             double width = TickAxis.PixelsPerTick * vibrato.Dur;
             context.DrawRectangle(vibratoBrush, vibrato.IsSelected ? vibratoSelectedPen : null, new Rect(x, 0, width, Bounds.Height));
         }
-        IBrush frequencyBrush = Colors.White.ToBrush();
-        IBrush phaseBrush = Colors.White.ToBrush();
+        IBrush frequencyBrush = Style.TEXT_LIGHT.ToBrush();
+        IBrush phaseBrush = Style.TEXT_LIGHT.ToBrush();
         IPen frequencyPen = new Pen(frequencyBrush, 1);
         IPen phasePen = new Pen(phaseBrush, 1);
-        IBrush arBrush = Colors.White.ToBrush();
+        IBrush arBrush = Style.TEXT_LIGHT.ToBrush();
         IPen arPen = new Pen(arBrush, 1);
-        IBrush textBrush = Brushes.White;
+        IBrush textBrush = GUI.Style.TEXT_LIGHT.ToBrush();
         var raycastItem = ItemAt(MousePosition);
         IVibratoItem? hoverVibratoItem = mOperatingVibratoItem;
         if (hoverVibratoItem == null && raycastItem is IVibratoItem vibratoItem) hoverVibratoItem = vibratoItem;
@@ -972,8 +972,8 @@ internal partial class PianoScrollView : View, IPianoScrollView
                 double px = TickAxis.Tick2X(Part.Pos.Value + info.Pos);
                 double pw = TickAxis.PixelsPerTick * info.Dur;
                 // 用颤音本身的黑半透明打底（与已落实颤音同款）+ 白虚线框（"预览/待添加"提示）——区别于范围选区的白罩白虚线，避免撞样式。
-                context.DrawRectangle(Colors.Black.Opacity(0.25).ToBrush(), new Pen(Colors.White.Opacity(0.5).ToUInt32(), 1, VibratoPreviewDashStyle), new Rect(px, 0, pw, Bounds.Height));
-                DrawPitch(context, px, px + pw, ticks => Part.GetVibratoAddPreviewPitch(ticks, info), Colors.White.Opacity(0.7), 1, VibratoPreviewDashStyle);
+                context.DrawRectangle(Colors.Black.Opacity(0.25).ToBrush(), new Pen(Style.TEXT_LIGHT.Opacity(0.5).ToUInt32(), 1, VibratoPreviewDashStyle), new Rect(px, 0, pw, Bounds.Height));
+                DrawPitch(context, px, px + pw, ticks => Part.GetVibratoAddPreviewPitch(ticks, info), Style.TEXT_LIGHT.Opacity(0.7), 1, VibratoPreviewDashStyle);
             }
         }
     }
@@ -987,7 +987,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
             return;
 
         double height = WAVEFORM_HEIGHT;
-        context.FillRectangle(Colors.Black.Opacity(0.5).ToBrush(), new(0, WaveformTop, Bounds.Width, WAVEFORM_HEIGHT));
+        context.FillRectangle(Colors.Black.Opacity(0.05).ToBrush(), new(0, WaveformTop, Bounds.Width, WAVEFORM_HEIGHT));
         var tempoManager = Part.TempoManager;
         var viewStartTime = tempoManager.GetTime(TickAxis.X2Tick(0));
         var viewEndTime = tempoManager.GetTime(TickAxis.X2Tick(Bounds.Width));
@@ -1149,7 +1149,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
             if (!double.IsNaN(blockLeft))
             {
                 double top = upper ? WaveformTop : WaveformCenterY;
-                context.FillRectangle(Colors.White.Opacity(0.12).ToBrush(), new(blockLeft, top, blockRight - blockLeft, WAVEFORM_HEIGHT / 2));
+                context.FillRectangle(Style.TEXT_LIGHT.Opacity(0.12).ToBrush(), new(blockLeft, top, blockRight - blockLeft, WAVEFORM_HEIGHT / 2));
             }
         }
 

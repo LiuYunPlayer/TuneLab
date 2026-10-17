@@ -1,5 +1,7 @@
 using Avalonia;
 using Avalonia.Media;
+using TuneLab.GUI;
+using TuneLab.Utils;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -60,7 +62,7 @@ internal partial class AutomationRenderer
             }
             else if (AnchorPoint == hoverAnchor)
             {
-                context.DrawEllipse(null, new Pen(Brushes.White), center, 5.5, 5.5);
+                context.DrawEllipse(null, new Pen(GUI.Style.TEXT_LIGHT.ToBrush()), center, 5.5, 5.5);
             }
         }
     }

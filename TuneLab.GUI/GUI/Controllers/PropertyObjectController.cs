@@ -150,6 +150,9 @@ internal class PropertyObjectController : StackPanel
             mCreatorsByKey[mOrder[i]].SetTrailing(i == mOrder.Count - 1);
     }
 
+    // 当前没有任何字段（未 SetConfig、已 ResetConfig，或 config 本身为空）。
+    public bool IsEmpty => mOrder.Count == 0;
+
     public void ResetConfig()
     {
         Children.Clear();

@@ -48,7 +48,7 @@ internal partial class TimelineView
             context.DrawString(TimelineView.BpmString(Tempo), Rect(), TextBrush, 12, Alignment.Center, Alignment.Center);
         }
 
-        static readonly IBrush TextBrush = new Color(178, 255, 255, 255).ToBrush();
+        static readonly IBrush TextBrush = new Color(178, 21, 21, 30).ToBrush();
     }
 
     class TimeSignatureItem(TimelineView timelineView) : TimelineViewItem(timelineView)
@@ -79,6 +79,6 @@ internal partial class TimelineView
             context.DrawString(TimelineView.MeterString(TimeSignature), Rect(), TextBrush, 12, Alignment.Center, Alignment.Center);
         }
 
-        static readonly IBrush TextBrush = new Color(178, 255, 255, 255).ToBrush();
+        static readonly IBrush TextBrush = new Color(178, 21, 21, 30).ToBrush();
     }
 }

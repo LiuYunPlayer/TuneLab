@@ -13,7 +13,7 @@
         <!-- 标题栏（可拖动 + 关闭按钮在代码里构建） -->
         <Grid x:Name="TitleBar" DockPanel.Dock="Top" Height="40" ColumnDefinitions="*,Auto">
             <Label x:Name="TitleLabel" Grid.Column="0" Content="About" VerticalAlignment="Center"
-                   Margin="16,0" FontWeight="Bold" FontSize="14" Foreground="White"/>
+                   Margin="16,0" FontWeight="Bold" FontSize="14" Foreground="#15151E"/>
             <Panel x:Name="CloseSlot" Grid.Column="1"/>
         </Grid>
 

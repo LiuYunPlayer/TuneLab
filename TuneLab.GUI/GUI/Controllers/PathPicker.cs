@@ -26,7 +26,7 @@ internal class PathPicker : DockPanel, IDataValueController<string>
     {
         var button = new Components.Button() { Width = 28, Height = 28, Margin = new(12, 0, 0, 0) }.
             AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, ColorSet = new() { Color = Style.BACK } }).
-            AddContent(new() { Item = new TextItem() { Text = "..." }, ColorSet = new() { Color = Colors.White } });
+            AddContent(new() { Item = new TextItem() { Text = "..." }, ColorSet = new() { Color = Style.TEXT_LIGHT } });
 
         button.Clicked += async () =>
         {

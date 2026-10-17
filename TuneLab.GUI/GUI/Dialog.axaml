@@ -27,7 +27,7 @@
 				</Grid.ColumnDefinitions>
 
 				<StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center" Orientation="Horizontal" IsHitTestVisible="False">
-					<Label x:Name="TitleLabel" Content="Message" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="White" />
+					<Label x:Name="TitleLabel" Content="Message" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="#15151E" />
 				</StackPanel>
 			</Grid>
 
@@ -40,7 +40,7 @@
 
 					<ScrollViewer Grid.Row="0" x:Name="MessageScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
 						<StackPanel Orientation="Vertical" Margin="12,0" HorizontalAlignment="Center" VerticalAlignment="Center" x:Name="MessageStackPanel">
-							<SelectableTextBlock x:Name="MessageTextBlock" Text="This is a modal window." Foreground="White" TextWrapping="Wrap" TextAlignment="Center" FontSize="14" Padding="0" Margin="0" />
+							<SelectableTextBlock x:Name="MessageTextBlock" Text="This is a modal window." Foreground="#15151E" TextWrapping="Wrap" TextAlignment="Center" FontSize="14" Padding="0" Margin="0" />
 						</StackPanel>
 					</ScrollViewer>
 

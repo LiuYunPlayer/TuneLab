@@ -1,8 +1,8 @@
 ﻿<Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 	<Style Selector="MenuItem > MenuItem">
-		<Setter Property="Foreground" Value="White"/>
-		<Setter Property="Background" Value="#272736"/>
+		<Setter Property="Foreground" Value="#15151E"/>
+		<Setter Property="Background" Value="#F4F4F8"/>
 	</Style>
 
 	<Style Selector="ListBoxItem:selected /template/ ContentPresenter">
@@ -10,9 +10,9 @@
 	</Style>
 
 	<Style Selector="ComboBox:dropdownopen /template/ Border#PopupBorder">
-		<Setter Property="Background" Value="#1B1B24" />
-		<Setter Property="BorderBrush" Value="#1B1B24" />
-		<Setter Property="TextBlock.Foreground" Value="White" />
+		<Setter Property="Background" Value="#FFFFFF" />
+		<Setter Property="BorderBrush" Value="#C6C8D4" />
+		<Setter Property="TextBlock.Foreground" Value="#15151E" />
 	</Style>
 
 	<Style Selector="ComboBoxItem:selected /template/ ContentPresenter">
@@ -20,15 +20,15 @@
 	</Style>
 
 	<Style Selector="ToolTip">
-		<Setter Property="Background" Value="#393940" />
+		<Setter Property="Background" Value="#FFFFFF" />
 		<Setter Property="Padding" Value="4" />
-		<Setter Property="BorderBrush" Value="#45454D" />
+		<Setter Property="BorderBrush" Value="#C6C8D4" />
 	</Style>
 
 	<!-- Agent 会话菜单：自定义 Flyout 调成与原生菜单一致的底色/圆角/暗色描边（作用域 class，不影响其它 flyout）。 -->
 	<Style Selector="FlyoutPresenter.agent-menu">
-		<Setter Property="Background" Value="#272736" />
-		<Setter Property="BorderBrush" Value="#1B1B24" />
+		<Setter Property="Background" Value="#F4F4F8" />
+		<Setter Property="BorderBrush" Value="#C6C8D4" />
 		<Setter Property="BorderThickness" Value="1" />
 		<Setter Property="CornerRadius" Value="4" />
 		<Setter Property="Padding" Value="4" />

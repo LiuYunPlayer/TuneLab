@@ -134,7 +134,7 @@ internal static class ChatMarkdownRenderer
         TextWrapping = TextWrapping.Wrap,
         FontSize = 12,
         FontFamily = TextFont, // emoji 回退链
-        Foreground = Colors.White.ToBrush(),
+        Foreground = Style.TEXT_LIGHT.ToBrush(),
     };
 
     static Control RenderList(ListBlock list, string? baseDir)
@@ -165,7 +165,7 @@ internal static class ChatMarkdownRenderer
             {
                 Text = list.IsOrdered ? $"{index}." : "•",
                 FontSize = 12,
-                Foreground = Colors.White.ToBrush(),
+                Foreground = Style.TEXT_LIGHT.ToBrush(),
                 Margin = new(0, 0, 6, 0),
                 VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top,
             };
@@ -227,7 +227,7 @@ internal static class ChatMarkdownRenderer
             Opacity = 0, // 悬浮代码框才显示
             Child = copyText,
         };
-        copy.PointerEntered += (_, _) => copyText.Foreground = Colors.White.ToBrush();
+        copy.PointerEntered += (_, _) => copyText.Foreground = Style.TEXT_LIGHT.ToBrush();
         copy.PointerExited += (_, _) => copyText.Foreground = Style.LIGHT_WHITE.Opacity(0.7).ToBrush();
         copy.PointerPressed += (_, e) =>
         {
@@ -398,7 +398,7 @@ internal static class ChatMarkdownRenderer
         if (!string.IsNullOrEmpty(url))
         {
             ToolTip.SetTip(tb, url);
-            tb.PointerEntered += (_, _) => tb.Foreground = Colors.White.ToBrush();
+            tb.PointerEntered += (_, _) => tb.Foreground = Style.TEXT_LIGHT.ToBrush();
             tb.PointerExited += (_, _) => tb.Foreground = Style.HIGH_LIGHT.ToBrush();
             tb.PointerPressed += (_, e) =>
             {

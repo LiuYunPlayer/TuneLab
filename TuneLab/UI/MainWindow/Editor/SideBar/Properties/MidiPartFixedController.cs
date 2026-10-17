@@ -37,6 +37,9 @@ internal class MidiPartFixedController : StackPanel
         mGainFold.RefreshSummary();
     }
 
+    // 增益是否分组里的最后一项（其后没有声源的片段属性时是）：末项收起时补底边距，见 FieldFold.IsTrailing。
+    public bool IsTrailing { set => mGainFold.IsTrailing = value; }
+
     // 增益是宿主自带字段、不归任何插件，折叠记忆用固定键。收起时标题行显示当前值。
     void AddController(SliderController control, string name)
     {

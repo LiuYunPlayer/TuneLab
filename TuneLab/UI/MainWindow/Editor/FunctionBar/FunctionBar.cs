@@ -47,7 +47,7 @@ internal class FunctionBar : LayerPanel
 
         var dockPanel = new DockPanel() { Margin = new(64, 0, 12, 0) };
         {
-            var hoverBack = Colors.White.Opacity(0.05);
+            var hoverBack = Style.TEXT_LIGHT.Opacity(0.05);
 
             void SetupToolTip(Control toggleButton,string ToolTipText)
             {
@@ -59,7 +59,7 @@ internal class FunctionBar : LayerPanel
                 var playButtonIconItem = new IconItem() { Icon = Assets.Play };
                 var playButton = new Toggle() { Width = 36, Height = 36 }
                     .AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, CheckedColorSet = new() { HoveredColor = hoverBack, PressedColor = hoverBack }, UncheckedColorSet = new() { HoveredColor = hoverBack, PressedColor = hoverBack } })
-                    .AddContent(new() { Item = playButtonIconItem, CheckedColorSet = new() { Color = Colors.White }, UncheckedColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5) } });
+                    .AddContent(new() { Item = playButtonIconItem, CheckedColorSet = new() { Color = Style.TEXT_LIGHT }, UncheckedColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5) } });
                 
                 SetupToolTip(playButton, "Play".Tr(this));
                 playButton.Switched.Subscribe(() => { if (playButton.IsChecked) AudioEngine.Play(); else AudioEngine.Pause(); SetupToolTip(playButton, AudioEngine.IsPlaying ? "Pause".Tr(this) : "Play".Tr(this)); });
@@ -145,7 +145,7 @@ internal class FunctionBar : LayerPanel
                     index++;
                     var toggle = new Toggle() { Width = 36, Height = 36 }
                         .AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, CheckedColorSet = new() { Color = Style.HIGH_LIGHT }, UncheckedColorSet = new() { HoveredColor = hoverBack, PressedColor = hoverBack } })
-                        .AddContent(new() { Item = new IconItem() { Icon = icon }, CheckedColorSet = new() { Color = Colors.White }, UncheckedColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5) } });
+                        .AddContent(new() { Item = new IconItem() { Icon = icon }, CheckedColorSet = new() { Color = Style.TEXT_LIGHT }, UncheckedColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5) } });
                     void OnPianoToolChanged()
                     {
                         toggle.Display(mDependency.PianoTool.Value == tool);

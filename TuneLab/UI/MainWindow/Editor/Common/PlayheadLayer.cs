@@ -1,5 +1,7 @@
 ﻿using Avalonia;
 using Avalonia.Media;
+using TuneLab.GUI;
+using TuneLab.Utils;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -36,7 +38,7 @@ internal class PlayheadLayer : Component
 
     public override void Render(DrawingContext context)
     {
-        context.FillRectangle(Brushes.White, new Rect(TickAxis.Tick2X(Playhead.Pos), 0, 1, Bounds.Height));
+        context.FillRectangle(GUI.Style.TEXT_LIGHT.ToBrush(), new Rect(TickAxis.Tick2X(Playhead.Pos), 0, 1, Bounds.Height));
     }
 
     IPlayhead Playhead => mDependency.Playhead;

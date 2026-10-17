@@ -31,7 +31,7 @@ internal partial class LyricInput : Window
         TitleLabel.Foreground = Style.TEXT_LIGHT.ToBrush();
 
         var closeButton = new Button() { Width = 48, Height = 40 }
-                .AddContent(new() { Item = new BorderItem() { CornerRadius = 0 }, ColorSet = new() { HoveredColor = Colors.White.Opacity(0.2), PressedColor = Colors.White.Opacity(0.2) } })
+                .AddContent(new() { Item = new BorderItem() { CornerRadius = 0 }, ColorSet = new() { HoveredColor = Style.TEXT_LIGHT.Opacity(0.2), PressedColor = Style.TEXT_LIGHT.Opacity(0.2) } })
                 .AddContent(new() { Item = new IconItem() { Icon = Assets.WindowClose }, ColorSet = new() { Color = Style.TEXT_LIGHT.Opacity(0.7) } });
         closeButton.Clicked += () => Close();
 

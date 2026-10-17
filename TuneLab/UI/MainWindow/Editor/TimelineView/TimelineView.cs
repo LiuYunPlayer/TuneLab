@@ -141,7 +141,7 @@ internal partial class TimelineView : View
 
     protected override void OnRender(DrawingContext context)
     {
-        IBrush barLineBrush = new Color(178, 255, 255, 255).ToBrush();
+        IBrush barLineBrush = new Color(178, 21, 21, 30).ToBrush();
 
         context.FillRectangle(Back.ToBrush(), this.Rect());
 
@@ -168,7 +168,7 @@ internal partial class TimelineView : View
         {
             double x = TickAxis.Tick2X(line.Tick);
             // 线与号是一体：共用同一 brush（同一 opacity），淡出时一起淡，不会一实一淡割裂。
-            var brush = line.Opacity >= 1 ? barLineBrush : new Color(178, 255, 255, 255).Opacity(line.Opacity).ToBrush();
+            var brush = line.Opacity >= 1 ? barLineBrush : new Color(178, 21, 21, 30).Opacity(line.Opacity).ToBrush();
             context.FillRectangle(brush, new Rect(x, 0, 1, 12));
             // 每根小节线都带号；仅段首让位给该处的拍号标记不重复标（线仍照上面画）。
             if (!line.IsSegmentStart)
@@ -185,7 +185,7 @@ internal partial class TimelineView : View
             if (beatOpacity == 0)
                 continue;
 
-            IBrush beatLineBrush = new Color(127, 255, 255, 255).Opacity(beatOpacity).ToBrush();
+            IBrush beatLineBrush = new Color(127, 21, 21, 30).Opacity(beatOpacity).ToBrush();
             for (int barIndex = thisTimeSignatureBarIndex; barIndex < nextTimeSignatureBarIndex; barIndex++)
             {
                 for (int beatIndex = 1; beatIndex < timeSignatures[timeSignatureIndex].Numerator; beatIndex++)

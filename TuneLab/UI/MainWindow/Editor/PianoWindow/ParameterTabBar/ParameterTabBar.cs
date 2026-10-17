@@ -55,7 +55,7 @@ internal class ParameterTabBar : Panel
         // 无底色，悬停反馈走图标变色：两态都提亮一档（展开 LIGHT_WHITE→纯白，收起半透明→LIGHT_WHITE），静息时仍保持亮暗有别。
         var panelIconItem = new IconItem() { Icon = Assets.BottomPanel };
         mPanelToggle = new Toggle() { Width = 24, Height = 24 }
-            .AddContent(new() { Item = panelIconItem, CheckedColorSet = new() { Color = Style.LIGHT_WHITE, HoveredColor = Colors.White, PressedColor = Colors.White }, UncheckedColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5), HoveredColor = Style.LIGHT_WHITE, PressedColor = Style.LIGHT_WHITE } });
+            .AddContent(new() { Item = panelIconItem, CheckedColorSet = new() { Color = Style.LIGHT_WHITE, HoveredColor = Style.TEXT_LIGHT, PressedColor = Style.TEXT_LIGHT }, UncheckedColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5), HoveredColor = Style.LIGHT_WHITE, PressedColor = Style.LIGHT_WHITE } });
         mPanelToggle.SetupToolTip("Toggle Parameter Panel".Tr(TC.Menu));
         mPanelToggle.Switched.Subscribe(() => mDependency.ToggleParameterPanel());
         void SyncPanelToggle()
