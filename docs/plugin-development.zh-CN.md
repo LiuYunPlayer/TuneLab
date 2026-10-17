@@ -1042,7 +1042,7 @@ public ObjectConfig GetSettingsConfig(IExtensionSettingsContext context)
 - **异常**：由宿主记日志并弹错误提示（标明你的插件）。
 - **点完自动刷新**：执行结束后宿主重新调用该面板的声明函数，按钮文字、旁边的选项都能反映新状态。若影响到别的 note / part 的声明，再调 `InvalidatePart` / `InvalidateNotes`（§5.2）。
 - **位置**：只能作为 `ObjectConfig` 的成员（任意嵌套深度，含列表元素里的对象）。直接当 `ArrayConfig` / `ListConfig` 的元素或 `ExtensibleObjectConfig` 的可加键时不支持——那些位置每一格都是一个值。
-- **不带布局属性**：按钮按现有规则纵向占一行。
+- **两种形态，都占一行**：有标题时（键的显示名；不给显示名则用 id）按钮在标题右侧；键的显示名**显式给空字符串**——`("run", "")`——则不显示标题、按钮铺满整行，适合按钮文字本身就说明一切的操作。除此之外没有布局属性；按钮不可收起（它没有值）。
 
 ### 9.2 点击期间的弹窗服务（`click.Dialogs`）
 

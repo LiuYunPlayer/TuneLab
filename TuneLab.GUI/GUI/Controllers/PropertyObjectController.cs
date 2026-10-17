@@ -145,10 +145,9 @@ internal class PropertyObjectController : StackPanel
             mOrder = nextOrder;
         }
 
-        // 末项标记：只有最后一项收起时才补底边距（见 FieldFold.IsTrailing）。
+        // 末项标记：单行的末项（收起的字段 / 行内字段 / 按钮行）补底边距，见 Creator.SetTrailing。
         for (int i = 0; i < mOrder.Count; i++)
-            if (mCreatorsByKey[mOrder[i]].Fold is { } fold)
-                fold.IsTrailing = i == mOrder.Count - 1;
+            mCreatorsByKey[mOrder[i]].SetTrailing(i == mOrder.Count - 1);
     }
 
     public void ResetConfig()
@@ -211,8 +210,15 @@ internal class PropertyObjectController : StackPanel
         protected readonly DisposableManager s = new();
         public abstract Type ConfigType { get; }
         public abstract IEnumerable<Control> Views { get; }
-        // 可折叠的字段返回其折叠件（勾选框 / 拖拽数值框 / 按钮这类单行字段没有）。
+        // 可折叠的字段返回其折叠件（按钮没有：它是操作、不是值，收起后没有可显示的东西）。
         public virtual FieldFold? Fold => null;
+
+        // 是否所在列表的最后一项：单行的末项后面紧跟分组线 / 对象结尾，要补底边距（同 FieldFold.IsTrailing）。
+        public virtual void SetTrailing(bool trailing)
+        {
+            if (Fold is { } fold)
+                fold.IsTrailing = trailing;
+        }
         // 布局序列 = 内容控件 + 尾随分隔符。
         public IEnumerable<Control> LayoutViews
         {
@@ -858,39 +864,58 @@ internal class PropertyObjectController : StackPanel
         readonly Components.CheckBox mController;
     }
 
-    // 按钮（ButtonConfig）：标题在左、按钮靠右（CheckBox 式同行布局）。不绑任何数据字段——按钮没有值。
+    // 按钮（ButtonConfig）：单行（标题在左、按钮靠右；或无标题整行按钮，见构造）。不绑任何数据字段——按钮没有值。
     // 点击交 ButtonActions 统一调度：执行期间不可重入（键 = 树作用域 + 本按钮路径，面板重建后仍认得出），
     // 结束后经 ButtonRoot 通知面板持有方刷新。Reconcile 时换用新 config：每次声明重算都会给出新闭包，点击永远用最新的。
     // 执行中的指示是叠在按钮上的边框光带（RunningBorder）：不往按钮里加内容物，文字与布局在执行前后完全不变。
     class ButtonCreator : Creator
     {
+        // 两种形态，都是一行标准行高（30，按钮高 24、居中），都不折叠——按钮是操作、不是值，收起后无值可显示，
+        // 压成一行反而像个空字段：
+        //   · 有标题（显示名非空）：标题在左、按钮靠右，宽度随文字；
+        //   · 无标题（显示名显式给空字符串，如 ("run", "")）：按钮铺满整行——按钮文字本身就是说明，再配标题反而重复。
+        //     显示名缺省（null）照旧回退到 id 当标题，故只有作者明确给空串才是整行形态。
         public ButtonCreator(PropertyObjectController parent, PropertyKey key, ButtonConfig config) : base(parent)
         {
             mConfig = config;
             mRoot = parent.mButtonRoot;
             mPath = parent.mButtonPath + "/" + key.Id;
+            mFullWidth = key.DisplayText is { Length: 0 };
 
-            mDockPanel = ObjectPoolManager.Get<DockPanel>();
-            mDockPanel.Margin = default;   // 池化 DockPanel 也被对象字段借去当内容区（带 12 底边距），取出来必须把边距写回，否则这一行凭空变高
+            // 行容器不取对象池：要给它定高（30），池化的 DockPanel 还被对象字段借去当内容区，定高会漏给下一任主人。
+            mRow = new DockPanel() { Height = RowHeight, LastChildFill = true };
 
             mText = new TextItem() { Text = config.Text };
-            mButton = new Button() { Height = 28 };
+            mButton = new Button() { Height = ButtonHeight };
             mButton.AddContent(new() { Item = new BorderItem() { CornerRadius = 6 }, ColorSet = new() { Color = Style.BUTTON_NORMAL, HoveredColor = Style.BUTTON_NORMAL_HOVER } });
             mButton.AddContent(new() { Item = mText, ColorSet = new() { Color = Style.LIGHT_WHITE } });
             mButton.Clicked += OnClicked;
-            mButtonHost = new Panel() { Margin = new(24, 8) };
+            mButtonHost = new Panel() { VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
             mButtonHost.Children.Add(mButton);
             mButtonHost.Children.Add(mRunning);   // 叠在按钮上方、不参与命中
-            mDockPanel.Children.Add(mButtonHost);
-            DockPanel.SetDock(mButtonHost, Dock.Right);
 
-            mTitle = CreateTitle(key.DisplayText ?? key.Id, 30);
-            mTitle.VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center;
-            mDockPanel.Children.Add(mTitle);
+            if (mFullWidth)
+            {
+                mButtonHost.Margin = new(24, 0);
+                mRow.Children.Add(mButtonHost);
+            }
+            else
+            {
+                mButtonHost.Margin = new(8, 0, 24, 0);
+                DockPanel.SetDock(mButtonHost, Dock.Right);
+                mRow.Children.Add(mButtonHost);
+                mTitle = CreateTitle(key.DisplayText ?? key.Id, RowHeight);
+                mRow.Children.Add(mTitle);
+            }
 
             ButtonActions.RunningChanged += RefreshState;
             RefreshState();
         }
+
+        const double RowHeight = 30;
+        const double ButtonHeight = 24;   // 与拖拽数值框同高，两者并排时对齐
+
+        public override void SetTrailing(bool trailing) => mRow.Margin = trailing ? new(0, 0, 0, 7) : default;   // 同 FieldFold 末项底边距
 
         string RunningKey => mRoot.Scope + mPath;
 
@@ -903,7 +928,7 @@ internal class PropertyObjectController : StackPanel
             mButton.IsHitTestVisible = !running;
             mRunning.IsRunning = running;
             mText.Text = mConfig.Text;
-            mButton.Width = Math.Max(72, MeasureText(mConfig.Text) + 32);
+            mButton.Width = mFullWidth ? double.NaN : Math.Max(72, MeasureText(mConfig.Text) + 32);   // 整行形态随行宽
             mButton.InvalidateVisual();
         }
 
@@ -912,7 +937,7 @@ internal class PropertyObjectController : StackPanel
                 TuneLab.Utils.Extensions.DrawStringTypeface, 12, null).Width;
 
         public override Type ConfigType => typeof(ButtonConfig);
-        public override IEnumerable<Control> Views => [mDockPanel];
+        public override IEnumerable<Control> Views => [mRow];
 
         public override void Update(IControllerConfig config)
         {
@@ -927,15 +952,16 @@ internal class PropertyObjectController : StackPanel
             mButton.Clicked -= OnClicked;
             mRunning.IsRunning = false;
             mButtonHost.Children.Clear();
-            mDockPanel.Children.Clear();
-            ObjectPoolManager.Return(mTitle);
-            ObjectPoolManager.Return(mDockPanel);
+            mRow.Children.Clear();
+            if (mTitle != null)
+                ObjectPoolManager.Return(mTitle);
         }
 
         readonly ButtonRoot mRoot;
         readonly string mPath;
-        readonly Label mTitle;
-        readonly DockPanel mDockPanel;
+        readonly bool mFullWidth;
+        readonly Label? mTitle;
+        readonly DockPanel mRow;
         readonly Button mButton;
         readonly Panel mButtonHost;
         readonly RunningBorder mRunning = new();

@@ -108,6 +108,8 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
     {
         var partIds = context.Parts.Select(p => p.PartId).ToList();
         var properties = With(mPartProperties, ("analysis_summary", "Analysis"), ButtonConfig.Create("Summary", click => ShowPartSummary(click, partIds)));
+        // 显示名给空串 = 无标题、按钮铺满整行（验证整行按钮形态）。
+        properties = With(properties, ("analysis_run", ""), ButtonConfig.Create("Run Analysis", click => ShowPartSummary(click, partIds)));
         if (!context.Parts.Any(p => mAnalyses.TryGetValue(p.PartId, out var analysis) && analysis.HasTones))
             return ObjectConfig.Create(properties);
         return ObjectConfig.Create(With(properties, ("tone_strength", "Tone Strength (Analyzed)"), mToneStrengthConfig));

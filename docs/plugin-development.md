@@ -1044,7 +1044,7 @@ public ObjectConfig GetSettingsConfig(IExtensionSettingsContext context)
 - **Exceptions** are logged and shown to the user, attributed to your plugin.
 - **The panel refreshes after the click**: when it finishes the host calls the panel's declaration function again, so the button text and nearby options reflect the new state. If other notes' / parts' declarations are affected, call `InvalidatePart` / `InvalidateNotes` (§5.2).
 - **Placement**: only as a member of an `ObjectConfig` (at any depth, including objects inside list elements). Not supported directly as an `ArrayConfig` / `ListConfig` element or an `ExtensibleObjectConfig` addable key — every slot there is a value.
-- **No layout properties**: a button takes a row under the existing vertical layout.
+- **Two forms, both one row**: with a title (the key's display name, or its id when no display name is given) the button sits on the right of the title; give the key an **empty** display name — `("run", "")` — and the title is dropped and the button spans the whole row, for actions whose button text already says it all. Buttons have no layout properties beyond that and are not collapsible (they hold no value).
 
 ### 9.2 The dialog service during a click (`click.Dialogs`)
 
