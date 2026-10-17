@@ -17,7 +17,7 @@ internal sealed class EditorStatusAccess(
     Func<string> currentToolActionId,
     Func<bool> isParameterPanelVisible,
     Func<bool> isWaveformVisible,
-    Func<string?> sidebarPanelActionId,
+    Func<IReadOnlyList<string>> sidebarPanelActionIds,
     Func<string?> focusedSurface,
     Func<IReadOnlyList<string>> blockingDialogs) : IEditorStatusAccess
 {
@@ -28,7 +28,7 @@ internal sealed class EditorStatusAccess(
     public string CurrentToolActionId => currentToolActionId();
     public bool IsParameterPanelVisible => isParameterPanelVisible();
     public bool IsWaveformVisible => isWaveformVisible();
-    public string? SidebarPanelActionId => sidebarPanelActionId();
+    public IReadOnlyList<string> SidebarPanelActionIds => sidebarPanelActionIds();
     public string? FocusedSurface => focusedSurface();
     public IReadOnlyList<string> BlockingDialogs => blockingDialogs();
 }

@@ -40,9 +40,9 @@ pwsh tools/ScreenshotBot/shoot.ps1 -Out C:\tmp\shots   # 换个输出目录（�
 在 `ShotPlan.RunAsync` 里按现有写法插一段：摆状态 → `await Camera.Settle()` → `camera.Shoot(...)`。
 
 ```csharp
-tabBar.SelectedTab.Value = SideBarTab.Export;
+tabBar.Restore([SideBarTab.Export]);   // 侧栏可多面并排，插图只开要拍的那一面
 await Camera.Settle(14);
-camera.Shoot(window, "sidebar-export", crop: B(sideBar));
+camera.Shoot(window, "sidebar-export", crop: B(Camera.Find<SideBar>(window)));
 ```
 
 几条经验：

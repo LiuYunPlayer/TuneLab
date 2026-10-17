@@ -102,7 +102,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 currentToolActionId: () => ToolActionId(mPianoWindow.PianoTool.Value),
                 isParameterPanelVisible: () => mPianoWindow.IsParameterPanelVisible,
                 isWaveformVisible: () => mPianoWindow.IsWaveformVisible,
-                sidebarPanelActionId: () => SidebarActionId(mRightSideTabBar.SelectedTab.Value),
+                sidebarPanelActionIds: () => mRightSideTabBar.OpenTabs.Select(SidebarActionId).OfType<string>().ToList(),
                 focusedSurface: () => mTrackWindow.IsKeyboardFocusWithin ? "arrangement" : mPianoWindow.IsKeyboardFocusWithin ? "pianoRoll" : null,
                 // 挡在界面前面的东西：模态框期间命令桥照常应答，不报这一条就会有"用户什么都看不见，
                 // 而外部条条回报成功"的一串命令（见 BlockingUi）。
@@ -124,7 +124,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         ScriptToolMenu.Init(() => Project, () => mPianoWindow.Part, () => mPianoWindow.Quantization, CurrentScriptSelection, CurrentPianoScriptSelection, mSelectionWriter);
         mTrackWindow = new(this);
         mRightSideTabBar = new();
-        mRightSideBar = new() { Width = 320 };   // 左缘分隔线由 SideBar 自己画（见其构造）
+        mSideBarStrip = new();   // 各面左缘分隔线由 SideBar 自己画（见其构造）
 
         var panel = new DockPanel() { Background = Style.INTERFACE.ToBrush() };
         {
@@ -139,67 +139,11 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         }
         this.AddDock(panel, Dock.Right);
 
-        // 侧栏 + 拖拽手柄同层，该层 ZIndex 抬到 track/piano(默认0) 之上：手柄既满高覆盖侧栏左缘（含与 TrackView 交界段），
-        // 又能向左探出、压在内容区之上（缝两侧都可抓）；侧栏列本与内容不重叠，抬 ZIndex 仅让手柄探出那条压住内容。
-        // 侧栏隐藏时手柄随之隐藏（可见性绑定）。
-        mRightSideBar.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right;
-        mRightSideBar.IsVisible = false;
-        var sideBarLayer = new Panel() { ZIndex = 1 };
-        sideBarLayer.Children.Add(mRightSideBar);
-
-        var sideBarResizer = new Border()
-        {
-            Width = 8,
-            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
-            Margin = new(-4, 0, 0, 0), // 左探 4px 到内容区、右留 4px 在侧栏 → 跨缝 ±4px（靠该层 ZIndex 压在内容之上才命中）
-            Background = Avalonia.Media.Brushes.Transparent,
-            Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.SizeWestEast),
-        };
-        // 悬浮高亮：居中一条 2px 细线压在接缝上（命中区 8px、可见高亮仅 2px），悬浮约 300ms 后显色（仿 VSCode sash），
-        // 移开/松手即隐、拖动中保持显色。
-        var resizerLine = new Border() { Width = 4, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center };
-        sideBarResizer.Child = resizerLine;
-        // 高亮用 highlight color；用封装的 AnimationColor 做淡入淡出（仅动 alpha、保持色相干净），仿 VSCode sash 过渡。
-        var resizerHi = Style.HIGH_LIGHT;
-        var resizerHiClear = new Avalonia.Media.Color(0, resizerHi.R, resizerHi.G, resizerHi.B);
-        var resizerLineBrush = new SolidColorBrush(resizerHiClear);
-        resizerLine.Background = resizerLineBrush;
-        var resizerLineColor = new AnimationColor() { Value = resizerHiClear };
-        resizerLineColor.ValueChanged += () => resizerLineBrush.Color = resizerLineColor.Value;
-        void ShowResizerLine() => resizerLineColor.SetTo(resizerHi, 130, AnimationCurve.QuadOut);
-        void HideResizerLine() => resizerLineColor.SetTo(resizerHiClear, 130, AnimationCurve.QuadOut);
-        var resizerHoverTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
-        resizerHoverTimer.Tick += (_, _) => { resizerHoverTimer.Stop(); ShowResizerLine(); };
-        bool resizing = false;
-        double resizeStartX = 0, resizeStartWidth = 0;
-        sideBarResizer.PointerEntered += (_, _) => resizerHoverTimer.Start();
-        sideBarResizer.PointerExited += (_, _) => { resizerHoverTimer.Stop(); if (!resizing) HideResizerLine(); };
-        sideBarResizer.PointerPressed += (_, e) =>
-        {
-            resizing = true;
-            resizeStartX = e.GetPosition(this).X;
-            resizeStartWidth = mRightSideBar.Width;
-            resizerHoverTimer.Stop();
-            ShowResizerLine(); // 拖动即显色
-            e.Pointer.Capture(sideBarResizer);
-        };
-        sideBarResizer.PointerMoved += (_, e) =>
-        {
-            if (!resizing)
-                return;
-            var dx = e.GetPosition(this).X - resizeStartX;
-            mRightSideBar.Width = Math.Clamp(resizeStartWidth - dx, 240, 640);
-        };
-        sideBarResizer.PointerReleased += (_, e) =>
-        {
-            resizing = false;
-            e.Pointer.Capture(null);
-            if (!sideBarResizer.IsPointerOver) HideResizerLine();
-        };
-        sideBarResizer.Bind(Avalonia.Visual.IsVisibleProperty, mRightSideBar.GetObservable(Avalonia.Visual.IsVisibleProperty));
-        sideBarLayer.Children.Add(sideBarResizer); // 后加 → 在侧栏之上
-
-        this.AddDock(sideBarLayer, Dock.Right);
+        // 侧栏面并排承载（自带拖宽手柄、窄窗压缩/临时隐藏，见 SideBarStrip）。图标栏只管开关，放不放得下问它。
+        mRightSideTabBar.CanOpen = mSideBarStrip.CanOpen;
+        mSideBarStrip.LayoutChanged += mRightSideTabBar.RefreshAvailability;
+        mSideBarStrip.WidthsCommitted += SaveSidePanelState;
+        this.AddDock(mSideBarStrip, Dock.Right);
 
         this.AddDock(mTrackWindow, Dock.Top);
         this.AddDock(mFunctionBar, Dock.Top);
@@ -233,43 +177,10 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         mTrackWindow.AddHandler(InputElement.GotFocusEvent, (_, _) => { mPartPanelFocusArea = PartPanelFocusArea.Arrangement; UpdatePartPanelTarget(); }, Avalonia.Interactivity.RoutingStrategies.Bubble, handledEventsToo: true);
         mPianoWindow.AddHandler(InputElement.GotFocusEvent, (_, _) => { mPartPanelFocusArea = PartPanelFocusArea.Piano; UpdatePartPanelTarget(); }, Avalonia.Interactivity.RoutingStrategies.Bubble, handledEventsToo: true);
         ProjectHolder.When(project => project.Tracks.WhenAny(track => track.Parts.WhenAny(part => part.SelectionChanged))).Subscribe(UpdatePartPanelTarget);
-        mPartPropertySideBarContentProvider.TitleChanged += () => mRightSideBar.SetTitle(SideBarTab.PartProperties, mPartPropertySideBarContentProvider.Title);
+        mPartPropertySideBarContentProvider.TitleChanged += () => mSideBarStrip.Get(SideBarTab.PartProperties).SetTitle(SideBarTab.PartProperties, mPartPropertySideBarContentProvider.Title);
+        mEffectsSideBarContentProvider.TitleChanged += () => mSideBarStrip.Get(SideBarTab.Effects).SetTitle(SideBarTab.Effects, mEffectsSideBarContentProvider.Title);
         UpdatePartPanelTarget();
 
-        mRightSideTabBar.SelectedTab.Modified.Subscribe(() =>
-        {
-            mRightSideBar.IsVisible = true;
-            switch (mRightSideTabBar.SelectedTab.Value)
-            {
-                case SideBarTab.PartProperties:
-                    mRightSideBar.SetContent(SideBarTab.PartProperties, mPartPropertySideBarContentProvider.Content);
-                    break;
-                case SideBarTab.NoteProperties:
-                    mRightSideBar.SetContent(SideBarTab.NoteProperties, mNotePropertySideBarContentProvider.Content);
-                    break;
-                case SideBarTab.Extensions:
-                    mExtensionSideBarContentProvider.RefreshExtensions();
-                    mRightSideBar.SetContent(SideBarTab.Extensions, mExtensionSideBarContentProvider.Content);
-                    break;
-                case SideBarTab.Export:
-                    mExportSideBarContentProvider.SetProject(Project);
-                    mRightSideBar.SetContent(SideBarTab.Export, mExportSideBarContentProvider.Content);
-                    break;
-                case SideBarTab.Agent:
-                    // 不在此调 SetProject：工程由 OnProjectChanged 统一维护（换工程才重建工具+重置会话）。
-                    // tab 反复选中是冗余调用，会白白清空 agent 对话上下文，故只显示内容。
-                    mRightSideBar.SetFullContent(SideBarTab.Agent, mAgentSideBarContentProvider.Icon, mAgentSideBarContentProvider.Name, mAgentSideBarContentProvider.Root);
-                    break;
-                case SideBarTab.Script:
-                    mScriptSideBarContentProvider.SetProject(Project);
-                    mRightSideBar.SetFullContent(SideBarTab.Script, mScriptSideBarContentProvider.Icon, mScriptSideBarContentProvider.Name, mScriptSideBarContentProvider.Root);
-                    break;
-                default:
-                    mRightSideBar.IsVisible = false;
-                    break;
-            }
-        });
-        mRightSideBar.SetContent(SideBarTab.PartProperties, mPartPropertySideBarContentProvider.Content);
 
         mExtensionSideBarContentProvider.InstallRequested += async () =>
         {
@@ -289,6 +200,15 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
         mExportSideBarContentProvider.SetDocument(mDocument);
         mExportSideBarContentProvider.ExportRequested += OnExportRequested;
+
+        // 恢复上次的侧栏：放在各 provider 接好线之后（重开即走一遍各面的进场动作，见 OnSidePanelsChanged）；先回填宽度、再按打开顺序重开。
+        mRightSideTabBar.OpenTabsChanged += OnSidePanelsChanged;
+        mSideBarStrip.SetWidths(EditorState.SidePanelWidths
+            .Select(kvp => (Ok: Enum.TryParse<SideBarTab>(kvp.Key, out var tab), Tab: tab, kvp.Value))
+            .Where(item => item.Ok)
+            .Select(item => new KeyValuePair<SideBarTab, double>(item.Tab, item.Value)));
+        mRightSideTabBar.Restore(EditorState.SidePanels
+            .Select(name => Enum.TryParse<SideBarTab>(name, out var tab) ? tab : SideBarTab.None));
 
         AddHandler(DragDrop.DropEvent, OnDrop);
 
@@ -352,11 +272,18 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     {
         var selected = Project?.Tracks.SelectMany(track => track.Parts).OfType<IMidiPart>().Where(part => part.IsSelected).ToList() ?? new List<IMidiPart>();
         if (mPartPanelFocusArea == PartPanelFocusArea.Arrangement && selected.Count > 0)
-            mPartPropertySideBarContentProvider.SetParts(selected, PartPanelSource.Selected);
+            SetPartPanelTarget(selected, PartPanelSource.Selected);
         else if (mPianoWindow.Part is { } editing)
-            mPartPropertySideBarContentProvider.SetParts(new[] { editing }, PartPanelSource.Current);
+            SetPartPanelTarget(new[] { editing }, PartPanelSource.Current);
         else
-            mPartPropertySideBarContentProvider.SetParts(Array.Empty<IMidiPart>(), PartPanelSource.Current);
+            SetPartPanelTarget(Array.Empty<IMidiPart>(), PartPanelSource.Current);
+    }
+
+    // Part 面板与效果器面板看同一批 part（并排时不会一边看选中、一边看编辑中）。
+    void SetPartPanelTarget(IReadOnlyList<IMidiPart> parts, PartPanelSource source)
+    {
+        mPartPropertySideBarContentProvider.SetParts(parts, source);
+        mEffectsSideBarContentProvider.SetParts(parts, source);
     }
 
     protected override void OnSizeChanged(SizeChangedEventArgs e)
@@ -463,11 +390,11 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
         // ── 侧栏页签：**show / hide 而不是 toggle**。
         // 页签按钮自己是 toggle（点开、再点同一个就关，手快），但动作面给终态：外部驱动不必先读一次
-        // "现在开着哪个"才敢按，两次 show 同一个面的结果与一次相同。页签是单槽（一次只开一个面），
-        // 故 hide 不需要"关哪个"的选择器。
+        // "现在开着哪些"才敢按，两次 show 同一个面的结果与一次相同（已开着就不动、也不调序）。
+        // 各面并排共存，故 hide 逐面各一条；sidebar.hide 是「全部关掉」。
         foreach (var panel in SidebarPanels)
-            RegisterSidebarAction(panel.Id, panel.Name, panel.Tab);
-        Keymap.Register(new() { Id = "sidebar.hide", DisplayName = () => "Hide Side Panel".Tr(TC.Menu), Kind = ActionKind.AppState, Execute = () => mRightSideTabBar.SelectedTab.Value = SideBarTab.None }, KeyScope.Editor);
+            RegisterSidebarAction(panel.Id, panel.HideId, panel.Name, panel.Tab);
+        Keymap.Register(new() { Id = "sidebar.hide", DisplayName = () => "Hide Side Panel".Tr(TC.Menu), Kind = ActionKind.AppState, Execute = mRightSideTabBar.CloseAll }, KeyScope.Editor);
 
         // ── 视图：波形带（参数区标题栏最左那个开关；显隐是全局编辑器态，见 EditorState.WaveformVisible）。
         // 钢琴窗没开 part 时整个窗都不显示，那个开关也就够不着 → 动作同样不可用。
@@ -496,28 +423,92 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     static readonly MusicTheory.QuantizationBase[] QuantizationBases = [MusicTheory.QuantizationBase.Base_1, MusicTheory.QuantizationBase.Base_3, MusicTheory.QuantizationBase.Base_5];
     static readonly MusicTheory.QuantizationDivision[] QuantizationDivisions = [MusicTheory.QuantizationDivision.Division_1, MusicTheory.QuantizationDivision.Division_2, MusicTheory.QuantizationDivision.Division_4, MusicTheory.QuantizationDivision.Division_8, MusicTheory.QuantizationDivision.Division_16, MusicTheory.QuantizationDivision.Division_32];
 
-    // 侧栏六个面：页签 → 动作 id → 显示名。**注册与状态回报（SidebarActionId）共用这一份**，
+    // 侧栏各面：页签 → show / hide 动作 id → 显示名。**注册与状态回报（SidebarActionId）共用这一份**，
     // 故不会出现"动作加了、状态里还报不出来"那种半截状态。
-    static readonly (SideBarTab Tab, string Id, string Name)[] SidebarPanels =
+    static readonly (SideBarTab Tab, string Id, string HideId, string Name)[] SidebarPanels =
     [
-        (SideBarTab.PartProperties, "sidebar.showPart", "Part Panel"),
-        (SideBarTab.NoteProperties, "sidebar.showNote", "Note Panel"),
-        (SideBarTab.Agent, "sidebar.showAgent", "Agent Panel"),
-        (SideBarTab.Script, "sidebar.showScript", "Script Panel"),
-        (SideBarTab.Extensions, "sidebar.showExtensions", "Extensions Panel"),
-        (SideBarTab.Export, "sidebar.showExport", "Export Panel"),
+        (SideBarTab.PartProperties, "sidebar.showPart", "sidebar.hidePart", "Part Panel"),
+        (SideBarTab.Effects, "sidebar.showEffects", "sidebar.hideEffects", "Effects Panel"),
+        (SideBarTab.NoteProperties, "sidebar.showNote", "sidebar.hideNote", "Note Panel"),
+        (SideBarTab.Agent, "sidebar.showAgent", "sidebar.hideAgent", "Agent Panel"),
+        (SideBarTab.Script, "sidebar.showScript", "sidebar.hideScript", "Script Panel"),
+        (SideBarTab.Extensions, "sidebar.showExtensions", "sidebar.hideExtensions", "Extensions Panel"),
+        (SideBarTab.Export, "sidebar.showExport", "sidebar.hideExport", "Export Panel"),
     ];
 
     // 两件事一次做完：进穷尽面，并且可绑——但**不预占默认手势**（这几个面常有人想给个键，键位归用户）。
-    void RegisterSidebarAction(string id, string name, SideBarTab tab)
+    // show 放不下时不可用（与图标置灰同一判据），说清是窗口宽度的事、怎么腾地方。
+    void RegisterSidebarAction(string id, string hideId, string name, SideBarTab tab)
     {
         Keymap.Register(new()
         {
             Id = id,
             DisplayName = () => name.Tr(TC.Menu),
             Kind = ActionKind.AppState,
-            Execute = () => mRightSideTabBar.SelectedTab.Value = tab,
+            Unavailable = () => mSideBarStrip.CanOpen(tab) ? null
+                : "there is not enough horizontal room for another side panel next to the ones already open; close one of them (its sidebar.hide* action) or make the window wider",
+            Execute = () => mRightSideTabBar.Open(tab),
         }, KeyScope.Editor);
+        Keymap.Register(new()
+        {
+            Id = hideId,
+            DisplayName = () => string.Format("Hide {0}".Tr(TC.Menu), name.Tr(TC.Menu)),
+            Kind = ActionKind.AppState,
+            Execute = () => mRightSideTabBar.Close(tab),
+        }, KeyScope.Editor);
+    }
+
+    // 打开集合变了：新出现的面先填内容（各面的进场动作，如刷新扩展列表），再交给并排容器重排，最后落盘。
+    void OnSidePanelsChanged()
+    {
+        foreach (var tab in mRightSideTabBar.OpenTabs)
+            if (!mShownSidePanels.Contains(tab))
+                ShowSidePanel(tab);
+        mShownSidePanels.Clear();
+        mShownSidePanels.UnionWith(mRightSideTabBar.OpenTabs);
+        mSideBarStrip.SetOpenTabs(mRightSideTabBar.OpenTabs);
+        SaveSidePanelState();
+    }
+
+    void ShowSidePanel(SideBarTab tab)
+    {
+        var sideBar = mSideBarStrip.Get(tab);
+        switch (tab)
+        {
+            case SideBarTab.PartProperties:
+                sideBar.SetContent(tab, mPartPropertySideBarContentProvider.Content);
+                break;
+            case SideBarTab.Effects:
+                sideBar.SetContent(tab, mEffectsSideBarContentProvider.Content);
+                break;
+            case SideBarTab.NoteProperties:
+                sideBar.SetContent(tab, mNotePropertySideBarContentProvider.Content);
+                break;
+            case SideBarTab.Extensions:
+                mExtensionSideBarContentProvider.RefreshExtensions();
+                sideBar.SetContent(tab, mExtensionSideBarContentProvider.Content);
+                break;
+            case SideBarTab.Export:
+                mExportSideBarContentProvider.SetProject(Project);
+                sideBar.SetContent(tab, mExportSideBarContentProvider.Content);
+                break;
+            case SideBarTab.Agent:
+                // 不在此调 SetProject：工程由 OnProjectChanged 统一维护（换工程才重建工具+重置会话）。
+                // 面反复打开是冗余调用，会白白清空 agent 对话上下文，故只显示内容。
+                sideBar.SetFullContent(tab, mAgentSideBarContentProvider.Icon, mAgentSideBarContentProvider.Name, mAgentSideBarContentProvider.Root);
+                break;
+            case SideBarTab.Script:
+                mScriptSideBarContentProvider.SetProject(Project);
+                sideBar.SetFullContent(tab, mScriptSideBarContentProvider.Icon, mScriptSideBarContentProvider.Name, mScriptSideBarContentProvider.Root);
+                break;
+        }
+    }
+
+    // 打开集合（按打开顺序）+ 各面存储宽度回写 EditorState（退出时随其余编辑器态一起落盘）。
+    void SaveSidePanelState()
+    {
+        EditorState.SidePanels = mRightSideTabBar.OpenTabs.Select(tab => tab.ToString()).ToList();
+        EditorState.SidePanelWidths = mSideBarStrip.Widths.ToDictionary(kvp => kvp.Key.ToString(), kvp => kvp.Value);
     }
 
     void RegisterQuantizationAction(MusicTheory.QuantizationBase quantizationBase, MusicTheory.QuantizationDivision division)
@@ -581,7 +572,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     };
 
     // 开着的侧栏面报成【动作 id】（同 CurrentToolActionId 的理由：调用方能直接与 `action list`
-    // 里那六条 show 动作对上）。null = 侧栏此刻没开（SideBarTab.None）。
+    // 里那几条 show 动作对上）。
     static string? SidebarActionId(SideBarTab tab)
     {
         foreach (var panel in SidebarPanels)
@@ -1553,8 +1544,8 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
         // Auto-refresh the extension list in the sidebar
         mExtensionSideBarContentProvider.RefreshExtensions();
-        if (mRightSideTabBar.SelectedTab.Value == SideBarTab.Extensions)
-            mRightSideBar.SetContent(SideBarTab.Extensions, mExtensionSideBarContentProvider.Content);
+        if (mRightSideTabBar.IsOpen(SideBarTab.Extensions))
+            mSideBarStrip.Get(SideBarTab.Extensions).SetContent(SideBarTab.Extensions, mExtensionSideBarContentProvider.Content);
 
         // 批量安装一次性汇总（不再每个包弹一次窗）。各包的实际加载状态见扩展侧边栏。
         if (succeeded.Count > 0 || failed.Count > 0)
@@ -2058,10 +2049,12 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
     readonly FunctionBar mFunctionBar;
     readonly PianoWindow mPianoWindow;
-    readonly SideBar mRightSideBar;
+    readonly SideBarStrip mSideBarStrip;
+    readonly HashSet<SideBarTab> mShownSidePanels = [];
     readonly SideTabBar mRightSideTabBar;
 
     readonly PartPropertySideBarContentProvider mPartPropertySideBarContentProvider = new();
+    readonly EffectsSideBarContentProvider mEffectsSideBarContentProvider = new();
     readonly NotePropertySideBarContentProvider mNotePropertySideBarContentProvider = new();
     enum PartPanelFocusArea { Piano, Arrangement }
     PartPanelFocusArea mPartPanelFocusArea = PartPanelFocusArea.Piano;

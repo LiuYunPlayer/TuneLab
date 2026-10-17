@@ -24,16 +24,15 @@ namespace TuneLab.UI;
 // 目标 part 的来源：钢琴窗当前编辑的 part（Current）或编排区选中的 part 集（Selected）。决定大标题文案。
 internal enum PartPanelSource { Current, Selected }
 
-// Part 作用域属性侧栏：Preset / Properties / Automation / Effects。与 note 作用域面板（见 NotePropertySideBarContentProvider）
-// 拆为两个独立页签，两者各自订阅当前 part 的数据层事件、互不引用（靠事件解耦）。
+// Part 作用域属性侧栏：Preset / Voice / Properties / Automation。与 note 作用域面板（见 NotePropertySideBarContentProvider）、
+// 效果器面板（见 EffectsSideBarContentProvider）各为独立页签，各自订阅当前 part 的数据层事件、互不引用（靠事件解耦）。
 //
 // 目标 part 由宿主按焦点感知下发（见 Editor.UpdatePartPanelTarget）：单 part = 单选，多 part = 编排区多选。
 // 多选语义：Gain（公共属性）始终合并展示；动态属性仅当全部 part 同引擎（Kind+Type 一致）时调该引擎 GetPartPropertyConfig
-// 合并展示，混源则只剩 Gain；Preset/Automation 是单 part 概念，多选时隐藏；Effects 多选时按槽位（index）对齐
-// 合并展示——槽内类型全等则全功能合并，类型不等/部分缺位显示 (Multiple)/占位行（可替换/删除），不整块隐藏。
+// 合并展示，混源则只剩 Gain；Automation 仅单选或同引擎多选才合并展示。
 internal class PartPropertySideBarContentProvider : ISideBarContentProvider
 {
-    public SideBar.SideBarContent Content => new() { Icon = Assets.Part.GetImage(Style.LIGHT_WHITE), Name = Title, Items = [mPresetPanel, mVoicePanel, mPartPanel, mAutomationPanel, mEffectsPanel] };
+    public SideBar.SideBarContent Content => new() { Icon = Assets.Part.GetImage(Style.LIGHT_WHITE), Name = Title, Items = [mPresetPanel, mVoicePanel, mPartPanel, mAutomationPanel] };
 
     // 大标题随目标 part 变化（重命名/选中变化/单多切换）实时更新，宿主据此刷新 SideBar 顶栏。
     public event Action? TitleChanged;
@@ -94,12 +93,6 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         mPartContentPanel.Children.Add(mPartContent);
         mPartContentPanel.Children.Add(mPartContentMask);
         mPartPanel.Content = mPartContentPanel;
-
-        var effectsName = new Label() { Content = "Effects".Tr(TC.Property), Height = 38, FontSize = 14, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), Padding = new(24, 0) };
-        mEffectsPanel.Title = effectsName;
-        mEffectsContent.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
-        mEffectsContent.Children.Add(mEffectsController);
-        mEffectsPanel.Content = mEffectsContent;
 
         var automationName = new Label() { Content = "Automation".Tr(TC.Property), Height = 38, FontSize = 14, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), Padding = new(24, 0) };
         mAutomationPanel.Title = automationName;
@@ -175,7 +168,7 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         mPresetMoreButton.OpenContextMenu(menu);
     }
 
-    // 焦点感知下发的目标 part 集（单/多/空）。单 part 字段 mPart 供单 part 专属栏（Preset/Automation/Effects）使用。
+    // 焦点感知下发的目标 part 集（单/多/空）。单 part 字段 mPart 供单 part 专属操作（preset 的保存/改名）使用。
     public void SetParts(IReadOnlyList<IMidiPart> parts, PartPanelSource source)
     {
         s.DisposeAll();
@@ -203,9 +196,6 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
     {
         ApplyMode();
 
-        // Effects：单/多选统一按 part 集合并展示（多选要求链对齐，不对齐时面板隐藏、控件树自清空）。
-        mEffectsController.SetParts(mParts);
-
         // Voice 必定展示（混引擎自行退化为全引擎列表 + (Multiple)）；Automation 仅单选或同引擎多选才合并展示。
         mPartVoiceController.SetParts(mParts);
         mAutomationController.SetParts(ShowsMerged() ? mParts : Array.Empty<IMidiPart>());
@@ -228,7 +218,6 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
 
         mPresetPanel.IsVisible = !empty;       // Preset：单/多选均可（Apply 扇出到全部，含统一混源音源）
         mVoicePanel.IsVisible = !empty;        // Voice：必定显示（混引擎也合并显示 (Multiple)，菜单退化为全引擎列表）
-        mEffectsPanel.IsVisible = !empty;      // Effects：有 part 即显（多选按槽位对齐合并，链不齐以 Multiple/empty 槽呈现）
         mAutomationPanel.IsVisible = merged;
 
         mPartFixedController.IsVisible = !empty;        // Gain：>=1 即显（含混源公共属性）
@@ -547,25 +536,24 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         TitleChanged?.Invoke();
     }
 
-    // 大标题：无 → "Part"；单个 → "Editing/Selected: 名字"（来源区分当前 part vs 编排区选中）；多选 → "Selected: N parts"。
-    string ComputeTitle()
+    string ComputeTitle() => mParts.Count == 0 ? "Part".Tr(TC.Property) : TitleOf(mParts, mSource);
+
+    // 大标题（非空目标）：单个 → "Editing/Selected: 名字"（来源区分当前 part vs 编排区选中）；多选 → "Selected: N parts"。
+    // 效果器面板看的是同一批 part，标题同口径（见 EffectsSideBarContentProvider）。
+    public static string TitleOf(IReadOnlyList<IMidiPart> parts, PartPanelSource source)
     {
-        if (mParts.Count == 0)
-            return "Part".Tr(TC.Property);
-        if (mParts.Count == 1)
-            return string.Format((mSource == PartPanelSource.Selected ? "Selected: {0}" : "Editing: {0}").Tr(TC.Property), mParts[0].Name.Value);
-        return string.Format("Selected: {0} parts".Tr(TC.Property), mParts.Count);
+        if (parts.Count == 1)
+            return string.Format((source == PartPanelSource.Selected ? "Selected: {0}" : "Editing: {0}").Tr(TC.Property), parts[0].Name.Value);
+        return string.Format("Selected: {0} parts".Tr(TC.Property), parts.Count);
     }
 
     // 满宽 INTERFACE 底（与其它栏一致——它们的 INTERFACE 底来自控件自身）；内容缩进由行 Margin(24,12) 提供。
     readonly StackPanel mPresetContent = new() { Orientation = Orientation.Vertical, Background = Style.INTERFACE.ToBrush() };
     readonly StackPanel mAutomationContent = new() { Orientation = Orientation.Vertical };
-    readonly StackPanel mEffectsContent = new() { Orientation = Orientation.Vertical };
     readonly StackPanel mVoiceContent = new() { Orientation = Orientation.Vertical };
     readonly StackPanel mPartContent = new() { Orientation = Orientation.Vertical };
     readonly CollapsiblePanel mPresetPanel = new() { Orientation = Orientation.Vertical };
     readonly CollapsiblePanel mAutomationPanel = new() { Orientation = Orientation.Vertical };
-    readonly CollapsiblePanel mEffectsPanel = new() { Orientation = Orientation.Vertical };
     readonly CollapsiblePanel mPartPanel = new() { Orientation = Orientation.Vertical };
     readonly CollapsiblePanel mVoicePanel = new() { Orientation = Orientation.Vertical };
     readonly PartVoiceController mPartVoiceController = new();
@@ -580,14 +568,13 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
     readonly ConditionalWeakTable<IMidiPart, string> mPresetAssociations = new();
     readonly TuneLab.GUI.Components.Button mPresetMoreButton;
     readonly AutomationDefaultsController mAutomationController = new();
-    readonly EffectsController mEffectsController = new();
     readonly MidiPartFixedController mPartFixedController = new();
     readonly PropertyObjectController mPartPropertiesController = new();
 
     const string NonePresetOption = "None";
     IReadOnlyList<IMidiPart> mParts = [];
     PartPanelSource mSource = PartPanelSource.Current;
-    IMidiPart? mPart = null;   // 单选时 = 唯一 part，供单 part 专属栏（Preset/Automation/Effects）使用；多/空选为 null
+    IMidiPart? mPart = null;   // 单选时 = 唯一 part，供单 part 专属操作（preset 的保存/改名）使用；多/空选为 null
     List<PartPreset> mPresets = [];
     bool mPartReconcilePending = false;
     readonly DisposableManager s = new();

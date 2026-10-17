@@ -248,6 +248,8 @@
 "Agent" = "エージェント"
 "Note" = "ノート"
 "Part" = "パート"
+"Effects" = "エフェクト"
+"Not enough room — close another panel or widen the window" = "表示する余地がありません。ほかのパネルを閉じるか、ウィンドウを広げてください"
 "Script" = "スクリプト"
 
 [Document]
@@ -346,12 +348,14 @@
 "Locking Brush" = "固定ブラシ"
 "User Manual" = "ユーザーマニュアル"
 "Part Panel" = "パートパネル"
+"Effects Panel" = "エフェクトパネル"
 "Note Panel" = "ノートパネル"
 "Agent Panel" = "エージェントパネル"
 "Script Panel" = "スクリプトパネル"
 "Extensions Panel" = "拡張機能パネル"
 "Export Panel" = "エクスポートパネル"
 "Hide Side Panel" = "サイドパネルを隠す"
+"Hide {0}" = "{0}を隠す"
 "Minimize" = "最小化"
 "Maximize" = "最大化"
 "Restore Window" = "ウィンドウを元のサイズに戻す"

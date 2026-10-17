@@ -255,7 +255,7 @@
 
 | 入口 | 种类 | 裁决 | 说明 |
 |---|---|---|---|
-| toggle | toggle | `action:sidebar.showPart` | 6 个页签共用这段构造；按钮 toggle = sidebar.show* / sidebar.hide 这一对终态动作的组合 |
+| toggle | toggle | `action:sidebar.showPart` | 7 个页签共用这段构造；各面并排共存、各自开关，按钮 toggle = 逐面的 sidebar.show* / sidebar.hide* 这一对终态动作的组合（sidebar.hide 关全部） |
 
 #### TuneLab/UI/MainWindow/Editor/SideBar/Agent/AgentSideBarContentProvider.cs
 

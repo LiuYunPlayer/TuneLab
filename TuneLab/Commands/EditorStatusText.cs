@@ -39,13 +39,13 @@ internal static class EditorStatusText
             },
             ["parameterPanelVisible"] = status.IsParameterPanelVisible,
             ["waveformVisible"] = status.IsWaveformVisible,
-            // 侧栏：null = 没开；开着时同时给 id 与显示名（同 tool）——渲染可能发生在命令桥另一端，
-            // 那里没有注册表可查。
-            ["sidebar"] = status.SidebarPanelActionId is not { } sidebar ? null : new JsonObject
+            // 侧栏：各面可并排共存，按打开顺序列出；每面同时给 id 与显示名（同 tool）——渲染可能发生在
+            // 命令桥另一端，那里没有注册表可查。空数组 = 全关（不省成 null，理由同 blockingDialogs）。
+            ["sidebars"] = new JsonArray(status.SidebarPanelActionIds.Select(id => (JsonNode)new JsonObject
             {
-                ["id"] = sidebar,
-                ["label"] = ActionRegistry.LabelOf(sidebar),
-            },
+                ["id"] = id,
+                ["label"] = ActionRegistry.LabelOf(id),
+            }).ToArray()),
             ["focusedSurface"] = status.FocusedSurface,
             // 挡在界面前面的东西（模态框 / 系统文件选择器）。空数组 = 没有——不省成 null：
             // "问过了，没有"与"这版本不报这一条"对调用方是两件事。
@@ -120,12 +120,13 @@ internal static class EditorStatusText
         sb.Append("\nTool: \"").Append(tool["label"]!.GetValue<string>()).Append("\" (").Append(tool["id"]!.GetValue<string>()).Append(')');
         sb.Append(". Parameter panel: ").Append(data["parameterPanelVisible"]!.GetValue<bool>() ? "open" : "closed");
         sb.Append(", waveform lane: ").Append(data["waveformVisible"]?.GetValue<bool>() == true ? "shown" : "hidden").Append('.');
-        // 侧栏单独一句：它是一个单槽（一次只开一个面），故报“开的是哪个”而不是逐面的开关。
-        sb.Append("\nSide panel: ");
-        if (data["sidebar"] is JsonObject sidebar)
-            sb.Append('"').Append(sidebar["label"]!.GetValue<string>()).Append("\" (").Append(sidebar["id"]!.GetValue<string>()).Append(')');
+        // 侧栏单独一句：各面并排共存，按打开顺序列出开着的那几个。
+        sb.Append("\nSide panels: ");
+        var sidebars = data["sidebars"]?.AsArray() ?? [];
+        if (sidebars.Count == 0)
+            sb.Append("all hidden");
         else
-            sb.Append("hidden");
+            sb.Append(string.Join(", ", sidebars.Select(item => "\"" + item!["label"]!.GetValue<string>() + "\" (" + item["id"]!.GetValue<string>() + ")")));
         sb.Append('.');
 
         // 焦点面单独说一句并给出后果：它决定剪贴板类动作作用在哪儿、以及它们此刻能不能用。

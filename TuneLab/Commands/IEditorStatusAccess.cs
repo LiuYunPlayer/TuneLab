@@ -33,9 +33,9 @@ internal interface IEditorStatusAccess
     // 波形带显隐（参数区标题栏那个开关）。
     bool IsWaveformVisible { get; }
 
-    // 开着的侧栏面，用【动作 id】表示（sidebar.showAgent …）；null = 侧栏没开。
+    // 开着的侧栏面（可多个并排），按打开顺序，各用【动作 id】表示（sidebar.showAgent …）；空 = 侧栏全关。
     // 同 CurrentToolActionId：报 id 而不是页签名，调用方因此能把它与 `action list` 里的 show 动作对上。
-    string? SidebarPanelActionId { get; }
+    IReadOnlyList<string> SidebarPanelActionIds { get; }
 
     // 此刻挡在界面前面、**非人不能答**的东西（模态框 / 系统文件选择器），各一句给人看的说明；空 = 没有。
     //

@@ -248,6 +248,8 @@
 "Agent" = "Agent"
 "Note" = "音符"
 "Part" = "片段"
+"Effects" = "效果"
+"Not enough room — close another panel or widen the window" = "空间不足：请关闭其他面板或加宽窗口"
 "Script" = "脚本"
 
 [Document]
@@ -346,12 +348,14 @@
 "About TuneLab" = "关于 TuneLab"
 "User Manual" = "用户手册"
 "Part Panel" = "片段面板"
+"Effects Panel" = "效果面板"
 "Note Panel" = "音符面板"
 "Agent Panel" = "Agent 面板"
 "Script Panel" = "脚本面板"
 "Extensions Panel" = "扩展面板"
 "Export Panel" = "导出面板"
 "Hide Side Panel" = "隐藏侧栏"
+"Hide {0}" = "隐藏{0}"
 "Minimize" = "最小化"
 "Maximize" = "最大化"
 "Restore Window" = "还原窗口"

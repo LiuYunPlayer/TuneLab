@@ -11,6 +11,7 @@ internal enum SideBarTab
     None,
     Extensions,
     PartProperties,
+    Effects,
     NoteProperties,
     Export,
     Agent,

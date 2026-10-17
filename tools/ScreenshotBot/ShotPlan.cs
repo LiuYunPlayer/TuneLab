@@ -45,7 +45,6 @@ internal static class ShotPlan
         await Camera.Settle(24);
 
         var tabBar = Camera.Find<SideTabBar>(window) ?? throw new InvalidOperationException("SideTabBar not found");
-        var sideBar = Camera.Find<SideBar>(window) ?? throw new InvalidOperationException("SideBar not found");
         var trackWindow = editor.TrackWindow;
         var pianoWindow = editor.PianoWindow;
         var functionBar = Camera.Find<FunctionBar>(window) ?? throw new InvalidOperationException("FunctionBar not found");
@@ -68,8 +67,9 @@ internal static class ShotPlan
             note.Deselect();   // 选中态留到需要它的那几张图再摆
 
         // ==== 01 界面总览 ====
-        tabBar.SelectedTab.Value = SideBarTab.PartProperties;
+        tabBar.Restore([SideBarTab.PartProperties]);   // 侧栏可多面并排，插图一律只开一面
         await Camera.Settle(16);
+        var sideBar = Camera.Find<SideBar>(window) ?? throw new InvalidOperationException("SideBar not found");
         camera.Shoot(window, "overview", callouts:
         [
             new(B(menu), "1", At: CalloutAt.TopRight),
@@ -170,9 +170,9 @@ internal static class ShotPlan
             (SideBarTab.Extensions, "sidebar-extensions"),
         })
         {
-            tabBar.SelectedTab.Value = tab;
+            tabBar.Restore([tab]);
             await Camera.Settle(14);
-            var area = B(sideBar);
+            var area = B(Camera.Find<SideBar>(window));
             camera.Shoot(window, name, crop: new Rect(area.X, area.Y, area.Width + B(tabBar).Width, area.Height));
         }
 

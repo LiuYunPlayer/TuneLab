@@ -61,7 +61,7 @@ public class SynthesisCommandsTests
         public string CurrentToolActionId => "tool.note";
         public bool IsParameterPanelVisible => false;
         public bool IsWaveformVisible => false;
-        public string? SidebarPanelActionId => null;
+        public IReadOnlyList<string> SidebarPanelActionIds => [];
         public IReadOnlyList<string> BlockingDialogs => [];
         public string? FocusedSurface => null;
     }

@@ -248,6 +248,8 @@
 "Agent" = "Agent"
 "Note" = "Note"
 "Part" = "Part"
+"Effects" = "Effekte"
+"Not enough room — close another panel or widen the window" = "Nicht genug Platz – schließe ein anderes Panel oder vergrößere das Fenster"
 "Script" = "Skript"
 
 [Document]
@@ -346,12 +348,14 @@
 "Locking Brush" = "Fixierpinsel"
 "User Manual" = "Benutzerhandbuch"
 "Part Panel" = "Part-Bereich"
+"Effects Panel" = "Effektpanel"
 "Note Panel" = "Note-Bereich"
 "Agent Panel" = "Agent-Bereich"
 "Script Panel" = "Skript-Bereich"
 "Extensions Panel" = "Erweiterungen-Bereich"
 "Export Panel" = "Export-Bereich"
 "Hide Side Panel" = "Seitenbereich ausblenden"
+"Hide {0}" = "{0} ausblenden"
 "Minimize" = "Minimieren"
 "Maximize" = "Maximieren"
 "Restore Window" = "Fenster wiederherstellen"

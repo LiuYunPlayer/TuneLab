@@ -18,4 +18,7 @@ internal class EditorStateFile
     public double ParameterPanelHeightNormal { get; set; } = 200;
     public double ParameterPanelHeightMaximized { get; set; } = 200;
     public bool WaveformVisible { get; set; } = true;
+    // 打开着的侧栏面（按打开顺序，存页签名）与各面拖出来的宽度（含已关的面：重开时沿用）。
+    public List<string> SidePanels { get; set; } = [];
+    public Dictionary<string, double> SidePanelWidths { get; set; } = [];
 }

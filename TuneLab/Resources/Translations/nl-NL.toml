@@ -248,6 +248,8 @@
 "Agent" = "Agent"
 "Note" = "Noot"
 "Part" = "Part"
+"Effects" = "Effecten"
+"Not enough room — close another panel or widen the window" = "Niet genoeg ruimte — sluit een ander paneel of maak het venster breder"
 "Script" = "Script"
 
 [Document]
@@ -346,12 +348,14 @@
 "Locking Brush" = "Vastzetpenseel"
 "User Manual" = "Gebruikershandleiding"
 "Part Panel" = "Part-paneel"
+"Effects Panel" = "Effectenpaneel"
 "Note Panel" = "Noot-paneel"
 "Agent Panel" = "Agent-paneel"
 "Script Panel" = "Script-paneel"
 "Extensions Panel" = "Extensies-paneel"
 "Export Panel" = "Exporteren-paneel"
 "Hide Side Panel" = "Zijpaneel verbergen"
+"Hide {0}" = "{0} verbergen"
 "Minimize" = "Minimaliseren"
 "Maximize" = "Maximaliseren"
 "Restore Window" = "Venster herstellen"

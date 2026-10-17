@@ -22,6 +22,9 @@ internal static class EditorState
     public static NotifiableProperty<double> ParameterPanelHeightNormal { get; } = new(Defaults.ParameterPanelHeightNormal);
     public static NotifiableProperty<double> ParameterPanelHeightMaximized { get; } = new(Defaults.ParameterPanelHeightMaximized);
     public static NotifiableProperty<bool> WaveformVisible { get; } = new(Defaults.WaveformVisible);
+    // 侧栏面的打开集合与宽度：由编辑器在变更时整体回写（不是逐项绑定的标量，故不用 NotifiableProperty）。
+    public static List<string> SidePanels { get; set; } = [];
+    public static Dictionary<string, double> SidePanelWidths { get; set; } = [];
 
     public static void Init(string path)
     {
@@ -50,6 +53,8 @@ internal static class EditorState
         ParameterPanelHeightNormal.Value = stateFile.ParameterPanelHeightNormal;
         ParameterPanelHeightMaximized.Value = stateFile.ParameterPanelHeightMaximized;
         WaveformVisible.Value = stateFile.WaveformVisible;
+        SidePanels = stateFile.SidePanels ?? [];
+        SidePanelWidths = stateFile.SidePanelWidths ?? [];
         if (stateFile.ParameterPanelHeight != Defaults.ParameterPanelHeight &&
             stateFile.ParameterPanelHeightNormal == Defaults.ParameterPanelHeightNormal &&
             stateFile.ParameterPanelHeightMaximized == Defaults.ParameterPanelHeightMaximized)
@@ -75,6 +80,8 @@ internal static class EditorState
                 ParameterPanelHeightNormal = ParameterPanelHeightNormal,
                 ParameterPanelHeightMaximized = ParameterPanelHeightMaximized,
                 WaveformVisible = WaveformVisible,
+                SidePanels = SidePanels,
+                SidePanelWidths = SidePanelWidths,
             }, JsonSerializerOptions);
 
             var folder = Path.GetDirectoryName(path);

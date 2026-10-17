@@ -248,6 +248,8 @@
 "Agent" = "Agent"
 "Note" = "Not"
 "Part" = "Del"
+"Effects" = "Effekter"
+"Not enough room — close another panel or widen the window" = "Inte tillräckligt med utrymme – stäng en annan panel eller gör fönstret bredare"
 "Script" = "Skript"
 
 [Document]
@@ -346,12 +348,14 @@
 "Locking Brush" = "Låspensel"
 "User Manual" = "Användarhandbok"
 "Part Panel" = "Delpanel"
+"Effects Panel" = "Effektpanel"
 "Note Panel" = "Notpanel"
 "Agent Panel" = "Agentpanel"
 "Script Panel" = "Skriptpanel"
 "Extensions Panel" = "Tilläggspanel"
 "Export Panel" = "Exportpanel"
 "Hide Side Panel" = "Dölj sidopanelen"
+"Hide {0}" = "Dölj {0}"
 "Minimize" = "Minimera"
 "Maximize" = "Maximera"
 "Restore Window" = "Återställ fönstret"

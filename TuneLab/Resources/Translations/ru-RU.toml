@@ -248,6 +248,8 @@
 "Agent" = "Агент"
 "Note" = "Нота"
 "Part" = "Часть"
+"Effects" = "Эффекты"
+"Not enough room — close another panel or widen the window" = "Недостаточно места — закройте другую панель или расширьте окно"
 "Script" = "Скрипт"
 
 [Document]
@@ -346,12 +348,14 @@
 "Locking Brush" = "Кисть фиксации"
 "User Manual" = "Руководство пользователя"
 "Part Panel" = "Панель «Часть»"
+"Effects Panel" = "Панель эффектов"
 "Note Panel" = "Панель «Нота»"
 "Agent Panel" = "Панель «Агент»"
 "Script Panel" = "Панель «Скрипт»"
 "Extensions Panel" = "Панель «Расширения»"
 "Export Panel" = "Панель «Экспорт»"
 "Hide Side Panel" = "Скрыть боковую панель"
+"Hide {0}" = "Скрыть: {0}"
 "Minimize" = "Свернуть"
 "Maximize" = "Развернуть"
 "Restore Window" = "Восстановить окно"

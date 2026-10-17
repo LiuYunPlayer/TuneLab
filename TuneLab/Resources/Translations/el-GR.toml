@@ -248,6 +248,8 @@
 "Agent" = "Agent"
 "Note" = "Νότα"
 "Part" = "Μέρος"
+"Effects" = "Εφέ"
+"Not enough room — close another panel or widen the window" = "Δεν υπάρχει αρκετός χώρος — κλείστε άλλον πίνακα ή μεγαλώστε το παράθυρο"
 "Script" = "Script"
 
 [Document]
@@ -346,12 +348,14 @@
 "Locking Brush" = "Πινέλο σταθεροποίησης"
 "User Manual" = "Εγχειρίδιο χρήσης"
 "Part Panel" = "Πίνακας Μέρος"
+"Effects Panel" = "Πίνακας εφέ"
 "Note Panel" = "Πίνακας Νότα"
 "Agent Panel" = "Πίνακας Agent"
 "Script Panel" = "Πίνακας Script"
 "Extensions Panel" = "Πίνακας Επεκτάσεις"
 "Export Panel" = "Πίνακας Εξαγωγή"
 "Hide Side Panel" = "Απόκρυψη πλαϊνού πίνακα"
+"Hide {0}" = "Απόκρυψη: {0}"
 "Minimize" = "Ελαχιστοποίηση"
 "Maximize" = "Μεγιστοποίηση"
 "Restore Window" = "Επαναφορά παραθύρου"

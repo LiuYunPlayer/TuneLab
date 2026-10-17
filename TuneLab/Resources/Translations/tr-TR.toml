@@ -248,6 +248,8 @@
 "Agent" = "Aracı"
 "Note" = "Nota"
 "Part" = "Bölümler"
+"Effects" = "Efektler"
+"Not enough room — close another panel or widen the window" = "Yeterli alan yok — başka bir paneli kapatın veya pencereyi genişletin"
 "Script" = "Betik"
 
 [Document]
@@ -346,12 +348,14 @@
 "Locking Brush" = "Sabitleme fırçası"
 "User Manual" = "Kullanım kılavuzu"
 "Part Panel" = "Bölümler paneli"
+"Effects Panel" = "Efekt Paneli"
 "Note Panel" = "Nota paneli"
 "Agent Panel" = "Aracı paneli"
 "Script Panel" = "Betik paneli"
 "Extensions Panel" = "Uzantılar paneli"
 "Export Panel" = "Dışa Aktar paneli"
 "Hide Side Panel" = "Yan paneli gizle"
+"Hide {0}" = "{0} Gizle"
 "Minimize" = "Simge durumuna küçült"
 "Maximize" = "Ekranı kapla"
 "Restore Window" = "Pencereyi geri yükle"
