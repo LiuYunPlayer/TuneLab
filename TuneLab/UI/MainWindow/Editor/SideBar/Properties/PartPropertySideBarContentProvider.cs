@@ -259,6 +259,7 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         if (!ShowsMerged())
         {
             mPartPropertiesController.ResetConfig();
+            SyncGainTrailing();
             return;
         }
 
@@ -270,7 +271,11 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         // 折叠记忆按「片段面板 + 声源引擎」记（同引擎多选才走到这里，取首个即可）。
         mPartPropertiesController.CollapseScope = PartCollapseScope(mParts[0]);
         mPartPropertiesController.SetConfig(mParts[0].SoundSource.GetPartPropertyConfig(BuildPartContext()), data);
+        SyncGainTrailing();
     }
+
+    // 增益与声源的片段属性同在「属性」分组：声源没有片段属性时增益就是分组末项。
+    void SyncGainTrailing() => mPartFixedController.IsTrailing = mPartPropertiesController.IsEmpty;
 
     public static string PartCollapseScope(IMidiPart part) => "part:" + part.SoundSource.Kind + ":" + part.SoundSource.Type;
 
@@ -288,6 +293,7 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
             if (!ShowsMerged())
                 return;
             mPartPropertiesController.Reconcile(mParts[0].SoundSource.GetPartPropertyConfig(BuildPartContext()));
+            SyncGainTrailing();
         });
     }
 
