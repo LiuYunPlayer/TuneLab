@@ -120,15 +120,15 @@ internal static class ScriptApiReference
         "  part.moveEffect(effect, index)           move an effect to a 0-based position in the chain\n" +
         "  // PART PROPERTIES (voice/instrument-declared per-part params; keys/ranges from list_sound_sources):\n" +
         "  part.isSelected                          selected in the arrangement (read/write; editor state, see the note under tl)\n" +
-        "  part.getProperty(key)                    current value (number/boolean/string), or null if unset\n" +
-        "  part.setProperty(key, value)             set one declared part param (value = number/boolean/string)\n" +
+        "  part.getProperty(key)                    current value (number/boolean/string/array/object), or null if unset\n" +
+        "  part.setProperty(key, value)             set one declared part param (value = number/boolean/string/array/object)\n" +
         "\n" +
         "note\n" +
         "  fields (read/write):  pos, dur, pitch, lyric, pronunciation, isSelected      field (read-only): pitchName  (e.g. \"C4\")   // pronunciation = an explicit voice pronunciation override; empty = the lyric text itself reaches the engine, which does its own G2P\n" +
         "  note.getInfo()                           {pos, dur, pitch, lyric, pronunciation, properties, leadingPhonemes, bodyPhonemes, bodyOffset}\n" +
         "  note.part()                              the part this note is on (read-only)      // vibrato.part() and effect.part() exist too\n" +
         "  // NOTE PROPERTIES (voice/instrument-declared per-note params; keys/ranges from list_sound_sources):\n" +
-        "  note.getProperty(key)  / note.setProperty(key, value)    current value or null / set one declared note param (number/boolean/string)\n" +
+        "  note.getProperty(key)  / note.setProperty(key, value)    current value or null / set one declared note param (number/boolean/string/array/object)\n" +
         "  // PHONEMES (voice only). TWO SEPARATE LISTS: leading = pre-vowel consonants, body = vowel+coda. Read anytime; the FIRST write auto-locks (fixes the synthesized phonemes into editable data, like the sidebar's first edit) — SAME verb as part.lockPitch/lockAutomation, same idea applied to phonemes:\n" +
         "  note.phonemes()                          [phoneme]   (leading ++ body, time order; empty until the note has been synthesized)\n" +
         "  field (read-only): hasLockedPhonemes (bool)      field (read/write): bodyOffset (seconds; leading/body junction offset from note start; writing auto-locks)\n" +
@@ -139,7 +139,7 @@ internal static class ScriptApiReference
         "phoneme  (an item in note.phonemes(); positional — its list index shifts when phonemes are added/removed, so re-fetch note.phonemes() after a structural change)\n" +
         "  field (read-only): leading (bool)      fields (read/write): symbol, duration (seconds), stretchWeight (0 = rigid consonant, >0 = stretchable vowel)   // writing any field auto-locks the note's phonemes\n" +
         "  phoneme.getInfo()                        {symbol, duration, stretchWeight, properties}   (properties is null while not locked)\n" +
-        "  phoneme.getProperty(key)                 current value (number/boolean/string), or null if unset or not yet locked (keys/ranges from list_sound_sources phoneme slots)\n" +
+        "  phoneme.getProperty(key)                 current value (number/boolean/string/array/object), or null if unset or not yet locked (keys/ranges from list_sound_sources phoneme slots)\n" +
         "  phoneme.setProperty(key, value)          set one declared phoneme param (auto-locks)\n" +
         "\n" +
         "vibrato\n" +
@@ -153,8 +153,8 @@ internal static class ScriptApiReference
         "effect  (an item in part.effects())\n" +
         "  field (read/write):  isEnabled (bool; false = bypass)      read-only: type, name, id, index\n" +
         "  effect.getInfo()                         {id, type, isEnabled, automations, piecewiseAutomations, properties}\n" +
-        "  effect.getProperty(key)                  current value (number/boolean/string), or null if unset (defaults & keys/ranges: list_effects)\n" +
-        "  effect.setProperty(key, value)           set one parameter (value = number/boolean/string)\n" +
+        "  effect.getProperty(key)                  current value (number/boolean/string/array/object), or null if unset (defaults & keys/ranges: list_effects)\n" +
+        "  effect.setProperty(key, value)           set one parameter (value = number/boolean/string/array/object)\n" +
         "  // this effect's PARAMETER AUTOMATION curves (same shape as part automation; absolute-tick points):\n" +
         "  effect.automationIds()                   [string]   (automatable param ids declared by the effect engine; see list_effects)\n" +
         "  effect.sampleAutomation(id, start, end, samples)   [number]   (NaN = no curve there)\n" +
