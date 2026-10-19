@@ -113,14 +113,14 @@ internal sealed class ScriptNote(ScriptContext ctx, INote note)
     // ── note 级自定义属性（voice/instrument 声明的 per-note 参数；schema 见 list_sound_sources 的 note 级 config） ──
     // 值存在 note.Properties 容器里、只在音源声明了该键时有意义。与 effect 的 getProperty/setProperty 同范式。
 
-    // 读一个 note 属性当前值（number / boolean / string）；未设返回 null（默认值 / 可用键见 list_sound_sources 的 note schema）。
-    public object? GetProperty(string key) => ScriptArgs.ReadScalarProperty(N.Properties, key);
+    // 读一个 note 属性当前值（number / boolean / string / 数组 / 对象）；未设返回 null（默认值 / 可用键见 list_sound_sources 的 note schema）。
+    public JsValue GetProperty(string key) => ScriptArgs.ReadProperty(ctx.Engine, N.Properties, key);
 
-    // 写一个 note 属性（值须是 number / boolean / string）。键 / 取值范围见 list_sound_sources 的 note schema。
+    // 写一个 note 属性（number / boolean / string / 数组 / 对象）。键 / 取值范围见 list_sound_sources 的 note schema。
     public void SetProperty(string key, JsValue value)
     {
         if (string.IsNullOrEmpty(key)) throw new ScriptApiException("note property key is required.");
-        var pv = ScriptArgs.ToScalarProperty(value, "note property");
+        var pv = ScriptArgs.ToProperty(value, "note property");
         var n = W;
         ctx.EnsureBracket(n.Part);
         n.Properties.SetValue(key, pv);
@@ -279,17 +279,17 @@ internal sealed class ScriptPhoneme(ScriptContext ctx, ScriptNote note, bool isL
 
     // 音素级自定义属性（voice 声明的 per-phoneme 参数；schema 见 list_sound_sources 的音素 slot config）。
     // 读：未固定 / 无属性容器返回 null（属性只在固定后作为可编辑数据存在）。写：自动固定。
-    public object? GetProperty(string key)
+    public JsValue GetProperty(string key)
     {
         var p = LockedPhoneme();
-        return p == null || !p.HasProperties ? null : ScriptArgs.ReadScalarProperty(p.Properties, key);
+        return p == null || !p.HasProperties ? JsValue.Null : ScriptArgs.ReadProperty(ctx.Engine, p.Properties, key);
     }
 
     public void SetProperty(string key, JsValue value)
     {
         if (Removed) throw new ScriptApiException("this phoneme handle was removed and is no longer valid.");
         if (string.IsNullOrEmpty(key)) throw new ScriptApiException("phoneme property key is required.");
-        var pv = ScriptArgs.ToScalarProperty(value, "phoneme property");
+        var pv = ScriptArgs.ToProperty(value, "phoneme property");
         note.EnsureLockedForEdit();
         var p = LockedPhoneme() ?? throw new ScriptApiException("this phoneme is no longer present (structure changed); re-fetch note.phonemes().");
         p.Properties.SetValue(key, pv);
@@ -807,14 +807,14 @@ internal sealed class ScriptPart(ScriptContext ctx, IPart part)
     // ── part 级自定义属性（voice/instrument 声明的 per-part 参数；schema 见 list_sound_sources 的 part 级 config） ──
     // 值存在 part.Properties 容器里、只在音源声明了该键时有意义。与 note/effect 的 getProperty/setProperty 同范式。
 
-    // 读一个 part 属性当前值（number / boolean / string）；未设返回 null（默认值 / 可用键见 list_sound_sources 的 part schema）。
-    public object? GetProperty(string key) => ScriptArgs.ReadScalarProperty(Midi.Properties, key);
+    // 读一个 part 属性当前值（number / boolean / string / 数组 / 对象）；未设返回 null（默认值 / 可用键见 list_sound_sources 的 part schema）。
+    public JsValue GetProperty(string key) => ScriptArgs.ReadProperty(ctx.Engine, Midi.Properties, key);
 
-    // 写一个 part 属性（值须是 number / boolean / string）。键 / 取值范围见 list_sound_sources 的 part schema。
+    // 写一个 part 属性（number / boolean / string / 数组 / 对象）。键 / 取值范围见 list_sound_sources 的 part schema。
     public void SetProperty(string key, JsValue value)
     {
         if (string.IsNullOrEmpty(key)) throw new ScriptApiException("part property key is required.");
-        var pv = ScriptArgs.ToScalarProperty(value, "part property");
+        var pv = ScriptArgs.ToProperty(value, "part property");
         var midi = MidiW;
         ctx.EnsureBracket(midi);
         midi.Properties.SetValue(key, pv);
@@ -1061,14 +1061,14 @@ internal sealed class ScriptEffect(ScriptContext ctx, IEffect effect)
     // 所属 part（对齐 C# IEffect.Part；只读，数据层不可改）。
     public ScriptPart Part() => ctx.WrapPart(E.Part);
 
-    // 读一个参数的当前值（number / boolean / string）；未设返回 null（默认值与可用键见 list_effects 的参数 schema）。
-    public object? GetProperty(string key) => ScriptArgs.ReadScalarProperty(E.Properties, key);
+    // 读一个参数的当前值（number / boolean / string / 数组 / 对象）；未设返回 null（默认值与可用键见 list_effects 的参数 schema）。
+    public JsValue GetProperty(string key) => ScriptArgs.ReadProperty(ctx.Engine, E.Properties, key);
 
-    // 写一个参数（值须是 number / boolean / string）。键/取值范围见 list_effects。
+    // 写一个参数（number / boolean / string / 数组 / 对象）。键/取值范围见 list_effects。
     public void SetProperty(string key, JsValue value)
     {
         if (string.IsNullOrEmpty(key)) throw new ScriptApiException("effect property key is required.");
-        var pv = ScriptArgs.ToScalarProperty(value, "effect property");
+        var pv = ScriptArgs.ToProperty(value, "effect property");
         var e = W;
         ctx.EnsureWritable();
         e.Properties.SetValue(key, pv);

@@ -78,26 +78,25 @@ internal static class ScriptArgs
     public static int? AsIntOrNull(JsValue? v) => AsNumOrNull(v) is { } d ? (int)Math.Round(d) : null;
     public static bool? AsBoolOrNull(JsValue? v) => v is not null && v.IsBoolean() ? v.AsBoolean() : null;
 
-    // 自定义属性（effect / note / part 的 Properties 容器）标量读：读【裸值】→ JS 友好的 double/bool/string；
-    // 缺键 / 多值（多选合并态）/ Null 一律返回 null。用 out-success 重载读裸值——另一个 GetValue(key, default) 会
-    // 拿 default 当类型门（存值类型与 default 不符即退回 default），值类型不定时会误伤，这里要"存了什么读什么"。
-    public static object? ReadScalarProperty(DataPropertyObject props, string key)
+    // 自定义属性（effect / note / part / 音素的 Properties 容器）读：读【裸值】→ JS 值，形状与快照（info 的 properties）
+    // 同一套转换：number / boolean / string，数组 → JS 数组、对象 → JS 对象（任意嵌套）。缺键 / 多值（多选合并态）/ Null
+    // 一律返回 null。用 out-success 重载读裸值——另一个 GetValue(key, default) 会拿 default 当类型门（存值类型与 default
+    // 不符即退回 default），值类型不定时会误伤，这里要"存了什么读什么"。
+    public static JsValue ReadProperty(Engine engine, DataPropertyObject props, string key)
     {
         var raw = props.GetValue(key, out bool success);
-        if (!success || raw.IsNull() || raw.IsMultiple()) return null;
-        if (raw.ToBoolean(out var b)) return b;
-        if (raw.ToDouble(out var d)) return d;
-        if (raw.ToString(out var s)) return s;
-        return null;
+        if (!success || raw.IsNull() || raw.IsMultiple()) return JsValue.Null;
+        return ScriptInfo.ToJs(engine, raw);
     }
 
-    // JS 值 → PropertyValue（仅 number / boolean / string）；其它类型报错。what = 报错文案里的属性域名。
-    public static PropertyValue ToScalarProperty(JsValue value, string what)
+    // JS 值 → PropertyValue：number / boolean / string / 数组 / 对象（任意嵌套，同快照的 properties）。宿主不按声明校验形状——
+    // 结构化值（如插件自绘画布的字段）的形状只有插件知道，插件读值时自己校验。顶层 null / undefined 报错（不是"清除"）。
+    // what = 报错文案里的属性域名。
+    public static PropertyValue ToProperty(JsValue value, string what)
     {
-        if (value.IsBoolean()) return PropertyValue.Create(value.AsBoolean());
-        if (value.IsNumber()) return PropertyValue.Create(value.AsNumber());
-        if (value.IsString()) return PropertyValue.Create(value.AsString());
-        throw new ScriptApiException(string.Format("{0} value must be a number, boolean, or string.", what));
+        if (value is null || value.IsNull() || value.IsUndefined())
+            throw new ScriptApiException(string.Format("{0} value is required (a number, boolean, string, array or object).", what));
+        return ScriptInfo.ReadPropertyValue(value);
     }
 
     // points = [{tick, value}]（绝对 tick / 参数绝对值）。返回 (X=tick, Y=value) 的点列表（未排序）。

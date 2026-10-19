@@ -270,7 +270,7 @@ internal static class ScriptInfo
         return new PropertyObject(map);
     }
 
-    static PropertyValue ReadPropertyValue(JsValue v)
+    internal static PropertyValue ReadPropertyValue(JsValue v)
     {
         if (v is null || v.IsUndefined() || v.IsNull()) return PropertyValue.Null;
         if (v.IsNumber()) return PropertyValue.Create(v.AsNumber());
@@ -434,7 +434,7 @@ internal static class ScriptInfo
         return o;
     }
 
-    static JsValue ToJs(Engine engine, PropertyValue value)
+    internal static JsValue ToJs(Engine engine, PropertyValue value)
     {
         if (value.ToBoolean(out var b)) return b;
         if (value.ToDouble(out var d)) return d;
