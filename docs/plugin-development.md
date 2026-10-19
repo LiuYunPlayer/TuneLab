@@ -43,6 +43,7 @@ Package level (top level):
 |---|---|---|
 | `1.0` | TuneLab 2.0.0 | Everything the V1 SDK shipped with |
 | `1.1` | TuneLab 2.1.0 | Path picker controls (`PathPickerConfig` / `FileTypeFilter`), multiline text boxes (`TextBoxConfig.WithMultiline`) |
+| `1.2` | Not released yet (experimental) | Canvas (`CanvasConfig` / `ICanvasControl` / `ICanvasHost` / `ICanvasDrawing` / `CanvasImage` and their event types, see §10) |
 
 Plugin level (describing "what this package provides"). **Identity is inlined into the manifest**: one entry = one concrete registrable capability, carrying its own identity (engine id / file extension) + the full name of the implementing class. After reading the manifest the host knows what the plugin provides without loading assemblies and reflecting.
 
@@ -1094,6 +1095,8 @@ props.Add(("editor", "Editor"), ButtonConfig.Create("Open...", async _ =>
 Reference implementations: `tests/plugins/V1.CustomWindow` + `tests/plugins/V1.CustomWindow.Editor` (a button launching a WinForms editor exe, waiting for it or not), `tests/plugins/V1.Settings` (settings page: clear cache / test connection / export preset (PromptInputs) / throwing / buttons inside a nested object and list elements), `tests/plugins/V1.Voice` (buttons on part / note / phoneme panels), `tests/plugins/V1.Effect` (an effect-panel button with progress).
 
 ## 10. Canvas (CanvasConfig)
+
+> **Experimental**: the canvas belongs to SDK `1.2`, which hasn't shipped with a released TuneLab yet, and its API may still change before it does. Feel free to experiment, but hold off on releasing plugins that depend on it; when you use the canvas, declare `"sdk-version": "1.2"` in your manifest.
 
 For edits the built-in controls can't express (say, a stretch curve inside a phoneme), declare a **canvas**: you draw it, you handle the mouse, and when the edit is done you commit the result to the field.
 

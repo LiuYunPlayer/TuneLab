@@ -43,6 +43,7 @@
 |---|---|---|
 | `1.0` | TuneLab 2.0.0 | V1 SDK 的全部初始面 |
 | `1.1` | TuneLab 2.1.0 | 路径选择控件（`PathPickerConfig` / `FileTypeFilter`）、多行文本框（`TextBoxConfig.WithMultiline`） |
+| `1.2` | 尚未发布（实验中） | 画布（`CanvasConfig` / `ICanvasControl` / `ICanvasHost` / `ICanvasDrawing` / `CanvasImage` 及其事件类型，见 §10） |
 
 插件级（描述「这个包提供什么」）。**身份内联进 manifest**：一个条目 = 一个具体可注册能力，自带身份（引擎 id / 文件扩展名）+ 实现类全名。宿主读完 manifest 即知插件提供什么、无需加载程序集反射。
 
@@ -1092,6 +1093,8 @@ props.Add(("editor", "编辑器"), ButtonConfig.Create("打开...", async _ =>
 参考实现：`tests/plugins/V1.CustomWindow` + `tests/plugins/V1.CustomWindow.Editor`（按钮启动 WinForms 界面 exe，等它关闭 / 只启动两种方式）、`tests/plugins/V1.Settings`（设置页：清理缓存 / 测试连接 / 导出预设（PromptInputs）/ 抛异常 / 嵌套对象与列表元素里的按钮）、`tests/plugins/V1.Voice`（part / note / 音素面板的按钮）、`tests/plugins/V1.Effect`（effect 面板的按钮 + 进度）。
 
 ## 10. 画布（CanvasConfig）
+
+> **实验中**：画布属于 SDK `1.2`，尚未随正式版 TuneLab 发布，正式发布前 API 仍可能调整。可以先用来实验，别急着发布依赖它的正式版插件；用到画布就在 manifest 里声明 `"sdk-version": "1.2"`。
 
 官方控件表达不了的编辑（比如音素内部的拉伸曲线），可以声明一块**画布**：你自己画、自己处理鼠标，编辑完把结果提交给这个字段。
 

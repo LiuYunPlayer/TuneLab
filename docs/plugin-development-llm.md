@@ -25,7 +25,7 @@
 - `version` (string) — semver，默认 `"1.0.0"`。
 - `author` (string)、`description` (string) — 展示在扩展侧边栏：`author` 显示在卡片上，`description` 在卡片悬浮 tooltip 里（详情窗头部也有）。`description` 讲的是**整个包**；具体某个能力是什么，写在该条目自己的 `introduction` 里；这句绝不顶替它。
 - `icon` (string, 选填) — 包内相对路径的图标，位图（`.png`/`.jpg` 等）或矢量（`.svg`）均可，在侧边栏卡片**原样展示**（宿主不加背景/不裁圆角，圆角与透明由图标自定）；建议方形（≥64×64）。省略则用名称首字母占位。
-- `sdk-version` (string, 含代码插件**必填**) — 宿主校验「插件要求 ≤ 宿主提供」。写你实际用到的那一档：`"1.0"`（TuneLab 2.0.0 起，V1 初始面）；`"1.1"`（TuneLab 2.1.0 起，新增 `PathPickerConfig`/`FileTypeFilter` 与 `TextBoxConfig.WithMultiline`）。写高了只会被老宿主跳过，换不来任何东西。
+- `sdk-version` (string, 含代码插件**必填**) — 宿主校验「插件要求 ≤ 宿主提供」。写你实际用到的那一档：`"1.0"`（TuneLab 2.0.0 起，V1 初始面）；`"1.1"`（TuneLab 2.1.0 起，新增 `PathPickerConfig`/`FileTypeFilter` 与 `TextBoxConfig.WithMultiline`）；`"1.2"`（尚未发布、实验中：画布 `CanvasConfig` 一族）。写高了只会被老宿主跳过，换不来任何东西。
 
 插件级字段（一个条目 = 一个具体能力，身份内联）。单插件写在顶层；多插件放进 `extensions[]` 数组的每个元素：
 - `type` (string, **必填**) — `"format"` | `"voice"` | `"instrument"` | `"effect"` | 资源类（如 `"voicebank"`）。**方向不进 type**：format 恒为一个值，读写各认哪些后缀由下面三个字段说。宿主不认识的 type 若还声明了 `assembly`/`class`，会被判为「本宿主不支持的插件类型」而跳过。
@@ -240,6 +240,7 @@ public interface IEffectSynthesisPropertyContext { IReadOnlyList<IEffectSynthesi
 - 插件自己的设置界面（自己布局、自己管数据）：**做成独立进程**，作者自写 exe、按钮只负责启动（可 `await process.WaitForExitAsync()` 让按钮在其关闭前置灰、关闭后面板刷新）；与宿主无关——不提供父窗口、不做模态，数据交换自定。**进程内 UI 框架不在契约里**：宿主 Avalonia 不对插件开放，WinForms/WPF 宿主进程里没有（不带桌面运行时、引用即运行时缺程序集），硬要进程内引入由作者自保不冲突。参考 `tests/plugins/V1.CustomWindow`+`V1.CustomWindow.Editor`（按钮启动 WinForms exe）、`V1.Settings`（设置页各种按钮+弹窗+PromptInputs）、`V1.Voice`（part/note/音素按钮）、`V1.Effect`（effect 按钮+进度）。
 
 ### 画布 CanvasConfig（插件自绘的值字段，命名空间 `TuneLab.SDK`）
+- **SDK `1.2`，尚未发布、实验中**（API 发布前可能调整）；用到画布 manifest 须声明 `"sdk-version": "1.2"`。
 - `CanvasConfig.Create(PropertyValue defaultValue, double height, Func<ICanvasHost, ICanvasControl> createControl)`、`.WithSummary(Func<PropertyValue, string?>)`：**值字段**（实现 `IValueConfig`；恢复默认/preset/撤销/多选照常）。值形状插件自定（任意 PropertyValue）、宿主不解读——**读值一律校验**（撤销/preset/粘贴可带来任意形状，不合形状按默认）。多选：工程里的值 = 合并值，不一致处 `IsMultiple()`，提交时写到全部目标。收起摘要：宿主用当前值调 Summary（整体多值时宿主直接显示多值标记）；不给则"默认/已修改"。CLI/agent 原样读写（任意 JSON，宿主不校验；agent 被引导先读 introduction、读不到再照当前值/默认值推断）⇒ **introduction 里必须写清该字段的值形状与含义**（成员、范围、随状态变化的形状）。只能作 `ObjectConfig` 成员。宽度随面板、高度=声明值。
 - **生命周期**：工厂不在声明时调用（显示时才建，收起不建）；**实例寿命 = 一次声明**——每次面板按新声明更新（提交后、外部改值后、选中变化）都用新工厂重建，旧实例的 host 失效（`SetValue` 返回 false）⇒ **工厂要廉价**、控件只放事件与绘制逻辑、重资源插件级缓存；悬停等临时状态不跨实例，要能从值与事件位置重算；没写草稿的拖动可能中途换实例，新实例收不到那次抬起，按"没在拖动"处理；**事件严格成对**：每实例 Enter/Leave 严格交替（换实例或画布出现在静止指针下时宿主主动发 Enter、不等动鼠标——悬停等状态须在 OnMouseEnter 按其位置算）、每个 Up 都有本实例收到过的对应 Down、捕获意外丢失时宿主补发 Up（IsClick=false）。
 - **草稿与提交**：操作期间的值只是草稿，提交才进工程。`SetValue` 写草稿（宿主代管、不进工程、别处不可见，`host.Value` 随即返回它）；**有草稿 = 面板仍在使用**：所在窗口属性面板不刷新、实例不被换掉 ⇒ 操作要防打断就**在开始时写草稿**（按下还没改值就写入当前值）；草稿可长期挂着（如等画布上的"确认"）。`CommitValue` 写进工程成一个撤销步并结束编辑，`DiscardValue` 丢弃草稿回到工程值；无草稿则空操作。**宿主从不代为提交**；草稿保不住时丢弃：外部改了本字段值、面板被拆（切 part）、画布离开界面（切页签/关窗）。无"松手"的连续操作（滚轮）每格 SetValue、`await Task.Delay(…)` 等停顿再 `CommitValue()`（await 后回主线程可直接用 host）。
