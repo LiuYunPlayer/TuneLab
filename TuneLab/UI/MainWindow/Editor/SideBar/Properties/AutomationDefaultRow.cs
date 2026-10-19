@@ -57,6 +57,7 @@ internal sealed class AutomationDefaultRow : StackPanel, IDisposable
         mSlider.ValueWillChange.Subscribe(OnValueWillChange, s);
         mSlider.ValueChanged.Subscribe(OnValueChanged, s);
         mSlider.ValueCommitted.Subscribe(OnValueCommitted, s);
+        EditGate.Track<double>(mSlider, s);   // 拖动期间所在窗口的属性面板推迟刷新（见 EditGate）
 
         Refresh();
     }

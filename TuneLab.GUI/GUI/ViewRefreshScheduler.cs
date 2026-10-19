@@ -1,6 +1,8 @@
 using System;
 using System.Diagnostics;
+using Avalonia;
 using Avalonia.Threading;
+using TuneLab.Foundation;
 
 namespace TuneLab.GUI;
 
@@ -20,28 +22,94 @@ namespace TuneLab.GUI;
 ///   任何结构变化必然已在同一拍把 Structure 位标上。
 /// - 先清后跑：flush 先复位排队标志与脏位、再调回调。回调抛异常不会把调度器锁死（脏位已清，
 ///   下个数据事件正常再触发）；回调执行中若又标脏则排下一拍（宁多建一次，不丢刷新）。
-/// - Suspended：编辑进行中抑制（拖拽/键入期间避免重建打断交互）。flush 跳过但保留脏位，
-///   置回 false 时若有脏立即补排。
+/// - SuspendWhileEditing：所在窗口编辑进行中抑制（拖拽/键入期间避免重建打断交互，见 EditGate）。flush 跳过
+///   但保留脏位，编辑结束时若有脏立即补排。
 ///
 /// 仅限 UI 线程使用（数据层事件已由各处 marshal 回 UI 线程）。
 /// </remarks>
 public class ViewRefreshScheduler(Action rebuild, Action? refreshValues = null) : IDisposable
 {
-    /// <summary>
-    /// 编辑进行中抑制：true 时 flush 保留脏位直接跳过；置回 false 时若有脏立即补排一拍。
-    /// </summary>
-    public bool Suspended
-    {
-        get => mSuspended;
-        set
-        {
-            if (mSuspended == value)
-                return;
+    /// <summary>是否挂起中（见 SuspendWhileEditing）。</summary>
+    public bool Suspended => mSuspendCount > 0;
 
-            mSuspended = value;
-            if (!value && (mStructureDirty || mValuesDirty))
-                Schedule();
+    // 挂起句柄：持有期间 flush 保留脏位直接跳过；最后一个句柄释放（Dispose，幂等）时若有脏立即补排一拍。
+    IDisposable Suspend()
+    {
+        mSuspendCount++;
+        return new SuspendToken(this);
+    }
+
+    void Resume()
+    {
+        if (--mSuspendCount == 0 && (mStructureDirty || mValuesDirty))
+            Schedule();
+    }
+
+    /// <summary>
+    /// anchor 所在窗口有编辑进行中时挂起本调度器（见 EditGate），编辑结束即释放。anchor 进出可视树时跟着换窗口。
+    /// 整面板重建的持有方用它：不在用户拖动 / 键入的中途重建面板。context 回收时一并释放。
+    /// </summary>
+    public void SuspendWhileEditing(Visual anchor, DisposableManager context)
+        => context.Add(new EditingSuspension(this, anchor));
+
+    sealed class EditingSuspension : IDisposable
+    {
+        public EditingSuspension(ViewRefreshScheduler scheduler, Visual anchor)
+        {
+            mScheduler = scheduler;
+            mAnchor = anchor;
+            anchor.AttachedToVisualTree += OnAttachmentChanged;
+            anchor.DetachedFromVisualTree += OnAttachmentChanged;
+            Bind(EditGate.Of(anchor));
         }
+
+        void OnAttachmentChanged(object? sender, VisualTreeAttachmentEventArgs e) => Bind(EditGate.Of(mAnchor));
+
+        void Bind(EditGate? gate)
+        {
+            if (gate == mGate)
+                return;
+            mGate?.EditingChanged.Unsubscribe(Sync);
+            mGate = gate;
+            mGate?.EditingChanged.Subscribe(Sync);
+            Sync();
+        }
+
+        void Sync()
+        {
+            if (mGate?.IsEditing == true)
+            {
+                mSuspension ??= mScheduler.Suspend();
+                return;
+            }
+            mSuspension?.Dispose();
+            mSuspension = null;
+        }
+
+        public void Dispose()
+        {
+            mAnchor.AttachedToVisualTree -= OnAttachmentChanged;
+            mAnchor.DetachedFromVisualTree -= OnAttachmentChanged;
+            Bind(null);
+        }
+
+        readonly ViewRefreshScheduler mScheduler;
+        readonly Visual mAnchor;
+        EditGate? mGate;
+        IDisposable? mSuspension;
+    }
+
+    sealed class SuspendToken(ViewRefreshScheduler scheduler) : IDisposable
+    {
+        public void Dispose()
+        {
+            if (mDisposed)
+                return;
+            mDisposed = true;
+            scheduler.Resume();
+        }
+
+        bool mDisposed;
     }
 
     /// <summary>结构可能变了（成员增删、签名变化、选中集变化等）：下一拍整体重建。</summary>
@@ -80,8 +148,8 @@ public class ViewRefreshScheduler(Action rebuild, Action? refreshValues = null) 
     void Flush()
     {
         mScheduled = false;                 // 先复位：flush 期间的新标脏正常排下一拍
-        if (mDisposed || mSuspended)
-            return;                         // Suspended 保留脏位，复位时由 setter 补排
+        if (mDisposed || Suspended)
+            return;                         // 挂起中保留脏位，最后一个句柄释放时补排
 
         if (mStructureDirty)
         {
@@ -99,6 +167,6 @@ public class ViewRefreshScheduler(Action rebuild, Action? refreshValues = null) 
     bool mScheduled;
     bool mStructureDirty;
     bool mValuesDirty;
-    bool mSuspended;
+    int mSuspendCount;
     bool mDisposed;
 }

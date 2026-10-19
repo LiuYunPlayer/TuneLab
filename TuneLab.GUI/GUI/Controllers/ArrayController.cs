@@ -926,6 +926,7 @@ internal abstract class ElementWidget : IDisposable
             mController = new SliderController { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
             Apply(config);
             mController.BindDataProperty(dataObject.DoubleField(token, config.DefaultValue), s);
+            EditGate.Track<double>(mController, s);
         }
 
         void Apply(SliderConfig config)
@@ -984,6 +985,7 @@ internal abstract class ElementWidget : IDisposable
                 mMultiline = new MultilineTextInput { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
                 mMultiline.SetMaxVisibleLines(config.MaxVisibleLines);
                 mMultiline.BindDataProperty(field, mFieldScope);
+                EditGate.Track(mMultiline, mFieldScope);
                 mHost.Children.Add(mMultiline);
             }
             else
@@ -991,6 +993,7 @@ internal abstract class ElementWidget : IDisposable
                 mMultiline = null;
                 mSingleLine = new SingleLineTextController { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch, IsPassword = config.IsPassword };
                 mSingleLine.BindDataProperty(field, mFieldScope);
+                EditGate.Track(mSingleLine, mFieldScope);
                 mHost.Children.Add(mSingleLine);
             }
         }
@@ -1017,6 +1020,7 @@ internal abstract class ElementWidget : IDisposable
             mController = new PathPicker { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
             mController.Apply(config);
             mController.BindDataProperty(dataObject.StringField(token, config.DefaultValue), s);
+            EditGate.Track(mController, s);
         }
 
         public override Control View => mController;
@@ -1042,6 +1046,7 @@ internal abstract class ElementWidget : IDisposable
         {
             mController.SetConfig(config);
             mController.BindDataProperty(mDataObject.ValueField(mToken, config.DefaultOption.Value), s);
+            EditGate.Track(mController, s);
         }
 
         public override Control View => mController;
@@ -1070,6 +1075,7 @@ internal abstract class ElementWidget : IDisposable
         {
             mController = new CheckBox { VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
             mController.BindDataProperty(dataObject.BooleanField(token, config.DefaultValue), s);
+            EditGate.Track(mController, s);
         }
 
         public override Control View => mController;

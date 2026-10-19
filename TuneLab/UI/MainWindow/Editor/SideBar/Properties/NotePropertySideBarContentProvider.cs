@@ -25,7 +25,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
     public NotePropertySideBarContentProvider()
     {
         // 两面板各一个"标脏→合拍重建"调度器：note 面板（结构=选中集变化整体重绑 SetConfig、值=config 沿链重算
-        // keyed-diff 复用控件）、音素面板（结构=签名/成员变化整面板重建、值=时长/权重值框轻刷新，编辑中经 Suspended 抑制）。
+        // keyed-diff 复用控件）、音素面板（结构=签名/成员变化整面板重建、值=时长/权重值框轻刷新）；窗口编辑中两者都挂起（见 EditGate）。
         // 订阅回调一律只标脏不读数，读取集中在 flush 回调内（settled 状态上执行），见 ViewRefreshScheduler。
         mNoteScheduler = new(RefreshNoteControllerNow, ReconcileNoteControllerNow);
         mPhonemeScheduler = new(RefreshPhonemeControllerNow, RefreshPhonemeValues);
@@ -35,6 +35,11 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         mNotePropertiesController.ItemContextMenuProvider = BuildNotePropertyContextMenu;
         // 插件按钮执行完 → 重新询问 note 声明（按钮动的是插件状态，面板选项可能随之变）。
         mNotePropertiesController.ButtonActionCompleted += mNoteScheduler.InvalidateValues;
+        // 所在窗口有编辑进行中（拖动 / 键入，任一面板，见 EditGate）时挂起两面板的刷新：值级重算本就由控制器推迟，
+        // 这里把结构级重绑（选中集变化 → SetConfig 整棵重建）与音素面板的整面板重建也留到编辑结束——不在拖动中途
+        // 拆掉正被拖的控件，也不让上方面板增减字段把它挤得跳位置。
+        mNoteScheduler.SuspendWhileEditing(mNotePanel, mLifetime);
+        mPhonemeScheduler.SuspendWhileEditing(mPhonemePanel, mLifetime);
 
         SideBarSection.Attach(mNotePanel, "Note".Tr(TC.Property));
         mNoteContent.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
@@ -93,7 +98,6 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         mPhonemeRowsPanel.Children.Clear();
         mPhonemeValueRefreshers.Clear();
         mPhonemePanel.IsVisible = false;
-        mPhonemeScheduler.Suspended = false;   // 在飞编辑的抑制态不跨 part 存留（提交回调随控件树废弃，可能不再触发复位）
         mPhonemeSignature = string.Empty;
     }
 
@@ -256,7 +260,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
     // 一个选中 note 的音素声明信息：显示音素（钉死则 IPhoneme、否则合成）+ 逐音素 config + 核位置（leadCount）。
     readonly record struct PhonemeNoteInfo(INote Note, bool Pinned, int Count, int LeadCount);
 
-    // 音素面板结构级 flush：整面板重建。编辑中抑制由 mPhonemeScheduler.Suspended 承担（保留脏位，提交复位时补排）。
+    // 音素面板结构级 flush：整面板重建。窗口编辑中经 SuspendWhileEditing 挂起（保留脏位，编辑结束时补排）。
     void RefreshPhonemeControllerNow()
     {
         mPhonemeSub.DisposeAll();
@@ -456,6 +460,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
             DefaultValue = config.DefaultValue,
         };
         box.SetupToolTip(tooltip);
+        EditGate.Track(box, mPhonemeSub);   // 编辑期间所在窗口的属性面板推迟刷新（见 EditGate）
 
         if (members.All(m => m.Note.Pinned))
         {
@@ -472,7 +477,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         // 含合成音素：合成音素无可绑定的 IDataProperty（值在 SynthesizedPhonemes[] 里、无 .Modified/.Set），又不能一显示就锁定。
         // 故手写"首拖固定"——镜像波形拖拽 op：起手对各成员 LockPhonemes（合成→钉死）+ BeginMergeDirty（只延迟重合成、不抑制
         // 数据通知，钢琴窗据 Notes.Phonemes.Modified 实时重绘）；每帧先取 box.Value 再 DiscardTo(head) 后扇出写回；松手 Commit
-        //（无改 Discard 连带回滚锁定）成一个撤销步。编辑期 mPhonemeScheduler.Suspended 抑制面板重建。锁定提交后转全钉死 → 重建走上面绑定路径。
+        //（无改 Discard 连带回滚锁定）成一个撤销步。编辑期登记到窗口的 EditGate、挂起面板重建。锁定提交后转全钉死 → 重建走上面绑定路径。
         double ReadOf((PhonemeNoteInfo Note, int Index) m)
             => m.Note.Pinned ? field(m.Note.Note.Phonemes[m.Index]).Value : synthValue(m.Note.Note.SynthesizedSyllable.AllPhonemes()[m.Index]);
         void Refresh()
@@ -500,7 +505,6 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         {
             if (mPart == null)
                 return;
-            mPhonemeScheduler.Suspended = true;
             foreach (var (n, _) in members)
                 n.Note.LockPhonemes();
             mPart.BeginMergeDirty();
@@ -531,8 +535,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
                 mPart.Discard();
             else
                 mPart.Commit();
-            // 复位抑制（编辑期被扣下的脏位自动补排），并显式标结构脏：提交后锁定成立，本 slot 转全钉死绑定路径。
-            mPhonemeScheduler.Suspended = false;
+            // 显式标结构脏（编辑结束、EditGate 放行后执行）：提交后锁定成立，本 slot 转全钉死绑定路径。
             mPhonemeScheduler.InvalidateStructure();
         }, mPhonemeSub);
 
@@ -646,7 +649,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
 
     IMidiPart? mPart = null;
     MultipleDataPropertyObject? mNoteData = null;
-    // 两面板的"标脏→合拍重建"调度器（构造函数初始化）；音素编辑拖动/键入期间经 Suspended 抑制重建。
+    // 两面板的"标脏→合拍重建"调度器（构造函数初始化）；窗口编辑中经 SuspendWhileEditing 挂起。
     readonly ViewRefreshScheduler mNoteScheduler;
     readonly ViewRefreshScheduler mPhonemeScheduler;
     // 音素面板各值框的轻刷新入口：结构级 flush（重建）时重收，值级 flush 逐个调用。
@@ -664,6 +667,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         .WithResponse(DragResponse.Linear(0.01))
         .WithFormat(NumberFormat.Decimals(2));
     readonly DisposableManager s = new();
+    readonly DisposableManager mLifetime = new();   // 随本 provider 同生（不随 part 切换回收）
     readonly DisposableManager mNoteSub = new();
     readonly DisposableManager mPhonemeSub = new();
 }

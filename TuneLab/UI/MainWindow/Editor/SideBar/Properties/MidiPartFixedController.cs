@@ -33,6 +33,7 @@ internal class MidiPartFixedController : StackPanel
         s.DisposeAll();
         var gain = new MultipleDataProperty<double>(parts.Select(part => part.Gain).ToList(), 0.0, value => PropertyValue.Create(value));
         mGainController.BindDataProperty(gain, s);
+        EditGate.Track<double>(mGainController, s);   // 拖动期间所在窗口的属性面板推迟刷新（见 EditGate）
         gain.Modified.Subscribe(mGainFold.RefreshSummary, s);   // 撤销 / 预设等外部改值也刷新收起时的摘要
         mGainFold.RefreshSummary();
     }

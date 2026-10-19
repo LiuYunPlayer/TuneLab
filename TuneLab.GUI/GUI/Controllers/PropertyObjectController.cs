@@ -18,6 +18,7 @@ namespace TuneLab.GUI.Controllers;
 // 支持 keyed-diff reconcile（条件属性面板）：config 可随数据值变化，调用方在值 commit 后重算整棵 config 再调
 // Reconcile，本控件按 key diff——同 key 同类型复用控件仅更参数（不闪、不丢焦点）、key 消失则 dispose、新 key 建、
 // 同 key 换类型则换控件。纯参数变化不重排布局；仅结构（增删/换类型/顺序）变化时重排。订阅/重算时机由调用方管理。
+// 各值控件的编辑过程（开始改值 → 提交）登记到所在窗口的 EditGate；窗口编辑中 Reconcile 推迟到编辑结束（见 Reconcile）。
 internal class PropertyObjectController : StackPanel
 {
     // 是否在每个属性后渲染尾随分隔线（默认 false）。字段之间靠间距分开、不画线：线只留给分组边界
@@ -80,12 +81,41 @@ internal class PropertyObjectController : StackPanel
     {
         ResetConfig();
         mDataObject = dataObject;
-        Reconcile(config);
+        ReconcileNow(config);
     }
 
     // 数据对象不变，把控件树 keyed-diff 到新 config。
+    // 所在窗口有编辑进行中（见 EditGate）时只记下最新的 config、编辑结束后再对齐：新声明可能去掉 / 换掉正被拖的字段，
+    // 或增减它上方的字段把它挤得跳位置。期间到来的多次只取最后一次；编辑自己的提交还会引起一次新的声明，
+    // 结束后对齐的总是最新的那份。
     public void Reconcile(ObjectConfig config)
     {
+        if (mDataObject == null)
+            return;
+
+        if (EditGate.Of(this) is { IsEditing: true } gate)
+        {
+            bool scheduled = mPendingConfig != null;
+            mPendingConfig = config;
+            if (!scheduled)
+                gate.AfterEditing(ApplyPendingConfig);
+            return;
+        }
+
+        ReconcileNow(config);
+    }
+
+    void ApplyPendingConfig()
+    {
+        if (mPendingConfig is not { } config)
+            return;   // 期间已被更新的 Reconcile / SetConfig / ResetConfig 取代
+        mPendingConfig = null;
+        Reconcile(config);
+    }
+
+    void ReconcileNow(ObjectConfig config)
+    {
+        mPendingConfig = null;
         if (mDataObject == null)
             return;
 
@@ -161,6 +191,7 @@ internal class PropertyObjectController : StackPanel
         mCreatorsByKey = new();
         mOrder = new();
         mDataObject = null;
+        mPendingConfig = null;
     }
 
     // 增量对齐 Children 到目标顺序（mOrder 各 creator 的 LayoutViews 拼接）：已在正确位置的复用控件**不动**
@@ -359,6 +390,7 @@ internal class PropertyObjectController : StackPanel
             // 先绑定（初次刷新即把真实值写入），Relayout 才加入可视树——否则池复用的控件会以残留旧值/旧量程
             // 先布局渲染一帧，thumb 随后才跳到正确位置（初次选中音符时可见的瞬间挪动）。
             mController.BindDataProperty(parent.DataObject.DoubleField(key.Id, config.DefaultValue), s);
+            EditGate.Track<double>(mController, s);
         }
 
         void Apply(SliderConfig config)
@@ -421,6 +453,7 @@ internal class PropertyObjectController : StackPanel
 
             Apply(config);
             mController.BindDataProperty(parent.DataObject.DoubleField(key.Id, config.DefaultValue), s);
+            EditGate.Track(mController, s);
             mFold = new FieldFold(mTitle, [mValueColumn], parent.FoldKey(key),
                 summary: () => MultipleOr(parent.DataObject.GetValue(key.Id, PropertyValue.Create(mConfig.DefaultValue)),
                     v => v.ToDouble(out var d) ? mConfig.Format.Format(d) : null),
@@ -527,6 +560,7 @@ internal class PropertyObjectController : StackPanel
                 mMultiline = new MultilineTextInput() { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
                 mMultiline.SetMaxVisibleLines(config.MaxVisibleLines);
                 mMultiline.BindDataProperty(field, mFieldScope);
+                EditGate.Track(mMultiline, mFieldScope);
                 mHost.Children.Add(mMultiline);
             }
             else
@@ -534,6 +568,7 @@ internal class PropertyObjectController : StackPanel
                 mSingleLine = ObjectPoolManager.Get<SingleLineTextController>();
                 mSingleLine.IsPassword = config.IsPassword;
                 mSingleLine.BindDataProperty(field, mFieldScope);
+                EditGate.Track(mSingleLine, mFieldScope);
                 mHost.Children.Add(mSingleLine);
             }
         }
@@ -586,6 +621,7 @@ internal class PropertyObjectController : StackPanel
             mController.Apply(config);
 
             mController.BindDataProperty(parent.DataObject.StringField(key.Id, config.DefaultValue), s);
+            EditGate.Track(mController, s);
             // 摘要：文件 / 文件夹名（整条路径在窄侧栏里放不下，名字才是辨认它的部分）。
             mFold = new FieldFold(mTitle, [mController], parent.FoldKey(key),
                 summary: () => MultipleOr(parent.DataObject.GetValue(key.Id, PropertyValue.Create(config.DefaultValue)),
@@ -639,6 +675,7 @@ internal class PropertyObjectController : StackPanel
             mController.SetConfig(config);
             // 绑裸 PropertyValue 字段：option 值可为任意基础类型，存进数据的就是该值本身（非显示文本）。
             mController.BindDataProperty(Parent.DataObject.ValueField(mKey, config.DefaultOption.Value), s);
+            EditGate.Track(mController, s);
         }
 
         public override Type ConfigType => typeof(ComboBoxConfig);
@@ -841,6 +878,7 @@ internal class PropertyObjectController : StackPanel
             mTitle = CreateTitle(key.DisplayText ?? key.Id, 30);
 
             mController.BindDataProperty(parent.DataObject.BooleanField(key.Id, config.DefaultValue), s);
+            EditGate.Track(mController, s);
             mFold = new FieldFold(mTitle, [mController], parent.FoldKey(key),
                 summary: () => MultipleOr(parent.DataObject.GetValue(key.Id, PropertyValue.Create(config.DefaultValue)),
                     v => v.ToBoolean(out var on) ? (on ? "On" : "Off").Tr("PropertyObjectController") : null),
@@ -1004,6 +1042,7 @@ internal class PropertyObjectController : StackPanel
     };
 
     ButtonRoot mButtonRoot = new();
+    ObjectConfig? mPendingConfig;   // 窗口编辑中推迟的最新 config（见 Reconcile）
     string mButtonPath = string.Empty;
     IDataPropertyObject? mDataObject;
     Dictionary<string, Creator> mCreatorsByKey = new();
