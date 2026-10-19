@@ -184,6 +184,8 @@
 "Failed" = "Mislukt"
 "Failed: " = "Mislukt: "
 "Installed: " = "Geïnstalleerd: "
+"Requires a newer TuneLab: this extension needs SDK {0}, this TuneLab provides {1}." = "Nieuwere TuneLab vereist: deze extensie heeft SDK {0} nodig, deze TuneLab biedt {1}."
+"Installed, but needs a newer TuneLab (current SDK {0}) — update TuneLab to use it: " = "Geïnstalleerd, maar vereist een nieuwere TuneLab (huidige SDK {0}) — werk TuneLab bij om deze te gebruiken: "
 "Partial" = "Gedeeltelijk"
 "Skipped" = "Overgeslagen"
 "Reset to Default" = "Terugzetten naar standaard"

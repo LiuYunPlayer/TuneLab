@@ -117,17 +117,21 @@ internal sealed class ExtensionInstallCommand : ICommand
             // 解压成功 ≠ 加载成功：坏 manifest 之类被 Load 优雅记成 Failed 而不抛，故据加载结果归类（同界面）。
             var result = ExtensionManager.LoadResults.LastOrDefault(r => r.DirectoryPath == dir);
             bool loadFailed = result != null && result.Status == ExtensionLoadStatus.Failed;
+            // 要求的 SDK 比本 TuneLab 新：装上了但没加载（Skipped，不是 Failed），出路是更新 TuneLab——单列一种结局，别报成 applied。
+            var requiredSdk = result?.RequiredSdk;
 
             // 新装的音源引擎要能立刻用（同界面装完那一步）；Init 失败与装没装上是两件事，故分开报。
-            var initFailures = loadFailed ? [] : SoundSourceEngines.InitAll();
+            var initFailures = loadFailed || requiredSdk != null ? [] : SoundSourceEngines.InitAll();
 
             var node = new JsonObject
             {
                 ["name"] = string.IsNullOrEmpty(result?.Name) ? name : result!.Name,
                 ["packageId"] = result?.Id,
                 ["path"] = dir,
-                ["outcome"] = loadFailed ? "installed_not_loading" : "applied",
-                ["loadError"] = loadFailed ? result!.Error ?? "load failed" : null,
+                ["outcome"] = loadFailed ? "installed_not_loading" : requiredSdk != null ? "installed_needs_newer_tunelab" : "applied",
+                ["loadError"] = loadFailed || requiredSdk != null ? result!.Error ?? "load failed" : null,
+                ["requiredSdk"] = requiredSdk?.ToString(),
+                ["hostSdk"] = requiredSdk != null ? ExtensionManager.SdkVersion.ToString() : null,
                 ["capabilities"] = result == null ? null : new JsonArray(result.Types.Select(t => (JsonNode)t!).ToArray()),
                 ["manifestNote"] = manifestError,
                 ["note"] = string.IsNullOrEmpty(message) ? null : message,
@@ -188,6 +192,11 @@ internal sealed class ExtensionInstallCommand : ICommand
                 return string.Format(
                     "Unpacked \"{0}\" into the extensions folder, but it does NOT load: {1}. It stays installed and shows as failed in the Extensions sidebar — "
                     + "tell the user; installing it again will not help.", name, obj["loadError"]?.GetValue<string>() ?? "load failed");
+            case "installed_needs_newer_tunelab":
+                return string.Format(
+                    "Unpacked \"{0}\" into the extensions folder, but it does NOT load yet: it needs SDK {1} and this TuneLab provides {2}. "
+                    + "Nothing is wrong with the extension — tell the user to update TuneLab; it will load after the update without reinstalling.",
+                    name, obj["requiredSdk"]?.GetValue<string>(), obj["hostSdk"]?.GetValue<string>());
             default:
                 var text = note + string.Format("Installed \"{0}\" and loaded it — no restart needed.", name);
                 if (obj["capabilities"] is JsonArray caps && caps.Count > 0)

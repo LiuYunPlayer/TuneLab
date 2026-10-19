@@ -184,6 +184,8 @@
 "Failed" = "Falló"
 "Failed: " = "Falló: "
 "Installed: " = "Instalado: "
+"Requires a newer TuneLab: this extension needs SDK {0}, this TuneLab provides {1}." = "Se requiere una versión más reciente de TuneLab: esta extensión necesita el SDK {0} y este TuneLab ofrece {1}."
+"Installed, but needs a newer TuneLab (current SDK {0}) — update TuneLab to use it: " = "Instalada, pero necesita una versión más reciente de TuneLab (SDK actual {0}); actualiza TuneLab para usarla: "
 "Partial" = "Parcial"
 "Skipped" = "Omitido"
 "Reset to Default" = "Restablecer a predeterminado"

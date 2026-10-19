@@ -130,7 +130,7 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
         // 设置入口在详情窗各 tab 内，见 BuildDetailPages 的 SettingsKey。
         foreach (var result in ExtensionManager.LoadResults)
         {
-            var itemView = new ExtensionItemView(result.Name, result.Version, DisplayTypes(result), result.Author, result.Description, result.IconPath, result.DirectoryPath, result.Status, result.Error);
+            var itemView = new ExtensionItemView(result.Name, result.Version, DisplayTypes(result), result.Author, result.Description, result.IconPath, result.DirectoryPath, result.Status, result.DisplayError);
             itemView.UninstallRequested += () => OnUninstallExtension(itemView);
             itemView.CancelUninstallRequested += () => OnCancelUninstall(itemView);
             itemView.OpenDetailRequested += () => OnOpenDetail(result);

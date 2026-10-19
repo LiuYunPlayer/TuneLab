@@ -184,6 +184,8 @@
 "Failed" = "失敗"
 "Failed: " = "失敗： "
 "Installed: " = "インストール済み： "
+"Requires a newer TuneLab: this extension needs SDK {0}, this TuneLab provides {1}." = "TuneLab の更新が必要です：この拡張機能には SDK {0} が必要ですが、この TuneLab は {1} です。"
+"Installed, but needs a newer TuneLab (current SDK {0}) — update TuneLab to use it: " = "インストールしましたが、使用するには TuneLab の更新が必要です（現在の SDK {0}）："
 "Partial" = "一部"
 "Skipped" = "スキップ"
 "Reset to Default" = "デフォルトに戻す"

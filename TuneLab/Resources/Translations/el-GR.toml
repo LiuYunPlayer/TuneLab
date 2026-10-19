@@ -184,6 +184,8 @@
 "Failed" = "Απέτυχε"
 "Failed: " = "Απέτυχε: "
 "Installed: " = "Εγκαταστάθηκε: "
+"Requires a newer TuneLab: this extension needs SDK {0}, this TuneLab provides {1}." = "Απαιτείται νεότερο TuneLab: αυτή η επέκταση χρειάζεται SDK {0}, αυτό το TuneLab παρέχει {1}."
+"Installed, but needs a newer TuneLab (current SDK {0}) — update TuneLab to use it: " = "Εγκαταστάθηκε, αλλά χρειάζεται νεότερο TuneLab (τρέχον SDK {0}) — ενημερώστε το TuneLab για να τη χρησιμοποιήσετε: "
 "Partial" = "Μερικώς"
 "Skipped" = "Παραλείφθηκε"
 "Reset to Default" = "Επαναφορά στις προεπιλογές"

@@ -1484,6 +1484,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         List<string> installedNames = [];
         List<string> succeeded = [];
         List<string> failed = [];
+        List<string> needsNewerHost = [];   // 装上了，但要求的 SDK 比本 TuneLab 新：没加载，要更新 TuneLab 才能用
         foreach (var file in files)
         {
             var name = Path.GetFileNameWithoutExtension(file);
@@ -1519,6 +1520,8 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 var result = ExtensionManager.LoadResults.LastOrDefault(r => r.DirectoryPath == dir);
                 if (result != null && result.Status == ExtensionLoadStatus.Failed)
                     failed.Add(name + ": " + (result.Error ?? "load failed"));
+                else if (result?.RequiredSdk is { } required)
+                    needsNewerHost.Add(string.Format("{0} (SDK {1})", name, required));
                 else
                     succeeded.Add(name);
             }
@@ -1548,11 +1551,14 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             mSideBarStrip.Get(SideBarTab.Extensions).SetContent(SideBarTab.Extensions, mExtensionSideBarContentProvider.Content);
 
         // 批量安装一次性汇总（不再每个包弹一次窗）。各包的实际加载状态见扩展侧边栏。
-        if (succeeded.Count > 0 || failed.Count > 0)
+        if (succeeded.Count > 0 || failed.Count > 0 || needsNewerHost.Count > 0)
         {
             var summary = new List<string>();
             if (succeeded.Count > 0)
                 summary.Add("Installed: ".Tr(TC.Dialog) + string.Join(", ", succeeded));
+            if (needsNewerHost.Count > 0)
+                summary.Add(string.Format("Installed, but needs a newer TuneLab (current SDK {0}) — update TuneLab to use it: ".Tr(TC.Dialog), ExtensionManager.SdkVersion)
+                    + string.Join(", ", needsNewerHost));
             if (failed.Count > 0)
                 summary.Add("Failed: ".Tr(TC.Dialog) + string.Join("; ", failed));
             await this.ShowMessage("Tips".Tr(TC.Dialog), string.Join("\n", summary));

@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using TuneLab.I18N;
 
 namespace TuneLab.Extensions;
 
@@ -62,4 +64,14 @@ internal sealed class ExtensionLoadResult
     public List<string> Types { get; } = [];   // 声明/发现的类别：format / voice / effect / 资源类
     public List<ExtensionEntryInfo> Entries { get; } = [];   // 逐条目信息（V1 按 manifest 声明序；Legacy 恒空）
     public string? Error { get; set; }
+
+    // manifest 的 sdk-version 高于宿主而被跳过时，插件要求的 SDK 版本（否则 null）。这种跳过的出路只有一条——更新 TuneLab，
+    // 界面与命令面据此明说，而不是只报一句技术原因、让用户以为是插件坏了。
+    public Version? RequiredSdk { get; set; }
+
+    // 给用户看的原因：SDK 太新时说成"要更新 TuneLab"（翻译过）；其余原因是技术性英文，原样给出。
+    // Error 本身保持英文——它还进日志与命令面（agent / CLI）。
+    public string? DisplayError => RequiredSdk is { } required
+        ? string.Format("Requires a newer TuneLab: this extension needs SDK {0}, this TuneLab provides {1}.".Tr(TC.Dialog), required, ExtensionManager.SdkVersion)
+        : Error;
 }

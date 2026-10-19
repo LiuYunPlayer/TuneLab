@@ -184,6 +184,8 @@
 "Failed" = "Помилка"
 "Failed: " = "Помилка: "
 "Installed: " = "Встановлено: "
+"Requires a newer TuneLab: this extension needs SDK {0}, this TuneLab provides {1}." = "Потрібна новіша версія TuneLab: цьому розширенню потрібен SDK {0}, а цей TuneLab надає {1}."
+"Installed, but needs a newer TuneLab (current SDK {0}) — update TuneLab to use it: " = "Встановлено, але потрібна новіша версія TuneLab (поточний SDK {0}) — оновіть TuneLab, щоб користуватися: "
 "Partial" = "Частково"
 "Skipped" = "Пропущено"
 "Reset to Default" = "Скинути до типового"
