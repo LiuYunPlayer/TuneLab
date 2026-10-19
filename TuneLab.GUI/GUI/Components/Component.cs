@@ -2,6 +2,7 @@
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
+using Avalonia.Threading;
 using SkiaSharp;
 using System;
 using System.Collections.Generic;
@@ -164,6 +165,30 @@ internal class Component : Control
         });
     }
 
+    // 捕获丢失（按着鼠标时切走窗口、系统弹窗抢走鼠标……）：松开再也不会送到这里，补发抬起，让拖动照常收尾、提交——
+    // 否则拖动状态一直挂着：值控件的撤销步骤合不上、所在窗口一直算"编辑中"（属性面板停止刷新，见 EditGate），
+    // 要等用户回来在同一个控件上再点一下才解开。
+    // 推迟一拍再判：正常松开时 Avalonia 也会在 PointerReleased 之后释放捕获——让真正的抬起先到、清掉按键状态，这里就什么都不做。
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+    {
+        base.OnPointerCaptureLost(e);
+        Dispatcher.UIThread.Post(ReleasePressedButtons);
+    }
+
+    void ReleasePressedButtons()
+    {
+        if (mIsPrimaryButtonPressed) CallMouseUp(SynthesizedUp(MouseButtonType.PrimaryButton), synthesized: true);
+        if (mIsMiddleButtonPressed) CallMouseUp(SynthesizedUp(MouseButtonType.MiddleButton), synthesized: true);
+        if (mIsSecondaryButtonPressed) CallMouseUp(SynthesizedUp(MouseButtonType.SecondaryButton), synthesized: true);
+    }
+
+    MouseUpEventArgs SynthesizedUp(MouseButtonType button) => new()
+    {
+        KeyModifiers = mLastKeyModifiers,
+        Position = mLastMousePosition,
+        MouseButtonType = button,
+    };
+
     void CallMouseDown(MouseDownEventArgs e)
     {
         mLastMousePosition = e.Position;
@@ -192,11 +217,19 @@ internal class Component : Control
         OnMouseMove(e);
     }
 
-    void CallMouseUp(MouseUpEventArgs e)
+    // synthesized：补发的抬起（见 OnPointerCaptureLost）——恒不算点击，也不参与双击计时，免得误触发点击动作。
+    void CallMouseUp(MouseUpEventArgs e, bool synthesized = false)
     {
-        mLastClickTime = mStopwatch.ElapsedMilliseconds;
-        e.IsClick = e.Position.FuzzyEquals(mDownPosition);
-        if (e.IsClick) mLastClickPosition = e.Position;
+        if (synthesized)
+        {
+            e.IsClick = false;
+        }
+        else
+        {
+            mLastClickTime = mStopwatch.ElapsedMilliseconds;
+            e.IsClick = e.Position.FuzzyEquals(mDownPosition);
+            if (e.IsClick) mLastClickPosition = e.Position;
+        }
 
         switch (e.MouseButtonType)
         {
