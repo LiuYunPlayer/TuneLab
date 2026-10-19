@@ -64,6 +64,10 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
         // 条件自动化轨开关（part 级）：勾选才暴露 Growl 轨——验证轨集合 = f(part 参数值)，
         // 取消勾选时 Growl 已画曲线由宿主保留隐藏、重新勾选即原样恢复。
         mPartProperties.Add(("growl_enabled", "Enable Growl"), CheckBoxConfig.Create(true));
+        // 压力测试开关：勾选后会话每 1.5s 翻转一次 Blink 并宣告 part 声明失效，part / note / 核音素面板里的 Blinking 滑条
+        // 随之出现 / 消失——用来验证「编辑中途声明变了、正被拖的字段被去掉」时宿主把面板刷新推迟到编辑结束。
+        // 注意这**故意违背**声明契约（派生状态只能是用户数据的函数，这里掺了时间），只作测试夹具，别照抄。
+        mPartProperties.Add(("blink_test", "Stress: Blink Field"), CheckBoxConfig.Create(false));
         // 自定义自动化参数名避开宿主保留名（Volume/VibratoEnvelope 等内置项）。
         // Min/MaxLabel：验证 automation 端点描述文本（参数区上下界 + 侧栏默认值滑条两端，此前无 producer 覆盖）。
         mGrowlConfigs.Add(("Growl", "Growl"), AutomationConfig.Create(0, 100).WithColor("#E5A573").WithDefault(0)
@@ -110,6 +114,8 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
         var properties = With(mPartProperties, ("analysis_summary", "Analysis"), ButtonConfig.Create("Summary", click => ShowPartSummary(click, partIds)));
         // 显示名给空串 = 无标题、按钮铺满整行（验证整行按钮形态）。
         properties = With(properties, ("analysis_run", ""), ButtonConfig.Create("Run Analysis", click => ShowPartSummary(click, partIds)));
+        if (context.Parts.Any(p => IsBlinkVisible(p.PartId)))
+            properties = With(properties, ("blink", "Blinking Slider"), mBlinkConfig);
         if (!context.Parts.Any(p => mAnalyses.TryGetValue(p.PartId, out var analysis) && analysis.HasTones))
             return ObjectConfig.Create(properties);
         return ObjectConfig.Create(With(properties, ("tone_strength", "Tone Strength (Analyzed)"), mToneStrengthConfig));
@@ -128,6 +134,8 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
         string partId = context.Part.PartId;
         var noteIds = context.Notes.Select(n => n.Id).ToList();
         var properties = With(mNoteProperties, ("inspect", "Inspect"), ButtonConfig.Create("Show Tones", click => ShowNoteTones(click, partId, noteIds)));
+        if (IsBlinkVisible(partId))
+            properties = With(properties, ("blink", "Blinking Slider"), mBlinkConfig);
         bool allToned = context.Notes.Count > 0
             && mAnalyses.TryGetValue(partId, out var analysis)
             && context.Notes.All(n => analysis.Tones.ContainsKey(n.Id));
@@ -143,6 +151,8 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
         return click.Dialogs.ShowMessage("Tones", string.Join("\n", lines));
     }
 
+    bool IsBlinkVisible(string partId) => mAnalyses.TryGetValue(partId, out var analysis) && analysis.BlinkVisible;
+
     static OrderedMap<PropertyKey, IControllerConfig> With(OrderedMap<PropertyKey, IControllerConfig> properties, PropertyKey key, IControllerConfig config)
     {
         var map = new OrderedMap<PropertyKey, IControllerConfig>();
@@ -157,12 +167,15 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
     public IReadOnlyMap<int, ObjectConfig> GetPhonemePropertyConfigs(IVoiceSynthesisNotePropertyContext context)
     {
         // 核（slot 0）另带一个按钮：验证音素面板上的按钮。
-        var core = ObjectConfig.Create(With(mCorePhonemeProperties, ("audition", "Audition"),
+        var coreProperties = With(mCorePhonemeProperties, ("audition", "Audition"),
             ButtonConfig.Create("Play", _ =>
             {
                 TuneLabContext.Global.GetLogger().Info("[V1.Voice] audition clicked");
                 return Task.CompletedTask;
-            })));
+            }));
+        if (IsBlinkVisible(context.Part.PartId))
+            coreProperties = With(coreProperties, ("blink", "Blinking Slider"), mBlinkConfig);
+        var core = ObjectConfig.Create(coreProperties);
         var consonant = ObjectConfig.Create(mConsonantPhonemeProperties);
         var map = new Map<int, ObjectConfig>();
         foreach (int slot in context.Notes.UnionSlots())
@@ -182,6 +195,7 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
     readonly ConcurrentDictionary<string, LyricAnalysis> mAnalyses = new();
     static readonly IControllerConfig mToneStrengthConfig = SliderConfig.Linear(0.5, 0, 1);
     static readonly IControllerConfig mToneDepthConfig = SliderConfig.Linear(0.5, 0, 1);
+    static readonly IControllerConfig mBlinkConfig = SliderConfig.Linear(0.5, 0, 1);
     // 分段轨（DefaultValue = NaN 表无基线）：验证声明/数据/路由/渲染/编辑/存盘链路；本参照实现的合成暂不消费它。
     static readonly AutomationConfig mBendConfig = AutomationConfig.Create(-100, 100).WithColor("#73C2E5");
     // 整数吸附标度连续轨（Create(INormalizedScale) 重载）：验证参数区绘制/拖锚点/双击键入锚点值全走标度吸附。
@@ -218,6 +232,8 @@ public sealed class LyricAnalysis
 {
     public readonly ConcurrentDictionary<string, int> Tones = new();
     public bool HasTones => !Tones.IsEmpty;
+    // 压力测试夹具（见 blink_test）：Blinking 滑条当前是否出现在声明里。
+    public volatile bool BlinkVisible;
 }
 
 public sealed class TestSession : IVoiceSynthesisSession
@@ -265,6 +281,9 @@ public sealed class TestSession : IVoiceSynthesisSession
         foreach (var note in context.Notes)
             ScheduleAnalysis(note);
 
+        context.PartProperties.Modified.Subscribe(SyncBlink, mSubscriptions);
+        SyncBlink();
+
         mNeedResegment = true;
     }
 
@@ -311,6 +330,32 @@ public sealed class TestSession : IVoiceSynthesisSession
     }
 
     const int AnalysisDelayMs = 600;
+
+    // —— 压力测试夹具（blink_test）：开着就每 1.5s 翻转 BlinkVisible 并宣告 part 声明失效（后台线程调，契约允许）。——
+    void SyncBlink()
+    {
+        bool on = mContext.PartProperties.GetValue("blink_test", false).ToBoolean(out bool value) && value;
+        if (on == (mBlinkTimer != null))
+            return;
+        mBlinkTimer?.Dispose();
+        mBlinkTimer = null;
+        if (on)
+        {
+            mBlinkTimer = new Timer(_ =>
+            {
+                mAnalysis.BlinkVisible = !mAnalysis.BlinkVisible;
+                mContext.InvalidatePart();
+            }, null, BlinkIntervalMs, BlinkIntervalMs);
+        }
+        else if (mAnalysis.BlinkVisible)
+        {
+            mAnalysis.BlinkVisible = false;
+            mContext.InvalidatePart();
+        }
+    }
+
+    const int BlinkIntervalMs = 1500;
+    Timer? mBlinkTimer;
 
     public string DefaultLyric => "la";
 
@@ -500,6 +545,7 @@ public sealed class TestSession : IVoiceSynthesisSession
 
     public void Dispose()
     {
+        mBlinkTimer?.Dispose();
         mAnalysisCancellation.Cancel();
         mAnalysisCancellation.Dispose();
         mSubscriptions.DisposeAll();
