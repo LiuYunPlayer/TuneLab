@@ -455,24 +455,30 @@ internal partial class SettingsWindow : Window
 
         foreach (var entry in entries)
         {
-            var title = new TextBlock
-            {
-                Text = entry.DisplayName,
-                FontSize = 14,
-                Margin = new Thickness(24, 16, 24, 0),
-                Foreground = Style.TEXT_LIGHT.ToBrush(),
-            };
-            listView.Content.Children.Add(title);
+            // 每个插件一个可收起分组，标题与侧栏分组同款（白色 14px + 左侧三角 + 顶边分组线，见 SideBarSection）：
+            // 与其下暗一档的字段标签拉开层级，点标题即收起 / 展开。收起状态与字段折叠记在同一处（按扩展身份；
+            // 键 = 字段折叠的作用域本身，字段的键是"作用域/字段 id"，不会相撞）。
+            var foldScope = "settings:" + entry.PackageId + ":" + entry.ExtensionKey;
+            var section = new CollapsiblePanel { IsExpanded = !(FieldFoldStore.Current?.IsCollapsed(foldScope) ?? false) };
+            SideBarSection.Attach(section, entry.DisplayName);
+            var content = new StackPanel();
+            content.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
+            content.Children.Add(SideBarSection.CreateInset());
+            section.Content = content;
+            listView.Content.Children.Add(section);
 
             // 记下待定位插件的标题控件 + 所在 ListView，供开窗后滚动到位。
             // 给了 focusExtensionKey 就精确匹配该能力位，否则匹配到该包首个条目（先到先得，故加 == null 守卫）。
+            // 定位到的插件若是收起的就展开它（只这一次、不改记忆：用户是来看它的设置的，只看到一行标题等于没到）。
             if (!string.IsNullOrEmpty(mFocusExtensionPackageId) && entry.PackageId == mFocusExtensionPackageId
                 && (string.IsNullOrEmpty(mFocusExtensionKey) || entry.ExtensionKey == mFocusExtensionKey)
                 && mFocusEntryControl == null)
             {
                 mFocusListView = listView;
-                mFocusEntryControl = title;
+                mFocusEntryControl = section;
+                section.IsExpanded = true;
             }
+            section.ExpandedChanged += () => FieldFoldStore.Current?.SetCollapsed(foldScope, !section.IsExpanded);
 
             // 设置数据须挂在文档根上（属性面板字段绑定会读 DataObject.Head），每 extension 一份独立 DataDocument。
             var data = new DataPropertyObject(new DataDocument());
@@ -485,10 +491,10 @@ internal partial class SettingsWindow : Window
             var controller = new PropertyObjectController
             {
                 ButtonScope = "settings/" + entry.PackageId + "/" + entry.ExtensionKey,
-                CollapseScope = "settings:" + entry.PackageId + ":" + entry.ExtensionKey,   // 折叠记忆按扩展身份记
+                CollapseScope = foldScope,   // 折叠记忆按扩展身份记
             };
             controller.SetConfig(entry.Settings.GetSettingsConfig(ctx), data);
-            listView.Content.Children.Add(controller);
+            content.Children.Add(controller);
 
             // 动态设置项：值变更后按当前值重算 config 并 diff 到控件树（条件显隐）。reconcile 复用同一数据对象、不丢焦点。
             var captured = entry;

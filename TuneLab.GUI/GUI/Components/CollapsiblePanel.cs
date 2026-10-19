@@ -22,8 +22,18 @@ internal class CollapsiblePanel : StackPanel
         set { mContentPanel.Children.Clear(); if (value != null) mContentPanel.Children.Add(value); }
     }
 
-    // 展开状态及其变更（标题上的三角据此转向，见 SideBarSection）。
-    public bool IsExpanded => mContentPanel.IsVisible;
+    // 展开状态及其变更（标题上的三角据此转向，见 SideBarSection）。点标题与代码设置都会触发 ExpandedChanged。
+    public bool IsExpanded
+    {
+        get => mContentPanel.IsVisible;
+        set
+        {
+            if (value == mContentPanel.IsVisible)
+                return;
+            mContentPanel.IsVisible = value;
+            ExpandedChanged?.Invoke();
+        }
+    }
     public event Action? ExpandedChanged;
 
     public CollapsiblePanel()
@@ -31,7 +41,7 @@ internal class CollapsiblePanel : StackPanel
         Children.Add(mTitlePanel);
         Children.Add(mContentPanel);
 
-        mTitlePanel.PointerPressed += (s, e) => { mContentPanel.IsVisible = !mContentPanel.IsVisible; ExpandedChanged?.Invoke(); };
+        mTitlePanel.PointerPressed += (s, e) => IsExpanded = !IsExpanded;
     }
 
     LayerPanel mTitlePanel = new() { Background = Brushes.Transparent } ;
