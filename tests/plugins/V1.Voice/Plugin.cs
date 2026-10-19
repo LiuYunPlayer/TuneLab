@@ -61,6 +61,12 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
         var offset = DraggableNumberBoxConfig.Create(0).WithSensitivity(0.5).WithFormat(NumberFormat.Decimals(1));
         mCorePhonemeProperties.Add(("offset", "Offset (ms)"), offset);
         mConsonantPhonemeProperties.Add(("offset", "Offset (ms)"), offset);
+        // 插件自绘画布（验证 CanvasConfig：绘制 / 鼠标与键盘交互 / 草稿 + 提交 / 多选合并 / 收起摘要），见 StretchCurveCanvas。
+        // note 面板与核音素面板各放一个：后者是它的本来用途（音素内部的拉伸曲线），前者选中 note 即可见、测起来方便。
+        mNoteProperties.Add(("stretch", "Stretch Curve"), StretchCurveCanvas.Config);
+        mCorePhonemeProperties.Add(("stretch", "Stretch"), StretchCurveCanvas.Config);
+        // 画布图片与绘制状态（验证 CanvasImage 位图 / SVG / 自生成像素、裁剪 / 透明度 / 变换、设备像素比、键盘），见 ImageDemoCanvas。
+        mNoteProperties.Add(("image_demo", "Canvas Images"), ImageDemoCanvas.Config);
         // 条件自动化轨开关（part 级）：勾选才暴露 Growl 轨——验证轨集合 = f(part 参数值)，
         // 取消勾选时 Growl 已画曲线由宿主保留隐藏、重新勾选即原样恢复。
         mPartProperties.Add(("growl_enabled", "Enable Growl"), CheckBoxConfig.Create(true));

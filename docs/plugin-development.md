@@ -9,7 +9,7 @@
 
 ## 1. Core Concepts
 
-- **A plugin package = a folder**. It is the atomic unit of deployment, installation, and uninstallation, placed into TuneLab's extension directory (see §10).
+- **A plugin package = a folder**. It is the atomic unit of deployment, installation, and uninstallation, placed into TuneLab's extension directory (see §11).
 - **`manifest.json` is the package's identity manifest**, which must sit at the **top level** of the package folder. New (V1) plugins **must** include it; TuneLab reads this file first and then **selectively** loads the assemblies inside the package based on its contents — it does not blindly scan the whole folder.
 - **One package can contain multiple plugins**. If you have a shared infrastructure assembly, you can pack multiple plugins built on top of it into the same package — the infrastructure is distributed once and loaded once at runtime (they share a single load context).
 - **Plugin category (type)**: currently supported are `format` (project file import/export), `voice` (singing synthesis engine), `instrument` (polyphonic sound-source engine such as a synth/sampler), and `effect` (an effect that applies whole-segment offline transforms to synthesized audio, such as voice conversion). A package can also be a pure **resource package** (no code, e.g. voicebank resources).
@@ -53,7 +53,7 @@ Plugin level (describing "what this package provides"). **Identity is inlined in
 | `suffixes` | for format | Shorthand for "both directions accept these **file suffixes**" (no dot, e.g. `["mid", "midi"]`), i.e. exactly the same as setting `import-suffixes` and `export-suffixes` to this value. |
 | `import-suffixes` / `export-suffixes` | for format | The suffixes each direction accepts. **A direction you do not declare does not exist** — that is how an import-only or export-only format is written. Asymmetric aliases go here too: `"import-suffixes": ["mid","midi"], "export-suffixes": ["midi"]` reads two and writes one, still as **one** entry. Mutually exclusive with `suffixes`; at least one direction must be non-empty. |
 | `name` | | The **display name** (for UI), which may differ from the identity id and may be translated. If omitted, the UI falls back to showing the identity id. |
-| `introduction` | | A path relative to the package pointing at a markdown **introduction** (what it does, how to get started, what to watch out for). The host renders it in the extension detail window; the agent fetches it on demand via `get_extension_introduction`. |
+| `introduction` | | A path relative to the package pointing at a markdown **introduction** (what it does, how to get started, what to watch out for). The host renders it in the extension detail window; the agent fetches it on demand via `get_extension_introduction`. **Describe what every field means and what values it takes** (structured values above all, such as a canvas field's value shape, see §10.1): this is the only place the agent learns what a field is for and what to write. |
 | `localizations` | | Per-language overrides of `name` / `introduction`, e.g. `{ "zh-CN": { "name": "增益", "introduction": "Introduction.zh-CN.md" } }`. Missing entries fall back to the base value. Language variants of `introduction` go **here** (each language may point at a different filename); there is **no** implicit `<base>.<lang>.md` filename convention. |
 | `class` | ✅ when it contains code | The full name of **the one entry class** for this entry (e.g. `"My.Ns.MyVoiceEngine"`). The host verifies it implements what this entry declares (see below) and has a **parameterless constructor**; anything else is a load error. |
 | `assembly` | ✅ when it contains code | The assembly (a single path relative to the package folder) containing that class. Resource packages omit it. |
@@ -1093,7 +1093,84 @@ props.Add(("editor", "Editor"), ButtonConfig.Create("Open...", async _ =>
 
 Reference implementations: `tests/plugins/V1.CustomWindow` + `tests/plugins/V1.CustomWindow.Editor` (a button launching a WinForms editor exe, waiting for it or not), `tests/plugins/V1.Settings` (settings page: clear cache / test connection / export preset (PromptInputs) / throwing / buttons inside a nested object and list elements), `tests/plugins/V1.Voice` (buttons on part / note / phoneme panels), `tests/plugins/V1.Effect` (an effect-panel button with progress).
 
-## 10. Packaging, Installation, Uninstallation
+## 10. Canvas (CanvasConfig)
+
+For edits the built-in controls can't express (say, a stretch curve inside a phoneme), declare a **canvas**: you draw it, you handle the mouse, and when the edit is done you commit the result to the field.
+
+```csharp
+props.Add(("stretch", "Stretch Curve"), CanvasConfig.Create(defaultCurve, 96, host => new StretchCurveCanvas(host))
+    .WithSummary(value => IsLinear(value) ? "Linear" : "Custom"));
+
+sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
+{
+    public void Render(ICanvasDrawing d)
+    {
+        var curve = Read(host.Value);                       // always validate what you read, see §10.1
+        d.DrawPolyline(ToPoints(curve), Color.SkyBlue, 2);
+    }
+    public void OnMouseDown(CanvasMouseButtonEvent e)
+    {
+        mDragging = HitTest(e.Position);
+        if (mDragging >= 0)
+            host.SetValue(host.Value);                       // write a draft to lock the canvas: the panel won't refresh mid-drag
+    }
+    public void OnMouseMove(CanvasMouseEvent e)
+    {
+        if (mDragging >= 0)
+            host.SetValue(Moved(host.Value, mDragging, e.Position));   // update the draft; not in the project yet
+    }
+    public void OnMouseUp(CanvasMouseButtonEvent e)
+    {
+        if (mDragging < 0) return;
+        mDragging = -1;
+        host.CommitValue();                                  // the draft goes into the project as one undo step
+    }
+    int mDragging = -1;
+}
+```
+
+### 10.1 It is a value field
+
+- **You define the value's shape** (any `PropertyValue`, objects and arrays included); the host doesn't interpret it. Reset to default, presets, undo and multi-selection all work as usual — so **always validate what you read**: undo, presets and paste can bring in a value of any shape; treat whatever doesn't fit as the default.
+- **Multi-selection**: the project value is the merged value of all targets, with multiple-value markers (`IsMultiple()`) where they differ — how to draw those is up to you. A commit writes the same value to every target.
+- **Collapsed summary**: `WithSummary(format)` — when the field is collapsed the host calls it with the current value and shows the result on the title row; when the whole value differs across targets the host shows the multiple-value marker without calling it. Without it the host shows "Default / Modified".
+- **CLI / agent** can read and write the value as is (any JSON shape). The host doesn't know the shape, so it doesn't validate it — values the agent writes go through your read-time validation like any other. The host tells the agent to read your introduction first and, failing that, to infer the shape from the current or default value, so **describe this field's value shape and meaning in your introduction**: what each member is, its range, and how the shape varies with state (say, the element count depends on another setting). The declaration can't carry this; only your description can be exact.
+- **Placement**: only as a member of an `ObjectConfig` (same as buttons, see §9.1).
+
+### 10.2 Drafts and commits
+
+While the user is working, the value is only a **draft**; it reaches the project when you commit:
+
+- **`SetValue`** writes the draft. The host keeps it for you — outside the project, invisible elsewhere — and `host.Value` returns it from then on, so you keep drawing from `host.Value`.
+- **`CommitValue`** writes the draft into the project as one undo step and ends the edit. **`DiscardValue`** drops the draft and goes back to the project value (a "cancel"), also ending the edit. Without a draft, both do nothing.
+- **A draft means the panel is still in use**: the property panels in that window don't refresh (declaration invalidations from your plugin and changes made elsewhere wait until the edit ends) and your instance won't be replaced. So to keep an operation from being interrupted, **write a draft when it starts** — on a press, before anything changed, just write the current value (as above). A draft may stay as long as you like, say until the user clicks a "confirm" you drew on the canvas.
+- **Only you commit**; the host never commits on your behalf. When a draft can't be kept, the host drops it: the field's value was changed from outside (undo, the same data edited elsewhere), the panel was torn down (switching parts, say), or the canvas left the screen (another tab, the window closed).
+- Continuous input with no "release" (the wheel, say) can **defer the commit**: `SetValue` on every notch, `await Task.Delay(…)` in the callback until the input pauses, then `CommitValue()` (after the `await` you are back on the main thread and can use `host` directly) — one continuous scroll becomes one undo step.
+
+### 10.3 Control instance lifetime
+
+- **The factory is not called at declaration time**: the host calls it when the canvas is about to show (a collapsed field builds no instance).
+- **An instance lives for one declaration**: every time the panel updates to a new declaration — after your commit, after an outside change, on a selection change — the host rebuilds the control with the new config's factory. The old instance is discarded and its `host` stops working (`SetValue` returns `false`). So **keep the factory cheap** (no IO, no heavy computation); the control object only carries event and drawing logic, and heavy resources are cached at plugin level.
+- **Transient state doesn't survive the instance**: hover and the like are lost with it, so make them recomputable from the value and event positions. A drag without a draft may switch instances midway — the new instance never gets that release; treat it as "not dragging".
+- **Events come in strict pairs**: each instance's `OnMouseEnter` / `OnMouseLeave` strictly alternate (when the instance is replaced, or the canvas appears under a pointer that isn't moving, the host sends an Enter right away instead of waiting for the user to move the mouse — **compute hover-like state in `OnMouseEnter` from its position**, not only on moves); every `OnMouseUp` has a matching `OnMouseDown` that this instance received; if mouse capture is lost unexpectedly (say, switching windows with the button held), the host sends an `OnMouseUp` with `IsClick` false so you can wrap up and commit as usual.
+
+### 10.4 Drawing and input
+
+- **Size**: the width follows the panel, the height is the declared height; read the current size from `host.Width` / `host.Height`. Coordinates are logical pixels (origin at top-left, DPI-independent), drawing is clipped to the canvas, and the host paints the background first (the same dark rounded fill as its input boxes) — you draw on top of it. `host.DevicePixelRatio` is the number of physical pixels per logical pixel (it follows the screen's scaling, say 1.5 or 2); you need it when you generate bitmaps yourself.
+- **Drawing** (`ICanvasDrawing`, valid only during `Render`): `Draw*` strokes lines / outlines, `Fill*` fills; to fill and outline, call both — `DrawLine`, `DrawPolyline`, `DrawPolygon` / `FillPolygon` (triangles and the like), `DrawRectangle` / `FillRectangle` (optionally rounded), `DrawEllipse` / `FillEllipse` (a circle has equal radii), `DrawText`, `MeasureText`. Colors are `System.Drawing.Color` (don't forget the alpha). `DrawText` aligns the text inside the given rectangle on a 3×3 grid (`CanvasAlignment`); a zero-size rectangle means "anchor at this point". The font is the host's (it follows the UI font) — lay out with `MeasureText`, never hard-code text widths.
+- **Images**: create one with `CanvasImage.FromEncodedData(bytes)` (PNG, JPEG, WebP, SVG; SVG never loads external references) or `CanvasImage.FromPixelData(width, height, rgba)` (four bytes per pixel — R, G, B, A, not premultiplied — row by row, no padding), and `DrawImage(image, x, y, w, h)` scales it into the rectangle (the aspect ratio is not kept; to keep it, compute the rectangle from `image.Width` / `image.Height`; SVG is rasterized crisply at the drawn size). **An image can't be changed once created**: to change the content, create a new one and `Dispose` the old one (dispose first, then create, so the host can reclaim memory sooner); a frame already drawn is unaffected by Dispose. You may create and dispose images on any thread (decode in the background, say), but draw them only in `Render`. Decoding takes time, so **cache images at plugin level** — don't decode again in the factory or in every `Render`. When you generate pixels yourself, generate `width × host.DevicePixelRatio` of them to stay crisp; when the ratio changes (the window moved to another screen) the host calls `Render` again.
+- **Drawing state**: `PushOpacity(opacity)` (multiplies with the outer one), `PushClip(x, y, w, h, cornerRadius)` (draw only inside the rectangle, intersected with the outer clip), `PushTransform(Matrix3x2)` (a coordinate transform from `System.Numerics`, composed with the outer one) — everything drawn afterwards is affected until you dispose the returned value, most naturally with `using`. They nest as a stack, last in first out, and whatever is still pushed when `Render` ends is popped by the host. Transforms only affect drawing: **mouse coordinates are always canvas coordinates** — invert the transform yourself for hit-testing.
+- **Redraw**: the host redraws when the value, the draft or the size changes; when your own state changes (hover, say) call `host.Invalidate()`.
+- **Mouse**: `OnMouseDown` / `OnMouseMove` / `OnMouseUp` / `OnMouseEnter` / `OnMouseLeave` / `OnScroll` — these and `Render` all have empty default implementations; implement only what you need. After a press the host captures the mouse (you keep getting moves and the release outside the canvas); double-clicks (`IsDoubleClick`) and clicks (`IsClick`) are decided by the host; modifier keys are normalized across platforms (Cmd on macOS reads as `Ctrl`).
+- **Keyboard**: `OnKeyDown` / `OnKeyUp(CanvasKeyEvent)` (`Key`, `Modifiers`, `IsRepeat`), delivered only while the canvas **has focus** — clicking the canvas gives it focus; clicking elsewhere or switching windows takes it away. Only the keys in `CanvasKey` are forwarded (letters, digits, F1–F12, arrows, Enter, Esc, Tab, Backspace, Delete, Home / End, PageUp / PageDown, Space, Ctrl / Alt / Shift — modifier keys get their own down / up too, left and right not distinguished); other keys bypass the canvas. Presses the system repeats while a key is held have `IsRepeat` true, at the system's repeat rate. Keys come in **strict pairs** as well: every `OnKeyUp` has a matching `OnKeyDown` this instance received; if focus is lost or the canvas leaves the screen while a key is held, the host sends the release; after the instance is replaced, the first press the new instance gets has `IsRepeat` false (to it, the key was just pressed). For press-and-hold adjustments, as usual **write a draft on the first press and commit on release** — one held key becomes one undo step. There is no text input (IME / characters).
+- **`e.Handled`**: every event argument has it (base class `CanvasEvent`). Set it to `true` when you handled the event and the host skips that event's default action; leave it (the default) to hand the event back to the host. The wheel and the keyboard have default actions: the wheel scrolls the panel the canvas sits in, and a key bubbles to the outer layers (shortcuts, the panel's own key handling). **Set it only when you actually use the event** (say, the pointer is over something adjustable, or it's a key you handle), never swallow wholesale — swallow the wheel and the panel gets stuck whenever the pointer sweeps across the canvas while the user scrolls; swallow keys and shortcuts like Space to play or undo stop working while the canvas has focus. For mouse buttons, moves and the like it makes no difference.
+- **Threading**: every callback runs on the main thread, and `host` may only be used there; don't block in callbacks.
+- **Exceptions**: the host logs them (naming your plugin) and stops calling that instance until it is rebuilt; its draft is dropped.
+- **No dialogs from a canvas**: confirmation / progress / input dialogs are currently available only during a button click (§9.2).
+
+Reference implementation: `tests/plugins/V1.Voice/StretchCurveCanvas.cs` (a stretch curve on the note panel and the core-phoneme panel: a draft on press, drag, double-click to reset, wheel over a point to nudge with a deferred commit / over empty space to scroll the panel, merged multi-selection values; with the canvas focused, ↑ / ↓ nudge the point under the pointer — hold to repeat, commit on release — and Esc cancels a drag) and `tests/plugins/V1.Voice/ImageDemoCanvas.cs` ("Canvas Images" on the note panel: plugin-level caching of an encoded bitmap and an SVG, pixels generated at the device pixel ratio, a rounded clip, opacity, a rotation transform, ← / → to rotate).
+
+## 11. Packaging, Installation, Uninstallation
 
 - **Package format**: zip up the package folder and change the extension to **`.tlx`**, requiring `manifest.json` at the zip's **root**.
 - **Installation**: in TuneLab, drag the `.tlx` into the window, or use "Install Extension" in the extensions sidebar. Installing extracts it to the extension directory and **loads it immediately** (no restart needed).
@@ -1103,7 +1180,7 @@ Reference implementations: `tests/plugins/V1.CustomWindow` + `tests/plugins/V1.C
 
 ---
 
-## 11. Loading and Validation Behavior
+## 12. Loading and Validation Behavior
 
 When TuneLab loads each package: **discover** → read `manifest.json` and **judge the generation** (has `id` = V1) → **validate** (sdk-version compatible? platform matches?) → build a **per-folder ALC** for the package → load each `assembly` in turn, **verifying the declared `class` implements what this `type` requires, then instantiating & registering it** (no longer reflecting over attributes).
 

@@ -41,6 +41,9 @@
 | 吸附网格的档位（1/16、三连的 1/12…） | `quantization`（`IQuantization` / `QuantizationBase` / `QuantizationDivision` / 动作 id `quantization.*`） | 量化 | 符号面别写 `snap` / `grid`（模型可见的句子里可以用 "the snap grid" 作解释性同位语，如 `editor status` 那行；**符号与 id 一律 quantization**） |
 | 一条动作要作用在哪个成员上（一个动词 × 一个闭集里的成员） | `argument`（`ActionParameter` / `ActionArgument` / `run_action` 的 `argument` 字段），那一批统称**选择器参数** selector parameter | 选择器参数 | 别写 `option` / `value` / `target` 指它；命令自己的入参仍叫 `parameter`（`ParametersJsonSchema`），动作的这一个是 `argument`——两个词分工见 command-surface.md §5.6 |
 | 右侧那条可开合的容器 + 它的页签 | `sidebar`（动作 id `sidebar.*` / `editor status` 的 `sidebars` 字段 / `SideTabBar`、`SideBarTab`） | 侧栏 | 「侧边栏」「抽屉」；容器叫**侧栏**，里面显示的那一块叫**面板**（`Part Panel`…），两个词别互换 |
+| 属性面板里由插件自己绘制、自己处理鼠标的值字段 | `CanvasConfig` / `ICanvas*`（SDK）；`PluginCanvas`（GUI） | 画布 | 「自定义 UI」「自定义控件」（太宽：插件自己的独立界面是另一回事，见插件文档 §9.3）；`handle`（不给插件原生窗口句柄） |
+| 一个逻辑像素对应的物理像素数（随屏幕缩放） | `DevicePixelRatio`（SDK `ICanvasHost`） | 设备像素比 | `RenderScaling`（Avalonia 的叫法，宿主只在翻译层碰它）、`Scale` / `DpiScale`（含糊：没说清是谁比谁） |
+| 鼠标 / 键盘事件携带的修饰键集合（跨平台归一：macOS 的 Cmd 记作 Ctrl） | `ModifierKeys`（SDK `CanvasModifierKeys`；GUI `TuneLab.GUI.Input.ModifierKeys`），事件上的属性名 `Modifiers` | 修饰键 | `KeyModifiers`（那是 Avalonia 的物理按键枚举、带 Meta，语义不同；宿主只在翻译层碰它） |
 | 从一组固定候选里挑若干个值（有序、不重复）的字段及其候选 | `TagConfig` / `TagItem`（SDK）；`TagController`（GUI） | 标签 | `MultiSelect*`（「多选」在本仓指同时选中多个音符/片段，撞词）；`ChipConfig`（描述的是界面形态不是语义）；候选别复用 `ComboBoxItem`（两者各自演进） |
 
 ### 三条边界的说明

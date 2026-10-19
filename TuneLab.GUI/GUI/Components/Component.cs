@@ -156,12 +156,15 @@ internal class Component : Control
     protected sealed override void OnPointerWheelChanged(PointerWheelEventArgs e)
     {
         var p = e.GetCurrentPoint(this);
-        OnScroll(new()
+        var args = new WheelEventArgs()
         {
             KeyModifiers = e.KeyModifiers.ToModifierKeys(),
             Position = p.Position,
             Delta = e.Delta.ToAvaloniaPoint(),
-        });
+        };
+        OnScroll(args);
+        if (args.Handled)
+            e.Handled = true;
     }
 
     void CallMouseDown(MouseDownEventArgs e)

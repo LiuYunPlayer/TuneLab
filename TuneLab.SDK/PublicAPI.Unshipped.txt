@@ -2,6 +2,9 @@
 override TuneLab.SDK.TagItem.Equals(object? obj) -> bool
 override TuneLab.SDK.TagItem.GetHashCode() -> int
 static TuneLab.SDK.ButtonConfig.Create(string! text, System.Func<TuneLab.SDK.IButtonClickContext!, System.Threading.Tasks.Task!>! onClick) -> TuneLab.SDK.ButtonConfig!
+static TuneLab.SDK.CanvasConfig.Create(TuneLab.Foundation.PropertyValue defaultValue, double height, System.Func<TuneLab.SDK.ICanvasHost!, TuneLab.SDK.ICanvasControl!>! createControl) -> TuneLab.SDK.CanvasConfig!
+static TuneLab.SDK.CanvasImage.FromEncodedData(System.ReadOnlySpan<byte> data) -> TuneLab.SDK.CanvasImage!
+static TuneLab.SDK.CanvasImage.FromPixelData(int width, int height, System.ReadOnlySpan<byte> rgba) -> TuneLab.SDK.CanvasImage!
 static TuneLab.SDK.TagConfig.Create(System.Collections.Generic.IReadOnlyList<TuneLab.SDK.TagItem>! items) -> TuneLab.SDK.TagConfig!
 static TuneLab.SDK.TagItem.implicit operator TuneLab.SDK.TagItem(bool value) -> TuneLab.SDK.TagItem
 static TuneLab.SDK.TagItem.implicit operator TuneLab.SDK.TagItem(double value) -> TuneLab.SDK.TagItem
@@ -14,8 +17,154 @@ static TuneLab.SDK.TagItem.Separator(string? label = null) -> TuneLab.SDK.TagIte
 TuneLab.SDK.ButtonConfig
 TuneLab.SDK.ButtonConfig.OnClick.get -> System.Func<TuneLab.SDK.IButtonClickContext!, System.Threading.Tasks.Task!>!
 TuneLab.SDK.ButtonConfig.Text.get -> string!
+TuneLab.SDK.CanvasAlignment
+TuneLab.SDK.CanvasAlignment.Center = 5 -> TuneLab.SDK.CanvasAlignment
+TuneLab.SDK.CanvasAlignment.CenterBottom = 9 -> TuneLab.SDK.CanvasAlignment
+TuneLab.SDK.CanvasAlignment.CenterTop = 1 -> TuneLab.SDK.CanvasAlignment
+TuneLab.SDK.CanvasAlignment.LeftBottom = 8 -> TuneLab.SDK.CanvasAlignment
+TuneLab.SDK.CanvasAlignment.LeftCenter = 4 -> TuneLab.SDK.CanvasAlignment
+TuneLab.SDK.CanvasAlignment.LeftTop = 0 -> TuneLab.SDK.CanvasAlignment
+TuneLab.SDK.CanvasAlignment.RightBottom = 10 -> TuneLab.SDK.CanvasAlignment
+TuneLab.SDK.CanvasAlignment.RightCenter = 6 -> TuneLab.SDK.CanvasAlignment
+TuneLab.SDK.CanvasAlignment.RightTop = 2 -> TuneLab.SDK.CanvasAlignment
+TuneLab.SDK.CanvasConfig
+TuneLab.SDK.CanvasConfig.CreateControl.get -> System.Func<TuneLab.SDK.ICanvasHost!, TuneLab.SDK.ICanvasControl!>!
+TuneLab.SDK.CanvasConfig.DefaultValue.get -> TuneLab.Foundation.PropertyValue
+TuneLab.SDK.CanvasConfig.Height.get -> double
+TuneLab.SDK.CanvasConfig.Summary.get -> System.Func<TuneLab.Foundation.PropertyValue, string?>?
+TuneLab.SDK.CanvasConfig.WithSummary(System.Func<TuneLab.Foundation.PropertyValue, string?>? summary) -> TuneLab.SDK.CanvasConfig!
+TuneLab.SDK.CanvasEvent
+TuneLab.SDK.CanvasEvent.Handled.get -> bool
+TuneLab.SDK.CanvasEvent.Handled.set -> void
+TuneLab.SDK.CanvasImage
+TuneLab.SDK.CanvasImage.Dispose() -> void
+TuneLab.SDK.CanvasImage.Height.get -> double
+TuneLab.SDK.CanvasImage.Width.get -> double
+TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.A = 65 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.Alt = 18 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.ArrowDown = 40 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.ArrowLeft = 37 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.ArrowRight = 39 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.ArrowUp = 38 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.B = 66 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.Backspace = 8 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.C = 67 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.Ctrl = 17 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.D = 68 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.Delete = 46 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.Digit0 = 48 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.Digit1 = 49 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.Digit2 = 50 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.Digit3 = 51 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.Digit4 = 52 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.Digit5 = 53 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.Digit6 = 54 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.Digit7 = 55 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.Digit8 = 56 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.Digit9 = 57 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.E = 69 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.End = 35 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.Enter = 13 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.Escape = 27 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.F = 70 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.F1 = 112 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.F10 = 121 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.F11 = 122 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.F12 = 123 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.F2 = 113 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.F3 = 114 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.F4 = 115 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.F5 = 116 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.F6 = 117 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.F7 = 118 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.F8 = 119 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.F9 = 120 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.G = 71 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.H = 72 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.Home = 36 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.I = 73 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.J = 74 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.K = 75 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.L = 76 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.M = 77 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.N = 78 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.O = 79 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.P = 80 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.PageDown = 34 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.PageUp = 33 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.Q = 81 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.R = 82 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.S = 83 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.Shift = 16 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.Space = 32 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.T = 84 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.Tab = 9 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.U = 85 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.V = 86 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.W = 87 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.X = 88 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.Y = 89 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKey.Z = 90 -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKeyEvent
+TuneLab.SDK.CanvasKeyEvent.IsRepeat.get -> bool
+TuneLab.SDK.CanvasKeyEvent.Key.get -> TuneLab.SDK.CanvasKey
+TuneLab.SDK.CanvasKeyEvent.Modifiers.get -> TuneLab.SDK.CanvasModifierKeys
+TuneLab.SDK.CanvasModifierKeys
+TuneLab.SDK.CanvasModifierKeys.Alt = 2 -> TuneLab.SDK.CanvasModifierKeys
+TuneLab.SDK.CanvasModifierKeys.Ctrl = 1 -> TuneLab.SDK.CanvasModifierKeys
+TuneLab.SDK.CanvasModifierKeys.None = 0 -> TuneLab.SDK.CanvasModifierKeys
+TuneLab.SDK.CanvasModifierKeys.Shift = 4 -> TuneLab.SDK.CanvasModifierKeys
+TuneLab.SDK.CanvasMouseButton
+TuneLab.SDK.CanvasMouseButton.Middle = 2 -> TuneLab.SDK.CanvasMouseButton
+TuneLab.SDK.CanvasMouseButton.Other = 0 -> TuneLab.SDK.CanvasMouseButton
+TuneLab.SDK.CanvasMouseButton.Primary = 1 -> TuneLab.SDK.CanvasMouseButton
+TuneLab.SDK.CanvasMouseButton.Secondary = 3 -> TuneLab.SDK.CanvasMouseButton
+TuneLab.SDK.CanvasMouseButtonEvent
+TuneLab.SDK.CanvasMouseButtonEvent.Button.get -> TuneLab.SDK.CanvasMouseButton
+TuneLab.SDK.CanvasMouseButtonEvent.IsClick.get -> bool
+TuneLab.SDK.CanvasMouseButtonEvent.IsDoubleClick.get -> bool
+TuneLab.SDK.CanvasMouseEvent
+TuneLab.SDK.CanvasMouseEvent.Modifiers.get -> TuneLab.SDK.CanvasModifierKeys
+TuneLab.SDK.CanvasMouseEvent.Position.get -> TuneLab.Foundation.Point
+TuneLab.SDK.CanvasWheelEvent
+TuneLab.SDK.CanvasWheelEvent.Delta.get -> TuneLab.Foundation.Point
 TuneLab.SDK.IButtonClickContext
 TuneLab.SDK.IButtonClickContext.Dialogs.get -> TuneLab.SDK.IDialogService!
+TuneLab.SDK.ICanvasControl
+TuneLab.SDK.ICanvasControl.OnKeyDown(TuneLab.SDK.CanvasKeyEvent! e) -> void
+TuneLab.SDK.ICanvasControl.OnKeyUp(TuneLab.SDK.CanvasKeyEvent! e) -> void
+TuneLab.SDK.ICanvasControl.OnMouseDown(TuneLab.SDK.CanvasMouseButtonEvent! e) -> void
+TuneLab.SDK.ICanvasControl.OnMouseEnter(TuneLab.SDK.CanvasMouseEvent! e) -> void
+TuneLab.SDK.ICanvasControl.OnMouseLeave(TuneLab.SDK.CanvasMouseEvent! e) -> void
+TuneLab.SDK.ICanvasControl.OnMouseMove(TuneLab.SDK.CanvasMouseEvent! e) -> void
+TuneLab.SDK.ICanvasControl.OnMouseUp(TuneLab.SDK.CanvasMouseButtonEvent! e) -> void
+TuneLab.SDK.ICanvasControl.OnScroll(TuneLab.SDK.CanvasWheelEvent! e) -> void
+TuneLab.SDK.ICanvasControl.Render(TuneLab.SDK.ICanvasDrawing! drawing) -> void
+TuneLab.SDK.ICanvasDrawing
+TuneLab.SDK.ICanvasDrawing.DrawEllipse(TuneLab.Foundation.Point center, double radiusX, double radiusY, System.Drawing.Color color, double width = 1) -> void
+TuneLab.SDK.ICanvasDrawing.DrawImage(TuneLab.SDK.CanvasImage! image, double x, double y, double width, double height) -> void
+TuneLab.SDK.ICanvasDrawing.DrawLine(TuneLab.Foundation.Point from, TuneLab.Foundation.Point to, System.Drawing.Color color, double width = 1) -> void
+TuneLab.SDK.ICanvasDrawing.DrawPolygon(System.Collections.Generic.IReadOnlyList<TuneLab.Foundation.Point>! points, System.Drawing.Color color, double width = 1) -> void
+TuneLab.SDK.ICanvasDrawing.DrawPolyline(System.Collections.Generic.IReadOnlyList<TuneLab.Foundation.Point>! points, System.Drawing.Color color, double width = 1) -> void
+TuneLab.SDK.ICanvasDrawing.DrawRectangle(double x, double y, double width, double height, System.Drawing.Color color, double lineWidth = 1, double cornerRadius = 0) -> void
+TuneLab.SDK.ICanvasDrawing.DrawText(string! text, double x, double y, double width, double height, System.Drawing.Color color, double fontSize, TuneLab.SDK.CanvasAlignment alignment = TuneLab.SDK.CanvasAlignment.Center) -> void
+TuneLab.SDK.ICanvasDrawing.FillEllipse(TuneLab.Foundation.Point center, double radiusX, double radiusY, System.Drawing.Color color) -> void
+TuneLab.SDK.ICanvasDrawing.FillPolygon(System.Collections.Generic.IReadOnlyList<TuneLab.Foundation.Point>! points, System.Drawing.Color color) -> void
+TuneLab.SDK.ICanvasDrawing.FillRectangle(double x, double y, double width, double height, System.Drawing.Color color, double cornerRadius = 0) -> void
+TuneLab.SDK.ICanvasDrawing.MeasureText(string! text, double fontSize) -> (double Width, double Height)
+TuneLab.SDK.ICanvasDrawing.PushClip(double x, double y, double width, double height, double cornerRadius = 0) -> System.IDisposable!
+TuneLab.SDK.ICanvasDrawing.PushOpacity(double opacity) -> System.IDisposable!
+TuneLab.SDK.ICanvasDrawing.PushTransform(System.Numerics.Matrix3x2 transform) -> System.IDisposable!
+TuneLab.SDK.ICanvasHost
+TuneLab.SDK.ICanvasHost.CommitValue() -> void
+TuneLab.SDK.ICanvasHost.DevicePixelRatio.get -> double
+TuneLab.SDK.ICanvasHost.DiscardValue() -> void
+TuneLab.SDK.ICanvasHost.Height.get -> double
+TuneLab.SDK.ICanvasHost.Invalidate() -> void
+TuneLab.SDK.ICanvasHost.SetValue(TuneLab.Foundation.PropertyValue value) -> bool
+TuneLab.SDK.ICanvasHost.Value.get -> TuneLab.Foundation.PropertyValue
+TuneLab.SDK.ICanvasHost.Width.get -> double
 TuneLab.SDK.IDialogService
 TuneLab.SDK.IDialogService.Confirm(string! title, string! message) -> System.Threading.Tasks.Task<bool>!
 TuneLab.SDK.IDialogService.PromptInputs(string! title, TuneLab.SDK.ObjectConfig! config) -> System.Threading.Tasks.Task<TuneLab.Foundation.PropertyObject?>!

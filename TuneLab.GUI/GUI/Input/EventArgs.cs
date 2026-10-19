@@ -32,4 +32,6 @@ internal class MouseLeaveEventArgs : MouseEventArgs { }
 internal class WheelEventArgs : MouseEventArgs
 {
     public Point Delta { get; set; }
+    // 置 true = 这次滚轮已被本组件消费，不再冒泡（外层滚动容器不滚）。
+    public bool Handled { get; set; }
 }

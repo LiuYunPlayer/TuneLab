@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using TuneLab.Extensions;
 using TuneLab.Foundation;
 using TuneLab.GUI.Controllers;
@@ -154,6 +155,12 @@ internal static class ExtensionSettingsText
 
             case ButtonConfig:
                 return (default, string.Format("\"{0}\" is a button, not a value — it can only be clicked in the Settings window's Extensions page.", key));
+
+            // 画布的值形状由插件自定、宿主不解读：原样收下任意 JSON（不校验——宿主本来就不知道形状），插件读值时自己校验。
+            case CanvasConfig:
+                return raw.ValueKind == JsonValueKind.Null
+                    ? (default, string.Format("\"{0}\" needs a value (its shape is defined by the extension; see its introduction).", key))
+                    : (ConfigText.ToPropertyValue(JsonNode.Parse(raw.GetRawText())), null);
 
             default:
                 return (default, string.Format("\"{0}\" is a grouped/complex field that can't be set here — ask the user to edit it in the Settings window's Extensions page.", key));

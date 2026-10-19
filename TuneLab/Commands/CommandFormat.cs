@@ -39,6 +39,9 @@ internal static class ConfigText
         ObjectConfig => "object (grouped fields)",
         // 按钮没有值：点明它不是可设的字段，免得模型去 set 它。
         ButtonConfig b => string.Format("button \"{0}\" (an action in the panel, holds no value; can't be set)", b.Text),
+        // 画布的值形状只有插件知道（宿主不解读、也不校验）：指给模型去读插件的说明；说明里没写就只能照当前值 / 默认值推断。
+        CanvasConfig => "custom value edited on a canvas the extension draws; its shape is defined by the extension, not checked by the host — "
+            + "read the extension's introduction first (get_extension_introduction); if it doesn't describe this field, infer the shape from the current or default value",
         _ => "value",
     };
 
@@ -99,6 +102,7 @@ internal static class ConfigText
         if (v.ToDouble(out var d)) return FormatNum(d);
         if (v.ToString(out var s)) return "\"" + s + "\"";
         if (v.ToArray(out var array)) return "[" + string.Join(", ", array.Select(FormatValue)) + "]";
+        if (v.ToObject(out var obj)) return "{" + string.Join(", ", obj.Map.Select(kvp => "\"" + kvp.Key + "\": " + FormatValue(kvp.Value))) + "}";
         return "(none)";
     }
 
@@ -119,6 +123,13 @@ internal static class ConfigText
         if (v.ToDouble(out var d)) return d;
         if (v.ToString(out var s)) return s;
         if (v.ToArray(out var array)) return new JsonArray(array.Select(ToJson).ToArray());
+        if (v.ToObject(out var obj))
+        {
+            var o = new JsonObject();
+            foreach (var kvp in obj.Map)
+                o[kvp.Key] = ToJson(kvp.Value);
+            return o;
+        }
         return null;
     }
 
@@ -133,8 +144,18 @@ internal static class ConfigText
             ? PropertyValue.Create(d)
             : default,
         JsonValueKind.String => PropertyValue.Create(node.GetValue<string>()),
+        JsonValueKind.Array => PropertyValue.Create(new PropertyArray(node.AsArray().Select(ToPropertyValue).ToList())),
+        JsonValueKind.Object => PropertyValue.Create(ToPropertyObject(node.AsObject())),
         _ => default,   // 缺失 / JSON null → 空值，渲染成 "(none)"
     };
+
+    static PropertyObject ToPropertyObject(JsonObject node)
+    {
+        var map = new Map<string, PropertyValue>();
+        foreach (var kvp in node)
+            map.Add(kvp.Key, ToPropertyValue(kvp.Value));
+        return new PropertyObject(map);
+    }
 }
 
 // 模型给的标量实参（JSON）与 PropertyValue 之间的口径统一：一律先化成【无引号字面量】再比对/报错。

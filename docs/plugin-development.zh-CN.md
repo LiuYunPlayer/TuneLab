@@ -9,7 +9,7 @@
 
 ## 1. 核心概念
 
-- **插件包 = 一个文件夹**。它是部署、安装、卸载的原子单位，被放进 TuneLab 的扩展目录（见 §10）。
+- **插件包 = 一个文件夹**。它是部署、安装、卸载的原子单位，被放进 TuneLab 的扩展目录（见 §11）。
 - **`manifest.json` 是包的身份标识**，必须放在包文件夹的**最外层**。新版（V1）插件**必须**带它；TuneLab 先读这个文件，再据其内容**有选择地**加载包内程序集——不会盲目扫描整个文件夹。
 - **一个包可以含多个插件**。若你有一套共用的基建程序集，可以把基于它开发的多个插件打进同一个包，基建只分发一份、运行时也只加载一份（它们共享同一个加载上下文）。
 - **插件类别（type）**：当前支持 `format`（工程文件导入/导出）、`voice`（歌声合成引擎）、`instrument`（多声部音源引擎，如合成器/采样器）与 `effect`（效果器，对合成音频做整段离线变换，如换声）。包还可以是纯**资源包**（无代码，如音色资源）。
@@ -53,7 +53,7 @@
 | `suffixes` | format | 「两个方向都认这些**文件后缀**」的简写（不带点，如 `["mid", "midi"]`），等价于把 `import-suffixes` 与 `export-suffixes` 同时设成这个值。 |
 | `import-suffixes` / `export-suffixes` | format | 各方向认的后缀。**没声明的方向就是不存在**——只导入或只导出的格式就这么写。别名不对称也在这里表达：`"import-suffixes": ["mid","midi"], "export-suffixes": ["midi"]` = 读两种、只写一种，仍是**一个**条目。与 `suffixes` 互斥；至少一个方向非空。 |
 | `name` | | **显示名**（UI 展示用），可与身份 id 不同、可翻译。省略则 UI 退回显示身份 id。 |
-| `introduction` | | 包内相对路径，指向一份 markdown **介绍**（能干什么、怎么开始用、有什么坑）。宿主在扩展详情窗渲染它，agent 按需拉取（`get_extension_introduction`）。 |
+| `introduction` | | 包内相对路径，指向一份 markdown **介绍**（能干什么、怎么开始用、有什么坑）。宿主在扩展详情窗渲染它，agent 按需拉取（`get_extension_introduction`）。**强烈建议把每个字段的含义与取值写清楚**（尤其是结构化的值，如画布字段的值形状，见 §10.1）：agent 只能从这里得知字段是什么意思、该写什么。 |
 | `localizations` | | 按语言覆盖 `name` / `introduction`，如 `{ "zh-CN": { "name": "增益", "introduction": "Introduction.zh-CN.md" } }`。缺当前语言则回退基础值。`introduction` 的语言变体就走**这里**（各语言可指不同文件名），**没有** `<base>.<lang>.md` 那种隐式后缀约定。 |
 | `class` | 含代码时✅ | 本条目那**唯一一个入口类**的全名（如 `"My.Ns.MyVoiceEngine"`）。宿主校验它实现了本条目所声明的一切（见下）、且有**无参构造函数**；不满足即加载错误。 |
 | `assembly` | 含代码时✅ | 含该类的程序集（相对包文件夹的路径，单个）。资源包省略。 |
@@ -1091,7 +1091,84 @@ props.Add(("editor", "编辑器"), ButtonConfig.Create("打开...", async _ =>
 
 参考实现：`tests/plugins/V1.CustomWindow` + `tests/plugins/V1.CustomWindow.Editor`（按钮启动 WinForms 界面 exe，等它关闭 / 只启动两种方式）、`tests/plugins/V1.Settings`（设置页：清理缓存 / 测试连接 / 导出预设（PromptInputs）/ 抛异常 / 嵌套对象与列表元素里的按钮）、`tests/plugins/V1.Voice`（part / note / 音素面板的按钮）、`tests/plugins/V1.Effect`（effect 面板的按钮 + 进度）。
 
-## 10. 打包、安装、卸载
+## 10. 画布（CanvasConfig）
+
+官方控件表达不了的编辑（比如音素内部的拉伸曲线），可以声明一块**画布**：你自己画、自己处理鼠标，编辑完把结果提交给这个字段。
+
+```csharp
+props.Add(("stretch", "拉伸曲线"), CanvasConfig.Create(defaultCurve, 96, host => new StretchCurveCanvas(host))
+    .WithSummary(value => IsLinear(value) ? "线性" : "自定义"));
+
+sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
+{
+    public void Render(ICanvasDrawing d)
+    {
+        var curve = Read(host.Value);                       // 读值一律校验，见 §10.1
+        d.DrawPolyline(ToPoints(curve), Color.SkyBlue, 2);
+    }
+    public void OnMouseDown(CanvasMouseButtonEvent e)
+    {
+        mDragging = HitTest(e.Position);
+        if (mDragging >= 0)
+            host.SetValue(host.Value);                       // 写草稿锁住画布：拖动期间面板不刷新
+    }
+    public void OnMouseMove(CanvasMouseEvent e)
+    {
+        if (mDragging >= 0)
+            host.SetValue(Moved(host.Value, mDragging, e.Position));   // 改草稿，还没进工程
+    }
+    public void OnMouseUp(CanvasMouseButtonEvent e)
+    {
+        if (mDragging < 0) return;
+        mDragging = -1;
+        host.CommitValue();                                  // 草稿写进工程，成为一个撤销步骤
+    }
+    int mDragging = -1;
+}
+```
+
+### 10.1 它是一个值字段
+
+- **值的形状由你定**（任意 `PropertyValue`，可以是对象或数组），宿主不解读。恢复默认、preset、撤销、多选都照常参与，所以**读值时一律校验**——撤销、preset、粘贴都可能带来任意形状的值，形状不对的地方按默认处理。
+- **多选**：工程里的值是各目标的合并值，不一致处是多值标记（`IsMultiple()`），怎么画由你决定；提交时把同一个值写到全部目标。
+- **收起摘要**：`WithSummary(format)`——字段收起时宿主用当前值调用它，显示在标题行；值整体不一致时宿主直接显示多值标记、不调用。不给则显示"默认 / 已修改"。
+- **CLI / agent** 能原样读写这个值（任意 JSON 形状）。宿主不知道形状，也就不校验——agent 写入的值同样要经过你读值时的校验。宿主会提示 agent 先读你的 introduction、读不到再照当前值或默认值推断，所以**强烈建议在 introduction 里写清这个字段的值形状与含义**：每个成员是什么、取值范围、随状态变化的形状（如元素个数随别的设置变）。声明里给不出这些，只有你的说明能讲准确。
+- **位置**：只能作为 `ObjectConfig` 的成员（与按钮相同，见 §9.1）。
+
+### 10.2 草稿与提交
+
+操作期间的值只是**草稿**，提交时才进工程：
+
+- **`SetValue`** 写草稿。宿主代为保管——不进工程、别处看不到——`host.Value` 随即返回它，你照常按 `host.Value` 画。
+- **`CommitValue`** 把草稿写进工程，成为一个撤销步骤，并结束编辑。**`DiscardValue`** 丢弃草稿、回到工程里的值（如"取消"），也结束编辑。没有草稿时两者都什么都不做。
+- **有草稿 = 面板仍在使用**：所在窗口的属性面板不刷新（插件宣告的声明失效、别处的修改都留到编辑结束），你的实例也不会被换掉。所以一次操作要防被打断，就**在操作开始时写草稿**——比如按下时还没改值，写入当前值即可（如上例）。草稿可以一直挂着，等用户在画布上点你画的"确认"再提交。
+- **提交只由你发起**，宿主从不代为提交。草稿保不住时宿主将其丢弃：外部改了本字段的值（撤销、别处改了同一份数据）、面板被拆（切换 part 等）、画布离开界面（页签切走、窗口关闭）。
+- 没有"松手"的连续操作（如滚轮）可以**推迟提交**：每格都 `SetValue`，在回调里 `await Task.Delay(…)` 等操作停顿再 `CommitValue()`（`await` 之后回到主线程，可以直接用 `host`），一段连续滚动只成一个撤销步骤。
+
+### 10.3 控件实例的生命周期
+
+- **工厂不在声明时调用**：画布要显示时宿主才调用它（收起的字段不建实例）。
+- **实例的寿命 = 一次声明**：面板每次按新声明更新——你提交之后、外部改值之后、选中变化——都用新 config 的工厂重建；旧实例作废，它手里的 `host` 随之失效（再 `SetValue` 返回 `false`）。所以**工厂要廉价**（不做 IO、不做重计算），控件对象只放事件和绘制逻辑，重资源在插件级缓存。
+- **临时状态不跨实例**：悬停之类的状态随实例丢失，要能从值与事件位置重新算出。没写草稿的拖动可能中途换实例——新实例收不到那次抬起，按"没在拖动"处理即可。
+- **事件严格成对**：每个实例收到的 `OnMouseEnter` / `OnMouseLeave` 严格交替（换了实例、或画布出现在静止的指针下时，宿主主动发一次 Enter，不等用户动鼠标——**悬停之类的状态要在 `OnMouseEnter` 里按它带的位置算出**，别只在移动里算）；每个 `OnMouseUp` 都有本实例收到过的对应 `OnMouseDown`；鼠标捕获意外丢失（如按着鼠标切走窗口）时宿主补发 `OnMouseUp`（`IsClick` 为 false），你照常在里面收尾、提交。
+
+### 10.4 绘制与输入
+
+- **尺寸**：宽度跟随面板，高度是声明的高度；当前尺寸读 `host.Width` / `host.Height`。坐标是逻辑像素（左上角为原点，与 DPI 无关），绘制裁剪在画布内；宿主先画好底（与输入框同款的深色圆角底），你画在它上面。`host.DevicePixelRatio` 是一个逻辑像素对应的物理像素数（随屏幕缩放，如 1.5、2），自己生成位图时用得到。
+- **绘图**（`ICanvasDrawing`，只在 `Render` 期间有效）：`Draw*` 画线条 / 轮廓，`Fill*` 填充，既要填充又要描边就调两次——`DrawLine`、`DrawPolyline`、`DrawPolygon` / `FillPolygon`（三角形等）、`DrawRectangle` / `FillRectangle`（可圆角）、`DrawEllipse` / `FillEllipse`（圆即两半径相等）、`DrawText`、`MeasureText`。颜色是 `System.Drawing.Color`（注意别漏掉 alpha）。`DrawText` 按九宫格（`CanvasAlignment`）把文字对齐在给定矩形内，矩形宽高给 0 即"以该点为锚"；字体由宿主决定（跟随界面字体），排版用 `MeasureText` 的结果，别写死文字宽度。
+- **图片**：`CanvasImage.FromEncodedData(bytes)`（PNG、JPEG、WebP、SVG；SVG 不加载外部引用）或 `CanvasImage.FromPixelData(width, height, rgba)`（每像素 R、G、B、A 四字节、非预乘、逐行无填充）创建，`DrawImage(image, x, y, w, h)` 缩放画进矩形（不保持宽高比，要保持就按 `image.Width` / `image.Height` 自己算；SVG 按绘制尺寸清晰栅格化）。图片**创建后不可改写**：换内容就新建一张、把旧的 `Dispose`（先 Dispose 再新建，宿主更容易及时回收）；已经画出去的那一帧不受 Dispose 影响。可以在任意线程创建与 Dispose（如后台解码），绘制只在 `Render` 里。解码要花时间，**图片在插件级缓存**，别在工厂或 `Render` 里每次重新解码。自己生成像素时按 `宽 × host.DevicePixelRatio` 的像素数生成才清晰，比例变了（窗口拖到另一块屏幕）宿主会重新调用 `Render`。
+- **绘制状态**：`PushOpacity(opacity)`（不透明度，与外层相乘）、`PushClip(x, y, w, h, cornerRadius)`（只画矩形内，与外层取交集）、`PushTransform(Matrix3x2)`（坐标变换，`System.Numerics`，与外层复合）——之后的绘制都受影响，直到 Dispose 返回值，用 `using` 写最自然。按栈嵌套、后进先出，`Render` 结束时没撤销的宿主一并撤销。变换只影响绘制：**鼠标坐标永远是画布坐标**，命中检测自己做逆变换。
+- **重画**：值、草稿或尺寸变化时宿主自动重画；你自己的状态变了（如悬停）调 `host.Invalidate()`。
+- **鼠标**：`OnMouseDown` / `OnMouseMove` / `OnMouseUp` / `OnMouseEnter` / `OnMouseLeave` / `OnScroll`，连同 `Render` 全部带空的默认实现，只实现你关心的。按下后宿主自动捕获鼠标（拖出画布也继续收到移动与抬起）；双击（`IsDoubleClick`）与点击（`IsClick`）由宿主判定；修饰键跨平台归一（macOS 的 Cmd 记作 `Ctrl`）。
+- **键盘**：`OnKeyDown` / `OnKeyUp(CanvasKeyEvent)`（`Key`、`Modifiers`、`IsRepeat`），画布**有焦点**时才收到——点一下画布即获得焦点，点别处、切走窗口即失去。只转发 `CanvasKey` 收录的键（字母、数字、F1–F12、方向键、Enter、Esc、Tab、Backspace、Delete、Home / End、PageUp / PageDown、空格、Ctrl / Alt / Shift；修饰键本身也有按下 / 抬起，左右不区分），其余键不经画布。按住不放时系统重复发来的按下 `IsRepeat` 为 true，节奏随系统设置。同样**严格成对**：每个 `OnKeyUp` 都有本实例收到过的对应 `OnKeyDown`；按着键时失去焦点或画布离开界面，宿主补发抬起；换了实例后新实例收到的第一个按下 `IsRepeat` 为 false（对它来说键刚按下）。按住连调的操作照常**在第一次按下时写草稿、抬起时提交**，一段连按只成一个撤销步骤。没有文字输入（输入法 / 字符）。
+- **`e.Handled`**：所有事件参数都有（基类 `CanvasEvent`）。处理了这次事件就置 `true`，宿主不再做该事件的默认动作；不置（默认）= 交还宿主。有默认动作的是滚轮与键盘：滚轮的默认动作是滚动所在面板，键盘的是冒泡给外层（快捷键、面板自己的按键处理）。**只在真正用到时置位**（如指针在可调的元素上、按的是你处理的键），别整块吞掉——吞了滚轮，用户滚面板时指针一扫过画布就卡住；吞了键盘，画布有焦点时空格播放、撤销这些快捷键全都失灵。鼠标按键、移动等事件置不置都一样。
+- **线程**：全部回调在主线程上，`host` 也只能在主线程用；别在回调里阻塞。
+- **异常**：由宿主记日志（标明你的插件），该实例此后不再被调用，直到下次重建；它的草稿随之丢弃。
+- **画布里不能弹窗**：确认 / 进度 / 输入这类弹窗目前只有按钮点击期间可用（§9.2）。
+
+参考实现：`tests/plugins/V1.Voice/StretchCurveCanvas.cs`（note 面板与核音素面板上的拉伸曲线：按下即写草稿、拖动、双击复位、点上滚轮微调并推迟提交 / 空白处照常滚面板、多选合并值；画布有焦点时 ↑ / ↓ 微调指针所在的点、按住连调、松开提交，拖动中按 Esc 取消）与 `tests/plugins/V1.Voice/ImageDemoCanvas.cs`（note 面板上的"Canvas Images"：编码位图与 SVG 的插件级缓存、按设备像素比自生成像素、圆角裁剪、透明度、旋转变换，← / → 旋转）。
+
+## 11. 打包、安装、卸载
 
 - **包格式**：把包文件夹打成 zip，扩展名改为 **`.tlx`**，要求 `manifest.json` 在 zip 的**根目录**。
 - **安装**：在 TuneLab 里把 `.tlx` 拖进窗口，或用扩展侧边栏的「Install Extension」。安装即解压到扩展目录并**立即加载**（无需重启）。
@@ -1101,7 +1178,7 @@ props.Add(("editor", "编辑器"), ButtonConfig.Create("打开...", async _ =>
 
 ---
 
-## 11. 加载与校验行为
+## 12. 加载与校验行为
 
 TuneLab 加载每个包时：**发现** → 读 `manifest.json` **判代际**（有 `id` = V1）→ **校验**（sdk-version 兼容？平台匹配？）→ 为包建一个 **per-folder ALC** → 逐条按 `assembly` 加载、**校验声明的 `class` 实现了本 `type` 所需接口后实例化注册**（不再反射扫 attribute）。
 

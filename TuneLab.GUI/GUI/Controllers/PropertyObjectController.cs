@@ -1010,6 +1010,70 @@ internal class PropertyObjectController : StackPanel
         ButtonConfig mConfig;
     }
 
+    // 插件画布（CanvasConfig）：标题行 + 插件自己画的区域（宽随面板、高由声明）。值是插件自定形状的裸 PropertyValue，
+    // 读写、撤销、外部改值后重建都在 PluginCanvas 里。每次声明更新都换上新工厂（旧实例作废，见 PluginCanvas）。
+    // 右键菜单只挂标题行：画布里的右键归插件。
+    class CanvasCreator : Creator
+    {
+        public CanvasCreator(PropertyObjectController parent, PropertyKey key, CanvasConfig config) : base(parent)
+        {
+            mConfig = config;
+            mTitle = CreateTitle(key.DisplayText ?? key.Id, 30);
+            mCanvas = new PluginCanvas() { Margin = new(24, FieldGap, 24, 12) };
+            Apply(config);
+            var field = parent.DataObject.ValueField(key.Id, config.DefaultValue);
+            mCanvas.Bind(field);
+            mFold = new FieldFold(mTitle, [mCanvas], parent.FoldKey(key),
+                summary: () => Summary(((IRawValueProperty)field).RawValue), watch: parent.DataObject);
+            AttachContextMenu(key, () => mConfig, mFold.Header);
+        }
+
+        void Apply(CanvasConfig config)
+        {
+            mConfig = config;
+            mCanvas.Height = config.Height;
+            mCanvas.SetFactory(config.CreateControl);
+        }
+
+        // 值的形状只有插件懂：给了格式化就交给它，没给则只分"默认 / 已修改"。
+        string? Summary(PropertyValue value)
+        {
+            if (value.IsMultiple())
+                return "(Multiple)";
+            if (mConfig.Summary is { } format)
+            {
+                try
+                {
+                    return format(value);
+                }
+                catch (Exception ex)
+                {
+                    Log.ErrorAttributed("Canvas summary threw", ex);
+                    return null;
+                }
+            }
+            return (value.Equals(mConfig.DefaultValue) ? "Default" : "Modified").Tr("PropertyObjectController");
+        }
+
+        public override Type ConfigType => typeof(CanvasConfig);
+        public override FieldFold? Fold => mFold;
+        public override IEnumerable<Control> Views => [mFold.Header, mCanvas];
+        public override void Update(IControllerConfig config) { Apply((CanvasConfig)config); mFold.RefreshSummary(); }
+
+        public override void Dispose()
+        {
+            base.Dispose();
+            mFold.Dispose();
+            mCanvas.Unbind();
+            ObjectPoolManager.Return(mTitle);
+        }
+
+        readonly Label mTitle;
+        readonly FieldFold mFold;
+        readonly PluginCanvas mCanvas;
+        CanvasConfig mConfig;
+    }
+
     // bottomGap：标题下方留白。容器字段（数组/列表/键控容器）的内容紧接标题、自身不带上边距，需要它隔开；
     // 其余字段的控件自带上边距，取 0。标题出自对象池，故每次都显式重设，不继承上一任主人的值。
     static Label CreateTitle(string title, double height, double bottomGap = 0)
@@ -1039,6 +1103,7 @@ internal class PropertyObjectController : StackPanel
         { typeof(TagConfig), (parent, key, config) => new TagCreator(parent, key, (TagConfig)config) },
         { typeof(ExtensibleObjectConfig), (parent, key, config) => new ExtensibleObjectCreator(parent, key, (ExtensibleObjectConfig)config) },
         { typeof(ButtonConfig), (parent, key, config) => new ButtonCreator(parent, key, (ButtonConfig)config) },
+        { typeof(CanvasConfig), (parent, key, config) => new CanvasCreator(parent, key, (CanvasConfig)config) },
     };
 
     ButtonRoot mButtonRoot = new();

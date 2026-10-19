@@ -122,6 +122,12 @@ class Program
 
         // 注入插件可读的全局 host context（语言 + 按 ALC 自动前缀的日志器）。须在加载插件之前。
         TuneLabContext.Global = new TuneLabContextGlobal();
+        // 画布图片的解码实现（CanvasImage）。同样须在加载插件之前：插件可能在加载期就创建图片。
+        CanvasImage.Factory = new TuneLab.GUI.Components.CanvasImageFactory();
+        // SVG 一律不解析外部引用（外部图片 / 外部文件里的元素）：要画的 SVG 来自插件包、插件运行时数据、agent 回复里的图片，
+        // 都不该借一张图去读本机文件或发网络请求。SVG 库只有这一个全局开关；宿主自带的图标不用外部引用，不受影响。
+        Svg.SvgDocument.ResolveExternalImages = Svg.ExternalType.None;
+        Svg.SvgDocument.ResolveExternalElements = Svg.ExternalType.None;
     }
 
     // Avalonia configuration, don't remove; also used by visual designer.

@@ -37,3 +37,10 @@ engine.Synthesize(part);
 ```
 
 See [the parameters section](#parameters) above for tuning tips.
+
+## Canvas fields
+
+These note fields are drawn by the extension itself; their values are plain JSON:
+
+- **Stretch Curve** (`stretch`, also on the core phoneme as `stretch`): an array of exactly 5 numbers, each in 0..1, for evenly spaced points from the start to the end of the note. The default `[0, 0.25, 0.5, 0.75, 1]` is linear. Missing or out-of-range entries are treated as linear at that point.
+- **Canvas Images** (`image_demo`): one number, the star's rotation in degrees (any value; 0 = upright).
