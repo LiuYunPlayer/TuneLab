@@ -185,7 +185,8 @@ internal static class ExtensionManager
             if (required > SdkVersion)
             {
                 result.Status = ExtensionLoadStatus.Skipped;
-                result.Error = string.Format("Requires SDK {0}, host provides {1}", required, SdkVersion);
+                result.RequiredSdk = required;
+                result.Error = string.Format("Requires a newer TuneLab: needs SDK {0}, this TuneLab provides {1}", required, SdkVersion);
                 Log.Warning(string.Format("Extension {0} skipped: requires SDK {1}, host provides {2}", description.name, required, SdkVersion));
                 return;
             }

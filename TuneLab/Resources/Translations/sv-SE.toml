@@ -184,6 +184,8 @@
 "Failed" = "Misslyckades"
 "Failed: " = "Misslyckades: "
 "Installed: " = "Installerade: "
+"Requires a newer TuneLab: this extension needs SDK {0}, this TuneLab provides {1}." = "Nyare TuneLab krävs: det här tillägget behöver SDK {0}, detta TuneLab tillhandahåller {1}."
+"Installed, but needs a newer TuneLab (current SDK {0}) — update TuneLab to use it: " = "Installerat, men kräver ett nyare TuneLab (nuvarande SDK {0}) – uppdatera TuneLab för att använda det: "
 "Partial" = "Delvis"
 "Skipped" = "Hoppade över"
 "Reset to Default" = "Återställ till standard"

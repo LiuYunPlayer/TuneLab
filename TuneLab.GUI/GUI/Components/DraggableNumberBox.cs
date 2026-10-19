@@ -55,6 +55,7 @@ internal class DraggableNumberBox : Container, IDataValueController<double>
                 mValueCommitted.Invoke();
             }
             RefreshText();
+            EndTyping();
         });
     }
 
@@ -187,10 +188,26 @@ internal class DraggableNumberBox : Container, IDataValueController<double>
 
     void EnterEdit()
     {
+        // 键入期间算所在窗口"编辑中"（见 EditGate）：值要到确认时才提交，这期间面板若按新声明刷新，打到一半的数字就丢了。
+        // 拖动那条路径不用这里——它经 WillChange / Committed 由 EditGate.Track 登记。
+        mTyping ??= EditGate.Of(this)?.BeginEdit();
         mTextInput.Display(double.IsNaN(mValue) ? string.Empty : mFormat.Format(mValue));
         mTextInput.IsVisible = true;
         mTextInput.Focus();
         mTextInput.SelectAll();
+    }
+
+    void EndTyping()
+    {
+        mTyping?.Dispose();
+        mTyping = null;
+    }
+
+    // 键入中途离开界面（面板被拆、窗口关闭）：结束登记，不让窗口一直挂着"编辑中"。
+    protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        EndTyping();
     }
 
     void ChangeValue(double value)
@@ -230,6 +247,7 @@ internal class DraggableNumberBox : Container, IDataValueController<double>
     static readonly Avalonia.Input.Cursor SizeWestEastCursor = new(StandardCursorType.SizeWestEast);
 
     readonly TextInput mTextInput;
+    IDisposable? mTyping;   // 键入期间在所在窗口 EditGate 上的登记（见 EnterEdit）
     IBrush? mBoxBackground = Style.BACK.ToBrush();
     IBrush mTextForeground = Style.LIGHT_WHITE.ToBrush();
     INumberFormat mFormat = TuneLab.SDK.NumberFormat.Decimals(2);

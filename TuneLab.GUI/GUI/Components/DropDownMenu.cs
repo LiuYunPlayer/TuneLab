@@ -58,6 +58,7 @@ internal sealed class DropDownMenu : Panel
             JustClosed = true;
             Dispatcher.UIThread.Post(() => JustClosed = false, DispatcherPriority.Input);
             Closed?.Invoke();
+            EndHold();
         };
         Children.Add(mPopup);
     }
@@ -70,12 +71,30 @@ internal sealed class DropDownMenu : Panel
         mMatches.Clear();
         mHighlight = -1;
         mPopup.Child = BuildRoot(width);
+        // 菜单打开期间算所在窗口"编辑中"（见 EditGate）：面板这时若按新声明刷新，锚点控件（下拉框、+ 按钮）可能被换掉，
+        // 弹层就挂在一个已经不在的控件上，选了也落不到数据里。选定或关闭（含点别处收起）即结束。
+        mHold ??= EditGate.Of(this)?.BeginEdit();
         mPopup.IsOpen = true;
         if (mSearchBox != null)
             Dispatcher.UIThread.Post(() => mSearchBox?.Focus(), DispatcherPriority.Loaded);
     }
 
     public void Close() => mPopup.IsOpen = false;
+
+    void EndHold()
+    {
+        mHold?.Dispose();
+        mHold = null;
+    }
+
+    // 打开中离开界面（面板被拆、窗口关闭）：结束登记，不让窗口一直挂着"编辑中"。
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        EndHold();
+    }
+
+    IDisposable? mHold;   // 打开期间在所在窗口 EditGate 上的登记
 
     Control BuildRoot(double width)
     {

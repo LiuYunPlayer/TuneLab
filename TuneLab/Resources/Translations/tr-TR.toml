@@ -184,6 +184,8 @@
 "Failed" = "Başarısız"
 "Failed: " = "Başarısız: "
 "Installed: " = "Yüklendi: "
+"Requires a newer TuneLab: this extension needs SDK {0}, this TuneLab provides {1}." = "Daha yeni bir TuneLab gerekiyor: bu uzantı SDK {0} gerektiriyor, bu TuneLab {1} sağlıyor."
+"Installed, but needs a newer TuneLab (current SDK {0}) — update TuneLab to use it: " = "Yüklendi, ancak daha yeni bir TuneLab gerekiyor (mevcut SDK {0}) — kullanmak için TuneLab'ı güncelleyin: "
 "Partial" = "Kısmi"
 "Skipped" = "Atlandı"
 "Reset to Default" = "Varsayılana sıfırla"

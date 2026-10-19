@@ -190,6 +190,8 @@
 "Failed" = "失敗"
 "Failed: " = "失敗："
 "Installed: " = "已安裝："
+"Requires a newer TuneLab: this extension needs SDK {0}, this TuneLab provides {1}." = "需要更新 TuneLab：此擴充需要 SDK {0}，目前 TuneLab 提供的是 {1}。"
+"Installed, but needs a newer TuneLab (current SDK {0}) — update TuneLab to use it: " = "已安裝，但需要更新 TuneLab 才能使用（目前 SDK {0}）："
 "Partial" = "部分"
 "Skipped" = "已略過"
 "Disabled" = "已停用"
