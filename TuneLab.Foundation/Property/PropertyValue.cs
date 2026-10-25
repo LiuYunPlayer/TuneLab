@@ -187,8 +187,15 @@ public readonly struct PropertyValue : IEquatable<PropertyValue>
 
     // 泛型读取：仅匹配确切存储类型。number/boolean 分支需装箱以返回 T（罕用的泛型路径；
     // 具体类型用上面的 To* 直读字段、零拆箱）。
+    // T = PropertyValue 即"按原值取"（值形状任意的字段，如画布）：原样返回。缺了这一支，
+    // PropertyObject.GetValue(key, PropertyValue.Null) 能编译、却恒返回默认值。
     public bool To<T>([MaybeNullWhen(false)] out T result)
     {
+        if (typeof(T) == typeof(PropertyValue))
+        {
+            result = (T)(object)this;
+            return true;
+        }
         if (typeof(T) == typeof(double))
         {
             if (mType == PropertyType.Number) { result = (T)(object)mNumber; return true; }

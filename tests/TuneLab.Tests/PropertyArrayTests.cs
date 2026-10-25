@@ -433,4 +433,15 @@ public class PropertyArrayTests
         live.SetValue(stale, 5.0);          // no-op，不抛、不复活
         Assert.Equal(new PropertyArray(new PropertyValue[] { 2.0 }), live.GetInfo());
     }
+
+    // 按原值取（值形状任意的字段）：T = PropertyValue 必须原样返回，不能落到默认值。
+    [Fact]
+    public void GetValue_AsPropertyValue_ReturnsTheStoredValue()
+    {
+        var stored = PropertyValue.Create(new PropertyArray(new PropertyValue[] { 1.0, "a" }));
+        var obj = Obj(("mix", stored));
+
+        Assert.Equal(stored, obj.GetValue("mix", PropertyValue.Null));
+        Assert.True(obj.GetValue("missing", PropertyValue.Null).IsNull());
+    }
 }
