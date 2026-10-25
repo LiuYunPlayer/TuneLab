@@ -39,6 +39,8 @@ internal static class BridgeProtocol
     // 与档位并列的还有 execute 参数 "canAsk"（布尔，缺省 true）：声明了 confirm 就说明"要问"，
     // canAsk 才说明"问得着"——非交互的 shell 里两者不同。缺了它，命令会把"根本没法问"说成
     // "用户拒绝了"，而当时并没有任何用户被问过。
+    // 另有 execute 参数 "workingDirectory"（字符串，可缺省）：客户端进程的当前目录，命令里的相对路径
+    // 按它解析而不是按宿主进程的（见 CommandContext.WorkingDirectory）；缺省时按宿主进程目录。
     public const string AuthAuto = "auto";
     public const string AuthConfirm = "confirm";
     public const string AuthReadOnly = "readonly";

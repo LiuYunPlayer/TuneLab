@@ -44,4 +44,13 @@ internal sealed record CommandContext
     // 把活儿送上宿主主线程的调度器（数据层改动、引擎/字体枚举都要求在那儿跑）。入口注入：
     // 有界面的进程给 UiThreadDispatcher，headless 给泵驱动的等价物。null = 就地执行（无 UI 的测试进程）。
     public IMainThreadDispatcher? MainThread { get; init; }
+
+    // 调用方的工作目录：命令里的相对路径参数按它解析。attach 下命令跑在 TuneLab 进程里，那个进程的
+    // 当前目录是安装目录之类与调用方毫不相干的地方——终端里敲 `--path out.wav` 的人指的是他终端所在的
+    // 目录，不是 TuneLab 的。null = 调用方与本进程同一个当前目录（headless、进程内测试），按进程目录解析。
+    public string? WorkingDirectory { get; init; }
+
+    // 把调用方给的路径转成绝对路径（相对路径按 WorkingDirectory）。异常与 Path.GetFullPath 相同，由调用方报成 bad_path。
+    public string FullPath(string path)
+        => WorkingDirectory is { } directory ? System.IO.Path.GetFullPath(path, directory) : System.IO.Path.GetFullPath(path);
 }

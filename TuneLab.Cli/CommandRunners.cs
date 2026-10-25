@@ -46,6 +46,8 @@ internal sealed class BridgeRunner(BridgeClient client, AuthorizationState autho
             // 【能不能问】与【要不要问】是两回事：非交互的 shell 里没人能答那个确认，宿主必须知道，
             // 否则命令会把"根本没法问"说成"用户拒绝了"——而当时并没有任何用户被问过。
             ["canAsk"] = canAsk,
+            // 相对路径参数是相对【这个终端】说的，宿主进程的当前目录与之无关。
+            ["workingDirectory"] = Environment.CurrentDirectory,
         }, request => StdinConfirm.OnBridgeRequest(request, authorization), cancellationToken);
 
         if (failure != null)

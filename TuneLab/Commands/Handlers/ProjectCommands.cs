@@ -142,9 +142,8 @@ internal sealed class ProjectStatusCommand : ICommand
 //  将来若用户真需要在脚本里导出（如"每轨各存一个 midi"），再加 tl 原语并配"脚本内登记意图 → 脚本成功结束后统一
 //  过闸门执行、脚本出错则一并丢弃（文件从未写）"的延迟写机制，与本命令加性并存。
 //
-// 【只做工程/MIDI 等格式文件，不做音频导出】：音频导出要跑完整合成+混音+编码，期间界面必须锁住（根因是渲染要求
-// 数据全程不变，不是 UI 偷懒）——那与"调用方边导出边继续干活"根本矛盾，且"要不要现在把机器占住几分钟"是用户的
-// 人在环决定，同播放/试听的裁定。故音频导出的正解是备好参数、最后一下由用户按，不在本命令里。
+// 【只做工程/MIDI 等格式文件，音频另有一条】音频导出要先把全曲合成驱动到落定、渲染期锁住界面，还要判失败段
+// 会不会导成静音——形状与本命令完全不同，故单列为 `project export-audio`（ProjectExportAudioCommand）。
 // 打开一个工程文件，换掉用户此刻开着的那一份。覆盖率清单里 `pending:project-open` 那一条：
 // 「打开」与「最近文件」要的是**一个路径参数**，那是命令的形状——动作面只能弹个选择器让人自己挑
 // （`file.open`），而带路径的这件事必须是命令。
@@ -194,7 +193,7 @@ internal sealed class ProjectOpenCommand : ICommand
                 + "that only exists in a running TuneLab window (attach to one), and a headless run takes its project from --project at startup.");
 
         string fullPath;
-        try { fullPath = System.IO.Path.GetFullPath(given); }
+        try { fullPath = ctx.FullPath(given); }
         catch (Exception ex) { return CommandResult.Fail("bad_path", string.Format("\"{0}\" is not a usable file path — {1}", given, ex.Message)); }
         if (!File.Exists(fullPath))
             return CommandResult.Fail("missing_file", string.Format("there is no file at \"{0}\".", fullPath));
@@ -301,7 +300,7 @@ internal sealed class ProjectExportCommand : ICommand
 
         // 路径合法性先行（不为坏请求打扰用户 —— 同 `script save` 把预校验放在授权之前）。
         string fullPath;
-        try { fullPath = System.IO.Path.GetFullPath(given); }
+        try { fullPath = ctx.FullPath(given); }
         catch (Exception ex) { return CommandResult.Fail("bad_path", string.Format("\"{0}\" is not a usable file path — {1}", given, ex.Message)); }
         if (Directory.Exists(fullPath))
             return CommandResult.Fail("path_is_folder", string.Format("\"{0}\" is a folder, not a file path. Give the full path including the file name and extension.", fullPath));
@@ -521,7 +520,7 @@ internal sealed class ProjectSaveAsCommand : ICommand
             return CommandResult.Fail("no_editor", ProjectSaveSupport.NoEditor);
 
         string fullPath;
-        try { fullPath = System.IO.Path.GetFullPath(given); }
+        try { fullPath = ctx.FullPath(given); }
         catch (Exception ex) { return CommandResult.Fail("bad_path", string.Format("\"{0}\" is not a usable file path — {1}", given, ex.Message)); }
 
         var folder = System.IO.Path.GetDirectoryName(fullPath);
@@ -645,7 +644,7 @@ internal sealed class ProjectExportAudioCommand : ICommand
 
         // 路径与格式先行（不为坏请求打扰用户，同 `project export`）。
         string fullPath;
-        try { fullPath = System.IO.Path.GetFullPath(given); }
+        try { fullPath = ctx.FullPath(given); }
         catch (Exception ex) { return CommandResult.Fail("bad_path", string.Format("\"{0}\" is not a usable file path — {1}", given, ex.Message)); }
         if (Directory.Exists(fullPath))
             return CommandResult.Fail("path_is_folder", string.Format("\"{0}\" is a folder, not a file path. Give the full path including the file name and extension.", fullPath));

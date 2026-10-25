@@ -152,6 +152,7 @@ internal sealed class BridgeSession(Stream stream, string token)
             Authorization = new BridgeAuthorizationPolicy(
                 parameters["authorization"]?.GetValue<string>(), parameters["canAsk"]?.GetValue<bool>() ?? true, this),
             SideModel = null,
+            WorkingDirectory = parameters["workingDirectory"]?.GetValue<string>(),
         };
 
         var result = await command.ExecuteAsync(args, ctx, cancellationToken);

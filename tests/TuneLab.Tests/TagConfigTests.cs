@@ -36,6 +36,15 @@ public class TagConfigTests
         Assert.Equal(L("c", "a", "b"), TagModel.Read(node, "tags", A()));
     }
 
+    // 存值不是数组（非法数据，如旧版本留下的对象）：按缺省处理，显示声明的默认值，而不是显示成"一个都没选"。
+    [Fact]
+    public void ReadFallsBackToDefaultWhenStoredValueIsNotAnArray()
+    {
+        var node = new DataPropertyObject();
+        node.SetValue("tags", PropertyValue.Create(PropertyObject.Empty));
+        Assert.Equal(L("a"), TagModel.Read(node, "tags", A("a")));
+    }
+
     // ===== 增删挪 =====
 
     [Fact]
@@ -128,6 +137,12 @@ public class TagConfigTests
     [Fact]
     public void FormatValueRendersArrays()
         => Assert.Equal("[\"a\", 1]", ConfigText.FormatValue(new PropertyArray([V("a"), PropertyValue.Create(1)])));
+
+    // 命令的 Data 里存 ToJson 转出的原始值、渲染时再经 FormatValue(JsonNode) 转回：数组若转不回来，
+    // tag 字段的当前值就显示成 "(none)"。
+    [Fact]
+    public void RenderingFromJsonKeepsArrays()
+        => Assert.Equal("[\"a\", 1]", ConfigText.FormatValue(ConfigText.ToJson(new PropertyArray([V("a"), PropertyValue.Create(1)]))));
 
     [Fact]
     public void NormalizeMatchesCandidatesKeepsOrderAndDropsDuplicates()

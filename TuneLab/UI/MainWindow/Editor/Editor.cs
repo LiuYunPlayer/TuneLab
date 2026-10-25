@@ -373,10 +373,9 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             Prompts = () => true,
             Execute = SaveRecoveredToOriginal,
         });
-        // 【音频导出不进动作面】导出混音 / 导出单轨音频都不在这里，理由与 `project export`
-        // 拒绝干音频导出同一条（见 ProjectExportCommand）：渲染期界面必须锁住好几分钟，
-        // 而"要不要现在把机器占住"是用户的人在环决定。外部能做的是把参数备好（导出设置属于工程数据，
-        // 脚本面可写），最后一下由用户按。「导出为<工程格式>」则已有那条命令（它能传路径）。
+        // 【音频导出不进动作面】导出混音 / 导出单轨音频都不在这里：导出要一个路径参数、还要先把合成等到落定，
+        // 那是命令的形状——混音走 `project export-audio`，「导出为<工程格式>」走 `project export`。
+        // 动作面上的同类入口只能弹框让人自己选路径，对外部调用方没有意义。
 
         // ── 应用与窗口。设置窗是非模态的（Show 而非 ShowDialog）：开着不挡别的动作，故不算 Prompts。
         Keymap.Register(new() { Id = "app.settings", DisplayName = () => "Settings".Tr(TC.Menu), Kind = ActionKind.AppState, Execute = () => SettingsWindow.Open(this.Window()) }, KeyScope.Global);

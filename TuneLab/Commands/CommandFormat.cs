@@ -144,6 +144,8 @@ internal static class ConfigText
             ? PropertyValue.Create(d)
             : default,
         JsonValueKind.String => PropertyValue.Create(node.GetValue<string>()),
+        // 结构化值（tag 组是数组；画布等字段的值形状任意）：缺了这两支，ToJson 转出去的数组渲染时转不回来，
+        // 用户/agent 看到的当前值就成了 "(none)"。
         JsonValueKind.Array => PropertyValue.Create(new PropertyArray(node.AsArray().Select(ToPropertyValue).ToList())),
         JsonValueKind.Object => PropertyValue.Create(ToPropertyObject(node.AsObject())),
         _ => default,   // 缺失 / JSON null → 空值，渲染成 "(none)"

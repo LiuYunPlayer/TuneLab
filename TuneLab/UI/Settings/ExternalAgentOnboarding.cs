@@ -92,17 +92,21 @@ internal static class ExternalAgentOnboarding
         sb.AppendLine("- To LOOK at the project instead of changing it, run a script that only prints:");
         sb.AppendLine("  `tunelab script run --dry-run --code \"print(...)\"` hands you the output and applies nothing.");
         sb.AppendLine("  (`tunelab project status` alone is just a summary — it never shows you a single note.)");
-        sb.AppendLine("- You cannot play or render audio, and you cannot export audio files — that is mine to press.");
-        sb.AppendLine("  (Exporting the project file itself you can do, with my authorization.)");
-        // 【谁负责保存】命令面刻意没有 save（存到哪个文件、什么时候存是用户的决定），故必须告诉它这件事，
-        // 否则它做完就走，改动留在撤销栈里，用户下次打开才发现。
-        sb.AppendLine("- Saving is mine: there is no save command, so my edits live in the app's undo stack until I");
-        sb.AppendLine("  save the project myself. Tell me when you are done so I do it.");
+        // 【导出音频要先打招呼】命令能做（project export-audio），但它先把全曲合成跑完才写文件，可能要几分钟，
+        // 期间用户的窗口被模态框锁住——授权卡片上也会写，但让 agent 事先说一声，用户才不会被突然锁住。
+        sb.AppendLine("- Rendering audio to a file (wav/mp3/flac/ogg) first synthesizes the whole project, which can take");
+        sb.AppendLine("  minutes and locks my window meanwhile — tell me before you start one.");
+        // 【谁决定保存】save/save-as 命令是有的，但它们覆盖的是用户自己的工程文件，什么时候存是用户的决定。
+        // 必须告诉它这件事，否则它要么擅自存，要么做完就走、改动留在撤销栈里，用户下次打开才发现。
+        sb.AppendLine("- Don't save my project unless I ask you to: until then your edits live in the app's undo stack.");
+        sb.AppendLine("  Tell me when you are done so I can review and save.");
         sb.AppendLine("- If a command says TuneLab is not reachable, show me exactly what it printed.");
         sb.AppendLine();
         // 记忆那一段：只让它记【门】，不让它记门后的东西。命令清单/参数/版本会随版本漂移，记住了
-        // 就会自信地调一条不存在的命令；而"有这道门、门在哪、四条铁律"是稳定的。
-        sb.AppendLine("If you keep notes across sessions, remember the four rules above and that this command exists");
+        // 就会自信地调一条不存在的命令；而"有这道门、门在哪、几条铁律"是稳定的。
+        // 铁律里也只写稳定的约束，不写"你能/不能做 X"——能力随版本增长，写死的"不能"会过时并劝退 agent
+        //（曾写过"不能导出音频"，命令加上后它照样拒绝替用户导出）。
+        sb.AppendLine("If you keep notes across sessions, remember the ground rules above and that this command exists");
         sb.AppendLine("(re-check the path when you use it — installs move) — then I won't have to paste this again.");
         sb.AppendLine("Do NOT memorize the command list, their arguments, or which version this is: run `tunelab --help`");
         sb.AppendLine("first each time instead, because those do change between versions. If you have no memory across");

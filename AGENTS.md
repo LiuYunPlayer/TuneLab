@@ -28,7 +28,9 @@ the txt files just to make the build green:
 2. Intentional **additive** API (new member/type) → plugin-implemented interfaces need a
    DIM default body; declare the signature in `PublicAPI.Unshipped.txt`
    (`dotnet format analyzers <csproj> --diagnostics RS0016`), and call out the new API
-   explicitly when presenting your change.
+   explicitly when presenting your change. If this is the first new API since the last
+   release (Unshipped was empty), also bump `ExtensionManager.SdkVersion` one step and add a
+   "not yet released" row to the version table in the plugin docs.
 3. Intentional **breaking** change (delete/alter a shipped signature) → **stop and ask the
    maintainer first.** Never edit `PublicAPI.Shipped.txt` on your own initiative.
 
@@ -37,8 +39,9 @@ workflow): `docs/sdk-api-evolution.md`.
 
 Related invariants: `AssemblyVersion` of both assemblies is pinned to 2.0.0.0 forever (see
 csproj comments — do not "align" it with the release version); the manifest `sdk-version`
-gate (`ExtensionManager.SdkVersion`) is a separate version axis and must be bumped when
-shipping new API.
+gate (`ExtensionManager.SdkVersion`) is a separate version axis that moves **one step per release
+cycle**: bumped with the first new API after a release, not again until the next release
+(`SdkVersionLedgerTests` enforces this).
 
 ## 用户手册
 

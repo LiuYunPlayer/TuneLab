@@ -24,11 +24,15 @@ namespace TuneLab.Extensions;
 internal static class ExtensionManager
 {
     // host 提供的 SDK ABI 地板版本（V1）。插件 sdk-version 须 <= 此值方可加载。
-    // 每次发布含新 API 的版本就提一档，与 PublicAPI.Unshipped → Shipped 是同一个动作的两处台账
-    // （见 docs/sdk-api-evolution.md §0）。1.1 = 2.1.0 那批新增（PathPickerConfig 一族、多行 TextBox）。
-    // 1.2 = 画布（CanvasConfig 一族）。尚未发布：先在画布分支上提档，让按文档声明 1.2 的实验插件能加载；
-    // 其 API 仍在 Unshipped，发布时再并入 Shipped。
+    // 一个发布周期只占一档（见 docs/sdk-api-evolution.md §0）：发版后第一笔新 API 进 Unshipped 时提一档，
+    // 同一周期后续的新 API 并入这一档、不再提；发版时 Unshipped → Shipped，LastReleasedSdkVersion 跟上。
+    // SdkVersionLedgerTests 按 Unshipped 是否为空机械校验这条规矩。
+    // 1.1 = 2.1.0 那批新增（PathPickerConfig 一族、多行 TextBox）。
+    // 1.2 = 2.1.1 之后的新增（TagConfig 一族、ButtonConfig 与对话框、声明失效、+ 菜单分组/分隔线、画布 CanvasConfig 一族——画布仍在实验中），尚未发布。
     public static readonly Version SdkVersion = new(1, 2);
+
+    // 最近一次正式发布的宿主所提供的 SDK 版本。只在发版收口时改（与 Unshipped → Shipped 同一个动作）。
+    public static readonly Version LastReleasedSdkVersion = new(1, 1);
 
     // 编进宿主的官方内置能力（无安装包）的包 id——用于扩展设置按包分桶。
     // 选含括号的保留标识：反向域名包 id 不可能长这样，撞键风险为零，且配置文件里一眼可辨「宿主内置」。
