@@ -194,7 +194,7 @@ internal sealed class ProjectOpenCommand : ICommand
                 + "that only exists in a running TuneLab window (attach to one), and a headless run takes its project from --project at startup.");
 
         string fullPath;
-        try { fullPath = System.IO.Path.GetFullPath(given); }
+        try { fullPath = ctx.FullPath(given); }
         catch (Exception ex) { return CommandResult.Fail("bad_path", string.Format("\"{0}\" is not a usable file path — {1}", given, ex.Message)); }
         if (!File.Exists(fullPath))
             return CommandResult.Fail("missing_file", string.Format("there is no file at \"{0}\".", fullPath));
@@ -301,7 +301,7 @@ internal sealed class ProjectExportCommand : ICommand
 
         // 路径合法性先行（不为坏请求打扰用户 —— 同 `script save` 把预校验放在授权之前）。
         string fullPath;
-        try { fullPath = System.IO.Path.GetFullPath(given); }
+        try { fullPath = ctx.FullPath(given); }
         catch (Exception ex) { return CommandResult.Fail("bad_path", string.Format("\"{0}\" is not a usable file path — {1}", given, ex.Message)); }
         if (Directory.Exists(fullPath))
             return CommandResult.Fail("path_is_folder", string.Format("\"{0}\" is a folder, not a file path. Give the full path including the file name and extension.", fullPath));
@@ -521,7 +521,7 @@ internal sealed class ProjectSaveAsCommand : ICommand
             return CommandResult.Fail("no_editor", ProjectSaveSupport.NoEditor);
 
         string fullPath;
-        try { fullPath = System.IO.Path.GetFullPath(given); }
+        try { fullPath = ctx.FullPath(given); }
         catch (Exception ex) { return CommandResult.Fail("bad_path", string.Format("\"{0}\" is not a usable file path — {1}", given, ex.Message)); }
 
         var folder = System.IO.Path.GetDirectoryName(fullPath);
@@ -645,7 +645,7 @@ internal sealed class ProjectExportAudioCommand : ICommand
 
         // 路径与格式先行（不为坏请求打扰用户，同 `project export`）。
         string fullPath;
-        try { fullPath = System.IO.Path.GetFullPath(given); }
+        try { fullPath = ctx.FullPath(given); }
         catch (Exception ex) { return CommandResult.Fail("bad_path", string.Format("\"{0}\" is not a usable file path — {1}", given, ex.Message)); }
         if (Directory.Exists(fullPath))
             return CommandResult.Fail("path_is_folder", string.Format("\"{0}\" is a folder, not a file path. Give the full path including the file name and extension.", fullPath));

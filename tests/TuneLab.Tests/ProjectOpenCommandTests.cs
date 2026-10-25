@@ -147,6 +147,24 @@ public class ProjectOpenCommandTests
         Assert.Contains("Opened", Command.Render(result.Data, CommandArgs.Empty));
     }
 
+    // 相对路径是相对【调用方】说的：attach 下命令跑在 TuneLab 进程里，它的当前目录与敲命令的终端无关，
+    // 按进程目录解析会把 `--path song.tlpx` 指到安装目录去。
+    [Fact]
+    public void RelativePathResolvesAgainstTheCallersDirectory()
+    {
+        var file = new StubProjectFile();
+        var path = TempProjectFile();
+        var result = Run(Path.GetFileName(path), new CommandContext
+        {
+            ProjectFile = file,
+            Authorization = new AutoPolicy(),
+            WorkingDirectory = Path.GetDirectoryName(path),
+        });
+
+        Assert.False(result.IsError);
+        Assert.Equal(path, file.Opened);
+    }
+
     // 装载失败要说清"原来那份没动"——否则调用方无从判断现在手里是哪个工程。
     [Fact]
     public void LoadFailureSaysTheOldProjectIsUntouched()

@@ -81,7 +81,7 @@ internal sealed class ExtensionInstallCommand : ICommand
             return CommandResult.Fail("empty_path", "\"path\" is required.");
 
         string fullPath;
-        try { fullPath = System.IO.Path.GetFullPath(given); }
+        try { fullPath = ctx.FullPath(given); }
         catch (Exception ex) { return CommandResult.Fail("bad_path", string.Format("\"{0}\" is not a usable file path — {1}", given, ex.Message)); }
         if (!File.Exists(fullPath))
             return CommandResult.Fail("missing_file", string.Format("there is no file at \"{0}\".", fullPath));
