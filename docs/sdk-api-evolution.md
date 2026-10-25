@@ -11,7 +11,13 @@
 | **AssemblyVersion 钉死** | 两 csproj 显式 `<AssemblyVersion>2.0.0.0</AssemblyVersion>`，2.x 永不再动 | 绑定层退出裁决：插件加载成败只取决于 ABI 真实兼容性，不取决于版本数字 |
 | **sdk-version 门** | manifest `sdk-version` × `ExtensionManager.SdkVersion` | "插件用了新 API × 老宿主"这一唯一合法不兼容方向，加载前人话拒绝 |
 
-**发布收口动作**（每次发布含新 API 的版本时，一并做）：`PublicAPI.Unshipped.txt` 整体挪进 `Shipped.txt` + `ExtensionManager.SdkVersion` 提一档（如 1.0 → 1.1）。
+**提档与发布收口：一个发布周期只占一档。**
+
+- **发版后第一笔新 API** 申报进 `PublicAPI.Unshipped.txt` 时，`ExtensionManager.SdkVersion` 提一档（如 1.1 → 1.2），开发文档版本表加一行、标「尚未发布」。
+- **同一周期后续的新 API** 并入这一档、**不再提**，只往版本表那一行里补内容。两次发布之间冒出来的中间档没有对应的正式宿主，对插件作者没有意义；开发构建之间的区别看构建版本号与提交，不归 sdk-version 管。
+- **发版时收口**：`Unshipped.txt` 整体挪进 `Shipped.txt`，`ExtensionManager.LastReleasedSdkVersion` 跟上 `SdkVersion`，版本表那一行填上发布版本号。
+- **为什么不等到发版才提**：每次推送 master 都出构建产物。若已提供新 API 却仍声称旧档，插件作者用了新 API 只能声明旧档，插件随之被已发布的老宿主加载、用到时才缺成员。
+- **机械校验**：`SdkVersionLedgerTests`——Unshipped 有内容 ⇔ `SdkVersion` 恰比 `LastReleasedSdkVersion` 高一档；版本表里必须有当前这一档。忘了提、重复提都会挂测试。
 
 ## 1. 接口三分类：加成员的规矩由"谁实现它"决定
 
@@ -102,4 +108,4 @@ SDK 公开枚举（`PropertyType` / `SynthesisSegmentStatus` / `DragAxis` 等）
 | 给枚举加成员 | ✅ 加性（有条件） | 确认消费侧未知值容忍 + 申报 Unshipped |
 | 删/改任何 public 签名 | ❌ breaking | 编译必红（RS0017+RS0016）；发布前 = 编辑 Shipped.txt 重新定稿；发布后 = 3.0 事项，`*REMOVED*` 留痕 |
 | struct ↔ class、field ↔ property、改字段类型宽度 | ❌ breaking | 同上——这三类在冻结前已按终形定案，不要再动 |
-| 发布含新 API 的版本 | — | Unshipped → Shipped + `ExtensionManager.SdkVersion` 提档（一个动作、两处台账） |
+| 新 API 落地 / 发布 | — | 发版后第一笔：`SdkVersion` 提一档 + 版本表加「尚未发布」行；同周期后续：并入该档、不再提；发版：Unshipped → Shipped + `LastReleasedSdkVersion` 跟上（见 §0） |
