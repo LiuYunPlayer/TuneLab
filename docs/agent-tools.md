@@ -116,7 +116,7 @@ RunScriptTool (Agent 层，薄) ──► ScriptRunner ──► Jint 引擎 + �
 | `vibrato` | 字段(读写) `pos/dur/frequency/amplitude/phase/attack/release`；`getInfo()`、`affectedAutomations()→{轨id:振幅}`、`affectedEffectAutomations()→{effect id:{轨id:振幅}}`、`setAmplitude(id,amp,effect?)`、`removeAmplitude(id,effect?)`(影响表：本颤音把振幅施加到哪些参数轨；省略 effect = 音源级轨) |
 | `effect`（`part.effects()` 的一项） | 字段(读写) `isEnabled`(false=旁路)、(只读) `type/name/id/index`(链中 0-based 位)；`getInfo()`、`getProperty(key)→值\|null`、`setProperty(key,value)`(number/bool/string，键/范围见 list_effects)；`automationIds()`、`sampleAutomation(id,s,e,n)`、`setAutomation(id,s,e,pts,default?)`、`clearAutomation(id,s,e)`、`piecewiseAutomationIds()`、`samplePiecewiseAutomation(id,s,e,n)`、`setPiecewiseAutomationLine(id,s,e,pts)`、`clearPiecewiseAutomation(id,s,e)`(本 effect 的参数自动化曲线，形状同 part 级) |
 
-**导出设置是「设置项」、不入撤销栈**：`project.export*` / `masterExport*` 与 `track.exportEnabled/exportChannels` 在数据层是普通属性、写它不产生命令，故 `Ctrl+Z` 不会把导出路径退回去（与在导出侧栏里改它们一致）。但「整段脚本原子」仍成立——**出错或 preview 时由 `ScriptContext` 写前留底、回退时还原**。归属理由按本文开头的判据：「跑一段脚本把导出各项设成我的预设」是**用户会要的可复用命令**（还会绑快捷键），故在脚本面；而**真正写出音频文件**是另一件事，仍走 `export_project` 工具。它们刻意**不进 `track.getInfo()`**——设置项不属于"轨的内容"，复制一条轨不带导出开关。
+**导出设置是「设置项」、不入撤销栈**：`project.export*` / `masterExport*` 与 `track.exportEnabled/exportChannels` 在数据层是普通属性、写它不产生命令，故 `Ctrl+Z` 不会把导出路径退回去（与在导出侧栏里改它们一致）。但「整段脚本原子」仍成立——**出错或 preview 时由 `ScriptContext` 写前留底、回退时还原**。归属理由按本文开头的判据：「跑一段脚本把导出各项设成我的预设」是**用户会要的可复用命令**（还会绑快捷键），故在脚本面；而**真正写出音频文件**是另一件事，走 `export_audio` 工具。它们刻意**不进 `track.getInfo()`**——设置项不属于"轨的内容"，复制一条轨不带导出开关。
 
 裸属性实时读底层、改完即见新值。**pitch 与 automation 分开**（pitch 对齐 C# `midi.Pitch`；automation 对齐 `midi.Automations`，不含 pitch）。`points` 形如 `[{tick,value}]`。JS camelCase 经 Jint 大小写不敏感映射到 C# PascalCase（含可写属性赋值）。
 
@@ -179,7 +179,7 @@ RunScriptTool (Agent 层，薄) ──► ScriptRunner ──► Jint 引擎 + �
 - **序列化先于授权**：`FormatsManager.SerializeNative` 本就缓冲进 `MemoryStream`（原子写语义——失败时目标文件尚未开写），故先序列化、失败直接报错，不为一个注定失败的请求白弹一次卡片（同 `save_script` 把 `getScriptInfo` 预校验放在授权之前）。
 - **native / foreign 统一走 `SerializeNative`**：`.tlp/.tlpx` 带上 `EditorInfo`(播放头) + `ExportConfigInfo` 保真；`.mid` 等 foreign 由它内部自动降级到纯 musical `Serialize`。与「另存为」同一条路径。`ExportConfigInfo` 的互转已从 `Project` 实例方法提为 `IProjectExtension.GetExportConfig/SetExportConfig` 扩展方法（只读写 `IProject` 已有的 8 个 `Export*` 属性），故持 `IProject` 的本工具与 Editor 复用**同一份映射**，不各自重拼——多一份重拼就多一处漏字段的机会。
 - **「导出 ≠ 保存」**（真实的误导风险，工具描述里明文钉住）：不改变工程保存到哪个文件、不清除未保存改动、不进最近文件列表（那是用户主动"另存"的痕迹，agent 导一份副本不该污染）。回报里也复述一遍，免得 agent 跟用户说"已帮你保存"。
-- **不能导出音频**（wav/mp3/flac/ogg）——这不是能力缺口，是**人在环决定**。音频渲染期间界面必须锁住，根因是**渲染要求数据全程不变**（不是 UI 偷懒），这与"agent 边导出边继续干活"根本矛盾（它下一步很可能就改工程）；且"要不要现在把机器占住几分钟"该由用户定，同[播放/试听不给 agent]的裁定，音频导出比发声更侵入。正解是 agent 备好参数、最后一下由用户按。
+- **本工具不导音频**（wav/mp3/flac/ogg）：音频另有 `export_audio`（命令 `project export-audio`）。早先判"音频导出是人在环决定、agent 不代按"，后已翻案——渲染锁界面这件事改由授权卡片写明、让用户自己决定，且该命令先把全曲合成驱动到落定再写，详见 [command-surface.md](command-surface.md) 里 `project export-audio` 一条。
 
 ### 设置助手（`list_settings` / `set_setting`）
 

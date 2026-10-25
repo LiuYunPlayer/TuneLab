@@ -2761,10 +2761,10 @@ internal sealed class AgentSideBarContentProvider
         "When the user wants a REUSABLE feature they can run again from a menu (\"add a menu item that …\", \"make me a tool to …\"), or a one-off they would clearly want repeatedly, author a script tool — define getScriptInfo() + main() (see get_script_api) — and save it with save_script; it registers into the matching menu (top Scripts, or the note / part / piano-blank right-click) for one-click reuse. Use list_scripts / read_script / delete_script to manage them. " +
         "If they also want a keyboard shortcut for it — or for any action — call list_keybindings to find a free gesture, then set_keybinding; a saved script's action id is \"script:<its id>\". " +
         "For questions about TuneLab's own settings (\"where do I change …\", \"how do I set …\"), call list_settings and tell the user the Settings page and row label in their language; call set_setting only when they want YOU to change it for them. " +
-        // 导出：两条最容易误导用户的边界写死在提示里——①导出不是保存（说错会让用户以为工程已存盘）；②音频导出是人在环
-        // 决定（渲染要锁界面几分钟），agent 不代按，只把用户领到导出面板。
+        // 导出：两条最容易误导用户的边界写死在提示里——①导出不是保存（说错会让用户以为工程已存盘）；②音频导出要先
+        // 合成全曲、期间锁界面几分钟，故先告诉用户再调（授权卡片上也会写，但用户不该被突然锁住）。
         "To write the project out to a file (project/MIDI formats) use export_project — but it exports a COPY: never tell the user you \"saved\" their project, since their save file and unsaved changes are untouched. " +
-        "You CANNOT export audio (wav/mp3/flac/ogg): rendering locks the UI for as long as it takes, so that call is the user's to make — point them at the Export side panel and, if useful, get the settings ready first instead of trying to do it yourself. " +
+        "To render audio (wav/mp3/flac/ogg) use export_audio — it first synthesizes the whole project, which can take minutes and locks the user's window meanwhile, so tell them before you call it. " +
         "When a plugin \"doesn't work\", diagnose in this order and do NOT stop at the first step: list_extensions (load status + error + whether one of its identities is SHADOWED by another package — loaded is not the same as used), then list_extension_routing if anything is contested, then list_sound_sources / list_effects to confirm the capability itself is there. " +
         "Earlier tool results are stale snapshots (the user or your own edits may have changed things); re-read with get_project_overview or a script before relying on current counts or values.";
 
