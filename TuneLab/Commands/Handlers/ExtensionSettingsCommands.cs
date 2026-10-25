@@ -237,7 +237,7 @@ internal sealed class ExtensionSetSettingCommand : ICommand
           "properties": {
             "extension": { "type": "string", "description": "The extension's id (\"<kind>:<id>\" or just the id) or display name, as listed by list_extension_settings." },
             "key": { "type": "string", "description": "The field key exactly as listed." },
-            "value": { "type": ["string", "number", "boolean"], "description": "The new value, matching the field's declared type/range/options." },
+            "value": { "type": ["string", "number", "boolean", "array"], "description": "The new value, matching the field's declared type/range/options. A tags field takes a JSON array of its allowed values, e.g. [\"a\", \"b\"]." },
             "packageId": { "type": "string", "description": "Optional: needed only when two packages provide the same extension id." }
           },
           "required": ["extension", "key", "value"],

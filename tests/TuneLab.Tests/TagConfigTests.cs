@@ -129,6 +129,12 @@ public class TagConfigTests
     public void FormatValueRendersArrays()
         => Assert.Equal("[\"a\", 1]", ConfigText.FormatValue(new PropertyArray([V("a"), PropertyValue.Create(1)])));
 
+    // 命令的 Data 里存 ToJson 转出的原始值、渲染时再经 FormatValue(JsonNode) 转回：数组若转不回来，
+    // tag 字段的当前值就显示成 "(none)"。
+    [Fact]
+    public void RenderingFromJsonKeepsArrays()
+        => Assert.Equal("[\"a\", 1]", ConfigText.FormatValue(ConfigText.ToJson(new PropertyArray([V("a"), PropertyValue.Create(1)]))));
+
     [Fact]
     public void NormalizeMatchesCandidatesKeepsOrderAndDropsDuplicates()
     {

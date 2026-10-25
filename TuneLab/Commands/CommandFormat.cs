@@ -99,6 +99,7 @@ internal static class ConfigText
         if (v.ToDouble(out var d)) return FormatNum(d);
         if (v.ToString(out var s)) return "\"" + s + "\"";
         if (v.ToArray(out var array)) return "[" + string.Join(", ", array.Select(FormatValue)) + "]";
+        if (v.ToObject(out var obj)) return "{" + string.Join(", ", obj.Map.Select(kv => "\"" + kv.Key + "\": " + FormatValue(kv.Value))) + "}";
         return "(none)";
     }
 
@@ -119,7 +120,22 @@ internal static class ConfigText
         if (v.ToDouble(out var d)) return d;
         if (v.ToString(out var s)) return s;
         if (v.ToArray(out var array)) return new JsonArray(array.Select(ToJson).ToArray());
+        if (v.ToObject(out var obj))
+        {
+            var json = new JsonObject();
+            foreach (var kv in obj.Map)
+                json[kv.Key] = ToJson(kv.Value);
+            return json;
+        }
         return null;
+    }
+
+    static PropertyObject ToPropertyObject(JsonObject json)
+    {
+        var map = new Map<string, PropertyValue>();
+        foreach (var kv in json)
+            map.Add(kv.Key, ToPropertyValue(kv.Value));
+        return new PropertyObject(map);
     }
 
     public static PropertyValue ToPropertyValue(JsonNode? node) => node?.GetValueKind() switch
@@ -133,6 +149,10 @@ internal static class ConfigText
             ? PropertyValue.Create(d)
             : default,
         JsonValueKind.String => PropertyValue.Create(node.GetValue<string>()),
+        // 结构化值（tag 组是数组；画布等字段的值形状任意）：缺了这两支，ToJson 转出去的数组渲染时转不回来，
+        // 用户/agent 看到的当前值就成了 "(none)"。
+        JsonValueKind.Array => PropertyValue.Create(new PropertyArray(node.AsArray().Select(ToPropertyValue).ToList())),
+        JsonValueKind.Object => PropertyValue.Create(ToPropertyObject(node.AsObject())),
         _ => default,   // 缺失 / JSON null → 空值，渲染成 "(none)"
     };
 }
