@@ -36,7 +36,8 @@ sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
         return points.All(p => p.Known) && points.Select((p, i) => Math.Abs(p.Y - LinearAt(i)) < 1e-9).All(b => b);
     }
 
-    // 读值：每个控制点的 y（0..1）及其是否确定（多选不一致 / 形状不对 = 不确定，按线性默认画成空心）。
+    // 读值：每个控制点的 y（0..1）及其是否确定（不确定的按线性默认画成空心）。多选不一致时宿主给的是整体
+    // Multiple（不是数组），于是全部点都不确定；形状不对（长度不足、元素不是数）时只有对不上的点不确定。
     static (double Y, bool Known)[] Read(PropertyValue value)
     {
         var result = new (double, bool)[Count];

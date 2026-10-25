@@ -467,7 +467,7 @@ public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext con
 
 本节适用于所有声明面板的地方：part / note / 音素属性、instrument、effect 参数、扩展设置。
 
-**闭包只捕获值。** 声明返回的 config 里可以带函数，如按钮的点击回调（§9）。它在声明调用结束之后才执行，而声明 context 与视图只在调用期间有效。需要什么——PartId、note Id、音素符号、同级字段已填的值——就在 `GetXxxConfig` 里先取出来，让闭包捕获这些值，不要捕获 context 或视图对象本身。
+**闭包只捕获值。** 声明返回的 config 里可以带函数：按钮的点击回调（§9）、画布的工厂与收起摘要（§10）。它们都在声明调用结束之后才执行，而声明 context 与视图只在调用期间有效。需要什么——PartId、note Id、音素符号、同级字段已填的值——就在 `GetXxxConfig` 里先取出来，让闭包捕获这些值，不要捕获 context 或视图对象本身。
 
 ```csharp
 public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext context)
@@ -485,7 +485,7 @@ public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext con
 
 **依赖 context 的现建，其余照样缓存。** 宿主既不要求 config 共用，也不要求现建。依赖 context 的 config（如上面的按钮）在每次声明时现建——闭包很便宜；不依赖 context 的照样可以缓存共用。
 
-**外部数据变了，让宿主重新声明。** 闭包只活一次声明。用户改值、选中变化时宿主会自己重新声明；你自己算出的数据变了（如解析出的声调、合成后缓存的分析结果），调用 `InvalidatePart` / `InvalidateNotes`（上一节），宿主重新调用声明函数，闭包随之换成新值。
+**外部数据变了，让宿主重新声明。** 闭包与它建出的控件实例只活一次声明（画布见 §10.3）。用户改值、选中变化时宿主会自己重新声明；你自己算出的数据变了（如解析出的声调、合成后缓存的分析结果），调用 `InvalidatePart` / `InvalidateNotes`（上一节），宿主重新调用声明函数，闭包随之换成新值。
 
 **字段形状演进：用新键。** 新版插件改了某个字段的值形状（比如从对象改成数组，或对象里换了字段），用户工程里仍是旧形状的值。宿主不解读形状，只有你知道旧值是什么意思，兼容由你负责：
 
@@ -1165,7 +1165,7 @@ sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
 ### 10.1 它是一个值字段
 
 - **值的形状由你定**（任意 `PropertyValue`，可以是对象或数组），宿主不解读。恢复默认、preset、撤销、多选都照常参与，所以**读值时一律校验**——撤销、preset、粘贴都可能带来任意形状的值，形状不对的地方按默认处理。
-- **多选**：工程里的值是各目标的合并值，不一致处是多值标记（`IsMultiple()`），怎么画由你决定；提交时把同一个值写到全部目标。
+- **多选**：各目标的值完全相同时就是那个值；只要有不同，**整个值**就是多值标记（`IsMultiple()`）——宿主不逐元素合并，值的形状只有你懂。怎么画由你决定；提交时把同一个值写到全部目标。
 - **收起摘要**：`WithSummary(format)`——字段收起时宿主用当前值调用它，显示在标题行；值整体不一致时宿主直接显示多值标记、不调用。不给则显示"默认 / 已修改"。
 - **CLI / agent** 能原样读写这个值（任意 JSON 形状）。宿主不知道形状，也就不校验——agent 写入的值同样要经过你读值时的校验。宿主会提示 agent 先读你的 introduction、读不到再照当前值或默认值推断，所以**强烈建议在 introduction 里写清这个字段的值形状与含义**：每个成员是什么、取值范围、随状态变化的形状（如元素个数随别的设置变）。声明里给不出这些，只有你的说明能讲准确。
 - **位置**：只能作为 `ObjectConfig` 的成员（与按钮相同，见 §9.1）。
@@ -1184,6 +1184,7 @@ sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
 
 - **工厂不在声明时调用**：画布要显示时宿主才调用它（收起的字段不建实例）。
 - **实例的寿命 = 一次声明**：面板每次按新声明更新——你提交之后、外部改值之后、选中变化——都用新 config 的工厂重建；旧实例作废，它手里的 `host` 随之失效（再 `SetValue` 返回 `false`）。所以**工厂要廉价**（不做 IO、不做重计算），控件对象只放事件和绘制逻辑，重资源在插件级缓存。
+- **需要上下文**（所属 part / note、同级字段的值、你自己算出的数据如波形）：在声明时取出值让工厂捕获，数据变了用 `InvalidatePart` / `InvalidateNotes` 让宿主重新声明——见 §5.2「声明里的闭包与字段演进」。
 - **临时状态不跨实例**：悬停之类的状态随实例丢失，要能从值与事件位置重新算出。没写草稿的拖动可能中途换实例——新实例收不到那次抬起，按"没在拖动"处理即可。
 - **事件严格成对**：每个实例收到的 `OnMouseEnter` / `OnMouseLeave` 严格交替（换了实例、或画布出现在静止的指针下时，宿主主动发一次 Enter，不等用户动鼠标——**悬停之类的状态要在 `OnMouseEnter` 里按它带的位置算出**，别只在移动里算）；每个 `OnMouseUp` 都有本实例收到过的对应 `OnMouseDown`；鼠标捕获意外丢失（如按着鼠标切走窗口）时宿主补发 `OnMouseUp`（`IsClick` 为 false），你照常在里面收尾、提交。
 

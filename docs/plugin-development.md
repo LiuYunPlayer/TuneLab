@@ -472,7 +472,7 @@ Reference implementation: `LyricAnalysis` in `tests/plugins/V1.Voice` (a lyric e
 
 This section applies wherever you declare a panel: part / note / phoneme properties, instruments, effect parameters, extension settings.
 
-**Capture values only.** A config can carry functions, such as a button's click handler (§9). It runs after the declaration call has returned, and the declaration context and its views are valid only during that call. Read what you need — the PartId, note ids, phoneme symbols, values already filled into sibling fields — in `GetXxxConfig`, and let the closure capture those values, never the context or a view object.
+**Capture values only.** A config can carry functions: a button's click handler (§9), a canvas factory and its collapsed summary (§10). They all run after the declaration call has returned, and the declaration context and its views are valid only during that call. Read what you need — the PartId, note ids, phoneme symbols, values already filled into sibling fields — in `GetXxxConfig`, and let the closure capture those values, never the context or a view object.
 
 ```csharp
 public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext context)
@@ -490,7 +490,7 @@ public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext con
 
 **Build what depends on the context each time; cache the rest.** The host neither requires configs to be shared nor requires them to be rebuilt. Build the configs that depend on the context (like the button above) on every declaration — closures are cheap — and keep caching the ones that don't.
 
-**When outside data changes, have the host declare again.** A closure lives for one declaration. The host declares again by itself when the user edits a value or the selection changes; when data you computed yourself changes (tones from an analysis, results cached after synthesis), call `InvalidatePart` / `InvalidateNotes` (previous section) so the host calls your declaration again and the closures pick up the new values.
+**When outside data changes, have the host declare again.** A closure and the control instances it builds live for one declaration (canvases: §10.3). The host declares again by itself when the user edits a value or the selection changes; when data you computed yourself changes (tones from an analysis, results cached after synthesis), call `InvalidatePart` / `InvalidateNotes` (previous section) so the host calls your declaration again and the closures pick up the new values.
 
 **Changing a field's shape: use a new key.** When a new version of your plugin changes a field's value shape (say from an object to an array, or different members inside an object), users' projects still hold values in the old shape. The host doesn't interpret shapes — only you know what an old value meant — so compatibility is your job:
 
@@ -1167,7 +1167,7 @@ sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
 ### 10.1 It is a value field
 
 - **You define the value's shape** (any `PropertyValue`, objects and arrays included); the host doesn't interpret it. Reset to default, presets, undo and multi-selection all work as usual — so **always validate what you read**: undo, presets and paste can bring in a value of any shape; treat whatever doesn't fit as the default.
-- **Multi-selection**: the project value is the merged value of all targets, with multiple-value markers (`IsMultiple()`) where they differ — how to draw those is up to you. A commit writes the same value to every target.
+- **Multi-selection**: when all targets hold the same value you get that value; if any differ, the **whole value** is the multiple-value marker (`IsMultiple()`) — the host doesn't merge element by element, since only you know the shape. How to draw it is up to you. A commit writes the same value to every target.
 - **Collapsed summary**: `WithSummary(format)` — when the field is collapsed the host calls it with the current value and shows the result on the title row; when the whole value differs across targets the host shows the multiple-value marker without calling it. Without it the host shows "Default / Modified".
 - **CLI / agent** can read and write the value as is (any JSON shape). The host doesn't know the shape, so it doesn't validate it — values the agent writes go through your read-time validation like any other. The host tells the agent to read your introduction first and, failing that, to infer the shape from the current or default value, so **describe this field's value shape and meaning in your introduction**: what each member is, its range, and how the shape varies with state (say, the element count depends on another setting). The declaration can't carry this; only your description can be exact.
 - **Placement**: only as a member of an `ObjectConfig` (same as buttons, see §9.1).
@@ -1186,6 +1186,7 @@ While the user is working, the value is only a **draft**; it reaches the project
 
 - **The factory is not called at declaration time**: the host calls it when the canvas is about to show (a collapsed field builds no instance).
 - **An instance lives for one declaration**: every time the panel updates to a new declaration — after your commit, after an outside change, on a selection change — the host rebuilds the control with the new config's factory. The old instance is discarded and its `host` stops working (`SetValue` returns `false`). So **keep the factory cheap** (no IO, no heavy computation); the control object only carries event and drawing logic, and heavy resources are cached at plugin level.
+- **Needing context** (the owning part / note, values of sibling fields, data you computed such as a waveform): read the values at declaration time and let the factory capture them; when the data changes, call `InvalidatePart` / `InvalidateNotes` so the host declares again — see §5.2, "Closures in declarations and evolving a field's shape".
 - **Transient state doesn't survive the instance**: hover and the like are lost with it, so make them recomputable from the value and event positions. A drag without a draft may switch instances midway — the new instance never gets that release; treat it as "not dragging".
 - **Events come in strict pairs**: each instance's `OnMouseEnter` / `OnMouseLeave` strictly alternate (when the instance is replaced, or the canvas appears under a pointer that isn't moving, the host sends an Enter right away instead of waiting for the user to move the mouse — **compute hover-like state in `OnMouseEnter` from its position**, not only on moves); every `OnMouseUp` has a matching `OnMouseDown` that this instance received; if mouse capture is lost unexpectedly (say, switching windows with the button held), the host sends an `OnMouseUp` with `IsClick` false so you can wrap up and commit as usual.
 
