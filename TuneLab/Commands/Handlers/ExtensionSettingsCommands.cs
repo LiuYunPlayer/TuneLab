@@ -41,7 +41,7 @@ internal sealed class ExtensionSettingsCommand : ICommand
         {
           "type": "object",
           "properties": {
-            "extension": { "type": "string", "description": "Optional: the extension's id (\"<kind>:<id>\" or just the id) or display name, from a prior no-argument call." },
+            "extension": { "type": "string", "description": "Optional: the extension's id (\"<kind>:<id>\" or just the id), display name, or the id of the package that provides it, from a prior no-argument call." },
             "packageId": { "type": "string", "description": "Optional: needed only when two installed packages provide the same extension id (the list shows the packageIds)." }
           },
           "additionalProperties": false
@@ -235,7 +235,7 @@ internal sealed class ExtensionSetSettingCommand : ICommand
         {
           "type": "object",
           "properties": {
-            "extension": { "type": "string", "description": "The extension's id (\"<kind>:<id>\" or just the id) or display name, as listed by list_extension_settings." },
+            "extension": { "type": "string", "description": "The extension's id (\"<kind>:<id>\" or just the id), display name, or the id of the package that provides it, as listed by list_extension_settings." },
             "key": { "type": "string", "description": "The field key exactly as listed." },
             "value": { "type": ["string", "number", "boolean", "array"], "description": "The new value, matching the field's declared type/range/options. A tags field takes a JSON array of its allowed values, e.g. [\"a\", \"b\"]." },
             "packageId": { "type": "string", "description": "Optional: needed only when two packages provide the same extension id." }

@@ -18,6 +18,8 @@ namespace TuneLab.Commands;
 internal static class ExtensionSettingsText
 {
     // 按 "kind:id" / 裸 id / 显示名定位（可用 packageId 消歧；同 id 跨包并存时不猜、要求点明）。
+    // 都不中时再认包 id：`extension list` 最先展示的就是它，调用方最自然拿它来指；包里只有一个带设置的
+    // extension 时无歧义，多个则列出各自的 "kind:id" 要求点名。
     // 错误的 message 不带 "Error: " 前缀——前缀由入口加（agent 入口加、CLI 打 stderr 不冗余）。
     public static (ExtensionSettingsManager.Entry Entry, CommandError? Error) Resolve(string query, string? packageId)
     {
@@ -32,6 +34,8 @@ internal static class ExtensionSettingsText
                 || string.Equals(e.ExtensionId, query, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(e.DisplayName, query, StringComparison.OrdinalIgnoreCase))
             .ToList();
+        if (matches.Count == 0)
+            matches = entries.Where(e => string.Equals(e.PackageId, query, StringComparison.OrdinalIgnoreCase)).ToList();
         if (packageId.Length != 0)
             matches = matches.Where(e => string.Equals(e.PackageId, packageId, StringComparison.OrdinalIgnoreCase)).ToList();
 
@@ -39,6 +43,10 @@ internal static class ExtensionSettingsText
             return (default, new CommandError("not_found", string.Format(
                 "no extension with settings matches \"{0}\"{1}. Call list_extension_settings to see the available ones.",
                 query, packageId.Length == 0 ? "" : " in package \"" + packageId + "\"")));
+        if (matches.Count > 1 && matches.All(m => string.Equals(m.PackageId, matches[0].PackageId, StringComparison.OrdinalIgnoreCase)))
+            return (default, new CommandError("ambiguous", string.Format(
+                "the package \"{0}\" has more than one extension with settings ({1}). Name one of them.",
+                matches[0].PackageId, string.Join(", ", matches.Select(m => m.ExtensionKey)))));
         if (matches.Count > 1)
             return (default, new CommandError("ambiguous", string.Format(
                 "\"{0}\" is provided by more than one package ({1}). Pass packageId to say which one.",
