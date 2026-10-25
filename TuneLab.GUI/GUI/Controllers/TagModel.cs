@@ -13,10 +13,13 @@ internal static class TagModel
 {
     // 一个成员此刻的 tag 序列：存值是数组 → 去重（保首次出现）；缺键 / 类型不符 → 声明默认值。
     // 缺键取默认 = 「默认值也是值」，与其余字段的 presence 语义一致：没改过就显示默认，一改就整段物化。
+    // 类型不符取默认是对非法数据的兜底（同标量控件），不是给插件迁移旧形状用的契约——插件改字段形状应换新键。
     public static List<PropertyValue> Read(IDataPropertyObject member, string key, PropertyValue defaultValue)
     {
         var value = member.GetValue(key, defaultValue);
-        return value.ToArray(out var array) ? Dedupe(array) : [];
+        if (value.ToArray(out var array) || defaultValue.ToArray(out array))
+            return Dedupe(array);
+        return [];
     }
 
     public static List<PropertyValue> Dedupe(IEnumerable<PropertyValue> values)

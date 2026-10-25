@@ -36,6 +36,15 @@ public class TagConfigTests
         Assert.Equal(L("c", "a", "b"), TagModel.Read(node, "tags", A()));
     }
 
+    // 存值不是数组（非法数据，如旧版本留下的对象）：按缺省处理，显示声明的默认值，而不是显示成"一个都没选"。
+    [Fact]
+    public void ReadFallsBackToDefaultWhenStoredValueIsNotAnArray()
+    {
+        var node = new DataPropertyObject();
+        node.SetValue("tags", PropertyValue.Create(PropertyObject.Empty));
+        Assert.Equal(L("a"), TagModel.Read(node, "tags", A("a")));
+    }
+
     // ===== 增删挪 =====
 
     [Fact]
