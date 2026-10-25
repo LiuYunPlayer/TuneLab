@@ -204,6 +204,23 @@ public class ExtensionWriteCommandsTests
         }, CommandArgs.Empty));
     }
 
+    // 按包 id 定位只是兜底：结果照常，末尾附一句提示，让调用方下次改用 "kind:id"。
+    [Fact]
+    public void PackageIdHintIsAppendedAsItsOwnLine()
+    {
+        var text = SetSetting.Render(new JsonObject
+        {
+            ["extension"] = "示例引擎",
+            ["key"] = "device",
+            ["outcome"] = "unchanged",
+            ["old"] = "cuda",
+            ["new"] = "cuda",
+            ["hint"] = "Note: pass extension=\"voice:demo\" next time.",
+        }, CommandArgs.Empty);
+
+        Assert.Equal("\"device\" of \"示例引擎\" is already \"cuda\". Nothing changed.\nNote: pass extension=\"voice:demo\" next time.", text);
+    }
+
     // 密钥政策的写那一半：拒写，并说清该由用户自己去设置窗填。
     // （测试进程里没有装扩展，故这里只能验到定位失败那一步；密钥拒写的措辞由读那边的封条与本命令的
     //  Fail 分支共同保证——见 ExtensionSettingsCommandTests。）
