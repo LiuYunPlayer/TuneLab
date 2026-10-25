@@ -366,7 +366,7 @@ public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext con
 **note / part 属性约定（keyed `Properties`，这是 per-note/per-part 参数的唯一通道）**：
 
 - `IVoiceSynthesisNote` 的固定字段只有最小通用乐理量（`Id`/`StartTime`/`EndTime`/`Pitch`/`Lyric`/`LeadingPhonemes`/`BodyPhonemes`/`BodyOffset`）。**所有 voice 专属的 per-note 参数（如张力、气声、性别）都走 `note.Properties`（keyed）**——加新参数 = 在 `GetNotePropertyConfig` 的 `ObjectConfig.Properties` 里加一个 key，不动接口固定面。part 级专属参数同理走 `GetPartPropertyConfig`。
-- 面板用控件配置词汇搭（都在 `TuneLab.SDK`）：`SliderConfig`（构造函数已封，只走静态工厂：`SliderConfig.Linear(default, min, max)` 连续、`SliderConfig.Integer(default, min, max)` 整数、`SliderConfig.Create(default, scale)` 接自定义标度 `INormalizedScale`；流式 `.WithFormat(INumberFormat)` 定制数值显示/回读、`.WithRandomizable()` 声明可随机——宿主在右侧给随机入口、点一下在标度上按归一化均匀重取值，适合随机种子等场景；`.WithMinLabel(text)` / `.WithMaxLabel(text)` 给量程两端加描述文本（如 min="Soft"、max="Hard"，插件自译、可只设一端）——显示在滑条两端，该属性被用户钉到参数面板后同文本作上下界，与 `AutomationConfig` 的同名字段同一语义）、`ComboBoxConfig.Create(options)`（值/显示分离，可「界面中文/底层存枚举值」；`.WithDefault(option)` 指定默认选中，缺省取首项；`new ComboBoxItem(组名, 子项)` 是分组——本身不可选、展开成子菜单、可再嵌套；`ComboBoxItem.Separator(标签)` 是分隔线（标签可省），顶层与分组子项里都能放，顶层也可用 `.AppendSeparator(标签)`；叶子达 10 个时宿主自动在菜单顶部给搜索框）、`CheckBoxConfig.Create(default)`、`TextBoxConfig.Create(default)`（`.WithPassword()` 掩码；`.WithMultiline(最多行数)` 多行框——框贴着内容长、到该行数封顶、其后框内滚动（`0` = 不封顶），值仍是**一个** string（换行在里面），故存储与撤销都不变。掩码没有多行形态：两者同时声明时字段仍为单行）、`PathPickerConfig.CreateFile(default)` / `PathPickerConfig.CreateFolder(default)`（路径选择：文本框 + 浏览按钮开系统选择器，值就是路径字符串——`.AppendFileType(名称, "*.exe")` 加类型过滤、`.WithPickerTitle(标题)` 定制对话框标题；宿主不校验路径存不存在，自己在 `ApplySettings`/`Init` 里校）；以上构造函数均已封、只走静态工厂。容器是 `ObjectConfig.Create(IReadOnlyOrderedMap<PropertyKey, IControllerConfig>)`——与值配置一样封了构造函数、只走静态工厂。`PropertyKey` = `(id, 可选显示名)`，从裸字符串或元组隐式转换，故 `{ ("tension", "张力"), … }` 即给键带上显示名；只写 `"tension"` 则显示 id。变长容器 `ListConfig` / `ExtensibleObjectConfig` 的 `+` 候选与下拉同构：`new AddableElement(组名, 子项)` / `new AddableKey(组名, 子项)` 是分组（子菜单、可嵌套），`AddableElement.Separator(标签)` / `AddableKey.Separator(标签)` 是分隔线，搜索框规则同下拉；键控容器隐藏已加入的键后，所辖区段空了的分隔线也随之隐藏；分组与分隔线都没有 `Template`（`AddableKey` 的也没有键 Id），读候选时先判 `SubItems`。`ExtensibleObjectConfig` 条目的显示顺序就是你给的 `Properties` 顺序：数据里的键无序（删掉再加会落进空位，先后不可靠），别照搬数据的键序，按你自己的候选目录排；要让用户自己调顺序，用元素为对象的 `ListConfig`（支持拖序号重排）。要让用户从一组固定候选里挑若干个，用 `TagConfig.Create(候选)`：已选的值排成 chip、自动换行，末尾一个 `+` 弹候选菜单。值是所选候选值组成的 `PropertyArray`，**有序、不重复**：新加的追加到末尾，用户可拖动 chip 调序（顺序可以有含义，如关键的排前面），已选的值不再出现在 `+` 菜单里。候选是 `TagItem`，形状同 `ComboBoxItem`（值/显示分离、值可为任意基础类型；`new TagItem(组名, 子项)` 是分组、`TagItem.Separator(标签)` 是分隔线，搜索框规则同下拉），但是独立类型。`.WithDefault([值…])` 指定默认已选（缺省为空）。多选时宿主显示并集，只有部分对象带的 tag 显示为半透明——从 `+` 里选它即补给其余对象。存值里有候选之外的值时原样保留、显示为琥珀色（怎么生效由你决定），同下拉的非法值。元素为同一组选项的 `ComboBoxConfig` 的 `ListConfig` 数据形状相同，但允许重复、元素可逐个改——按需要的语义二选一。把已有字段（如用空对象当开关的 `ExtensibleObjectConfig`）改成 `TagConfig` 时数据形状会变；`GetXxxConfig` 拿得到当前值，可以对老键继续返回老 config、tag 用新键，或自己转换老值。
+- 面板用控件配置词汇搭（都在 `TuneLab.SDK`）：`SliderConfig`（构造函数已封，只走静态工厂：`SliderConfig.Linear(default, min, max)` 连续、`SliderConfig.Integer(default, min, max)` 整数、`SliderConfig.Create(default, scale)` 接自定义标度 `INormalizedScale`；流式 `.WithFormat(INumberFormat)` 定制数值显示/回读、`.WithRandomizable()` 声明可随机——宿主在右侧给随机入口、点一下在标度上按归一化均匀重取值，适合随机种子等场景；`.WithMinLabel(text)` / `.WithMaxLabel(text)` 给量程两端加描述文本（如 min="Soft"、max="Hard"，插件自译、可只设一端）——显示在滑条两端，该属性被用户钉到参数面板后同文本作上下界，与 `AutomationConfig` 的同名字段同一语义）、`ComboBoxConfig.Create(options)`（值/显示分离，可「界面中文/底层存枚举值」；`.WithDefault(option)` 指定默认选中，缺省取首项；`new ComboBoxItem(组名, 子项)` 是分组——本身不可选、展开成子菜单、可再嵌套；`ComboBoxItem.Separator(标签)` 是分隔线（标签可省），顶层与分组子项里都能放，顶层也可用 `.AppendSeparator(标签)`；叶子达 10 个时宿主自动在菜单顶部给搜索框）、`CheckBoxConfig.Create(default)`、`TextBoxConfig.Create(default)`（`.WithPassword()` 掩码；`.WithMultiline(最多行数)` 多行框——框贴着内容长、到该行数封顶、其后框内滚动（`0` = 不封顶），值仍是**一个** string（换行在里面），故存储与撤销都不变。掩码没有多行形态：两者同时声明时字段仍为单行）、`PathPickerConfig.CreateFile(default)` / `PathPickerConfig.CreateFolder(default)`（路径选择：文本框 + 浏览按钮开系统选择器，值就是路径字符串——`.AppendFileType(名称, "*.exe")` 加类型过滤、`.WithPickerTitle(标题)` 定制对话框标题；宿主不校验路径存不存在，自己在 `ApplySettings`/`Init` 里校）；以上构造函数均已封、只走静态工厂。容器是 `ObjectConfig.Create(IReadOnlyOrderedMap<PropertyKey, IControllerConfig>)`——与值配置一样封了构造函数、只走静态工厂。`PropertyKey` = `(id, 可选显示名)`，从裸字符串或元组隐式转换，故 `{ ("tension", "张力"), … }` 即给键带上显示名；只写 `"tension"` 则显示 id。变长容器 `ListConfig` / `ExtensibleObjectConfig` 的 `+` 候选与下拉同构：`new AddableElement(组名, 子项)` / `new AddableKey(组名, 子项)` 是分组（子菜单、可嵌套），`AddableElement.Separator(标签)` / `AddableKey.Separator(标签)` 是分隔线，搜索框规则同下拉；键控容器隐藏已加入的键后，所辖区段空了的分隔线也随之隐藏；分组与分隔线都没有 `Template`（`AddableKey` 的也没有键 Id），读候选时先判 `SubItems`。`ExtensibleObjectConfig` 条目的显示顺序就是你给的 `Properties` 顺序：数据里的键无序（删掉再加会落进空位，先后不可靠），别照搬数据的键序，按你自己的候选目录排；要让用户自己调顺序，用元素为对象的 `ListConfig`（支持拖序号重排）。要让用户从一组固定候选里挑若干个，用 `TagConfig.Create(候选)`：已选的值排成 chip、自动换行，末尾一个 `+` 弹候选菜单。值是所选候选值组成的 `PropertyArray`，**有序、不重复**：新加的追加到末尾，用户可拖动 chip 调序（顺序可以有含义，如关键的排前面），已选的值不再出现在 `+` 菜单里。候选是 `TagItem`，形状同 `ComboBoxItem`（值/显示分离、值可为任意基础类型；`new TagItem(组名, 子项)` 是分组、`TagItem.Separator(标签)` 是分隔线，搜索框规则同下拉），但是独立类型。`.WithDefault([值…])` 指定默认已选（缺省为空）。多选时宿主显示并集，只有部分对象带的 tag 显示为半透明——从 `+` 里选它即补给其余对象。存值里有候选之外的值时原样保留、显示为琥珀色（怎么生效由你决定），同下拉的非法值。元素为同一组选项的 `ComboBoxConfig` 的 `ListConfig` 数据形状相同，但允许重复、元素可逐个改——按需要的语义二选一。把已有字段（如用空对象当开关的 `ExtensibleObjectConfig`）改成 `TagConfig` 时数据形状会变：tag 用新键，旧数据怎么兼容见本节下文「声明里的闭包与字段演进」。
 
 ```csharp
 readonly ObjectConfig mNoteConfig = ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>
@@ -462,6 +462,38 @@ public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext con
 - 结果没变就别调——虽然宿主会合拍，不调最省。
 
 参考实现：`tests/plugins/V1.Voice` 的 `LyricAnalysis`（歌词以声调数字结尾如 `ma3`，约 0.6 秒后 note 面板出现 Tone Depth、part 面板出现 Tone Strength）。
+
+#### 声明里的闭包与字段演进（所有面板通用）
+
+本节适用于所有声明面板的地方：part / note / 音素属性、instrument、effect 参数、扩展设置。
+
+**闭包只捕获值。** 声明返回的 config 里可以带函数，如按钮的点击回调（§9）。它在声明调用结束之后才执行，而声明 context 与视图只在调用期间有效。需要什么——PartId、note Id、音素符号、同级字段已填的值——就在 `GetXxxConfig` 里先取出来，让闭包捕获这些值，不要捕获 context 或视图对象本身。
+
+```csharp
+public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext context)
+{
+    var props = BaseNoteProperties();
+    // 单选时才给"重新分析"：多选没有"一个"音符可对应
+    if (context.Notes.Count == 1)
+    {
+        string partId = context.Part.PartId, noteId = context.Notes[0].Id;   // 取出值再捕获
+        props.Add(("reanalyze", "声调"), ButtonConfig.Create("重新分析", _ => ReanalyzeAsync(partId, noteId)));
+    }
+    return ObjectConfig.Create(props);
+}
+```
+
+**依赖 context 的现建，其余照样缓存。** 宿主既不要求 config 共用，也不要求现建。依赖 context 的 config（如上面的按钮）在每次声明时现建——闭包很便宜；不依赖 context 的照样可以缓存共用。
+
+**外部数据变了，让宿主重新声明。** 闭包只活一次声明。用户改值、选中变化时宿主会自己重新声明；你自己算出的数据变了（如解析出的声调、合成后缓存的分析结果），调用 `InvalidatePart` / `InvalidateNotes`（上一节），宿主重新调用声明函数，闭包随之换成新值。
+
+**字段形状演进：用新键。** 新版插件改了某个字段的值形状（比如从对象改成数组，或对象里换了字段），用户工程里仍是旧形状的值。宿主不解读形状，只有你知道旧值是什么意思，兼容由你负责：
+
+- **新形状放在新键上**，不要在旧键上直接换形状。宿主对类型不符的存值只做兜底——按缺省处理、显示声明的默认值——这是对非法数据的容错，判据是数据类型：新旧形状若只是对象里的字段不同、类型相同，它根本察觉不到。不要依赖它做迁移。
+- `GetXxxConfig` 读得到当前值（各视图的 `Properties` 快照）。检测到旧键里有旧形状的值时，二选一：
+  - 在旧键上继续返回旧形状的 config（可以只在它还有内容时显示、只删不加），合成时按旧逻辑读取它；
+  - 或者把旧值转换成新形状，作为新键 config 的**默认值**返回：用户看到的就是转换后的值，一编辑就以新形状存在新键上。合成时有新键用新键，否则按同一套逻辑转换旧键。
+- **多选**：默认值是这一次声明共用的。所选对象的旧值转换结果不一致时，没有一个默认值能同时代表它们，这时返回原本的默认值。
 
 ### 5.3 输入活视图 `IVoiceSynthesisContext` 与 `IVoiceSynthesisNote`
 
@@ -1035,7 +1067,7 @@ public ObjectConfig GetSettingsConfig(IExtensionSettingsContext context)
 ```
 
 - **按钮没有值**：它不读写任何属性，恢复默认、preset、设置落盘都跳过它，CLI / agent 也设不了它。**按钮不改工程数据**——它只动你自己的状态（缓存、连接、模型……）。
-- **闭包只捕获值**：声明 context 和视图只在声明调用期间有效，点击可能发生在几分钟以后。需要 PartId、note Id、已填的值，就在 `GetXxxConfig` 里先取出来再让闭包捕获。设置页的 `context.Settings` 是窗口里**当前填写的值（含尚未保存的）**，所以"测试连接"能直接用用户刚输入的密钥。
+- **闭包只捕获值**（§5.2「声明里的闭包与字段演进」）：点击可能发生在几分钟以后，声明 context 和视图早已失效。设置页的 `context.Settings` 是窗口里**当前填写的值（含尚未保存的）**，所以"测试连接"能直接用用户刚输入的密钥。
 - **线程**：`OnClick` 在主线程上调用，与 `Init`、`CreateSession`、声明函数、会话事件同一条线程；`await` 之后默认也回到主线程（除非你写了 `ConfigureAwait(false)`）。所以只在主线程上访问的资源，按钮里用不着加锁。
 - **`await` 是交错点**：主线程在 `await` 期间会去处理别的事，宿主可能这时调用你的其他方法（合成调度、声明函数、会话事件）。要注意的不是多线程，而是**状态跨越 `await` 时是否一致**——比如清缓存清到一半 `await`，合成调度可能正好来读缓存：要么让清理一步完成、中间不 `await`，要么保证 `await` 前后状态都可用。你自己开的后台线程（如合成 worker）的并发安全照旧由你负责。
 - **别阻塞主线程**：宿主拦不住，后果由你承担（界面卡住、系统报"未响应"）。瞬间完成的操作直接同步执行就行；耗时的要 `await`，或放进 `RunWithProgress`（§9.2）。同步等待弹窗结果（`.Result` / `.Wait()`）会死锁。
