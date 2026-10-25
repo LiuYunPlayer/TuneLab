@@ -43,6 +43,7 @@ Package level (top level):
 |---|---|---|
 | `1.0` | TuneLab 2.0.0 | Everything the V1 SDK shipped with |
 | `1.1` | TuneLab 2.1.0 | Path picker controls (`PathPickerConfig` / `FileTypeFilter`), multiline text boxes (`TextBoxConfig.WithMultiline`) |
+| `1.2` | Not yet released | Tag groups (`TagConfig` / `TagItem`), buttons (`ButtonConfig` / `IButtonClickContext` / `IDialogService` / `IProgressReporter`, see §9), declaration invalidation (`InvalidatePart` / `InvalidateNotes` with the matching `PartId` / note `Id`, see §5.2), groups and separators in `+` menus and drop-downs (`AddableElement` / `AddableKey` groups, `Separator`, `ComboBoxItem.Separator`) |
 
 Plugin level (describing "what this package provides"). **Identity is inlined into the manifest**: one entry = one concrete registrable capability, carrying its own identity (engine id / file extension) + the full name of the implementing class. After reading the manifest the host knows what the plugin provides without loading assemblies and reflecting.
 

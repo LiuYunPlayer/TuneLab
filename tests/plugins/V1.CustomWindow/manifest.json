@@ -10,7 +10,7 @@
       "description": "自定义设置界面演示：设置页按钮启动作者自己的界面 exe（WinForms，独立进程；自己布局、自己管数据），除按钮外与宿主无关。"
     }
   },
-  "sdk-version": "1.0",
+  "sdk-version": "1.2",
   "type": "voice",
   "engine": "TLCustomWindowDemo",
   "class": "TuneLab.TestPlugins.V1CustomWindow.CustomWindowVoiceEngine",

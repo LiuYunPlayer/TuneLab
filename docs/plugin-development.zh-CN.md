@@ -43,6 +43,7 @@
 |---|---|---|
 | `1.0` | TuneLab 2.0.0 | V1 SDK 的全部初始面 |
 | `1.1` | TuneLab 2.1.0 | 路径选择控件（`PathPickerConfig` / `FileTypeFilter`）、多行文本框（`TextBoxConfig.WithMultiline`） |
+| `1.2` | 尚未发布 | 标签组（`TagConfig` / `TagItem`）、按钮（`ButtonConfig` / `IButtonClickContext` / `IDialogService` / `IProgressReporter`，见 §9）、声明失效（`InvalidatePart` / `InvalidateNotes` 及配套的 `PartId` / note `Id`，见 §5.2）、`+` 菜单与下拉的分组和分隔线（`AddableElement` / `AddableKey` 分组、`Separator`、`ComboBoxItem.Separator`） |
 
 插件级（描述「这个包提供什么」）。**身份内联进 manifest**：一个条目 = 一个具体可注册能力，自带身份（引擎 id / 文件扩展名）+ 实现类全名。宿主读完 manifest 即知插件提供什么、无需加载程序集反射。
 

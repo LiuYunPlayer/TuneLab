@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "author": "TuneLab Tests",
   "description": "一包多插件：format + voice 共享 V1.Suite.Common.dll（只分发一份、同 ALC 只加载一份）。",
-  "sdk-version": "1.0",
+  "sdk-version": "1.2",
   "extensions": [
     {
       "type": "format",
