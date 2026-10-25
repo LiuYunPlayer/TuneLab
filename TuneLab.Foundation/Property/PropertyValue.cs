@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 
 namespace TuneLab.Foundation;
 
@@ -185,8 +186,8 @@ public readonly struct PropertyValue : IEquatable<PropertyValue>
         return false;
     }
 
-    // 泛型读取：仅匹配确切存储类型。number/boolean 分支需装箱以返回 T（罕用的泛型路径；
-    // 具体类型用上面的 To* 直读字段、零拆箱）。
+    // 泛型读取：按存储类型匹配，数值另可读成其他基础数值类型（见 ToNumber）。number/boolean 分支需装箱以返回 T
+    //（罕用的泛型路径；具体类型用上面的 To* 直读字段、零拆箱）。
     // T = PropertyValue 即"按原值取"（值形状任意的字段，如画布）：原样返回。缺了这一支，
     // PropertyObject.GetValue(key, PropertyValue.Null) 能编译、却恒返回默认值。
     public bool To<T>([MaybeNullWhen(false)] out T result)
@@ -216,9 +217,42 @@ public readonly struct PropertyValue : IEquatable<PropertyValue>
         {
             if (mType == PropertyType.Array) { result = (T)mReference!; return true; }
         }
+        else if (mType == PropertyType.Number)
+        {
+            return ToNumber(mNumber, out result);
+        }
 
         result = default;
         return false;
+    }
+
+    // 其余数值类型（与 ComboBoxItem 接受的那一组对称：写进来时都化成了 double）。只在不丢信息时成功——
+    // 整数类型要求是范围内的整数（2.7 读成 int 视为转不了、回落默认值，不悄悄截断），float / decimal 要求在其范围内。
+    // 缺了这一支，GetValue("count", 0) 推断出 T = int，存的是几都恒返回默认值。
+    // 转换交给 Convert.ChangeType，越界抛 OverflowException；它对整数是四舍五入，故先拦掉非整数。
+    // float 越界不抛、会变成 Infinity，单独拦（Double 已在上面直取）。nint / nuint 没有 TypeCode，不支持（写进来时它们也是罕见的）。
+    static bool ToNumber<T>(double number, [MaybeNullWhen(false)] out T result)
+    {
+        result = default;
+        var code = System.Type.GetTypeCode(typeof(T));
+        bool integer = code is TypeCode.SByte or TypeCode.Byte or TypeCode.Int16 or TypeCode.UInt16
+            or TypeCode.Int32 or TypeCode.UInt32 or TypeCode.Int64 or TypeCode.UInt64;
+        if (!double.IsFinite(number) || !(integer || code is TypeCode.Single or TypeCode.Decimal))
+            return false;
+        if (integer && number != Math.Floor(number))
+            return false;
+        if (code == TypeCode.Single && Math.Abs(number) > float.MaxValue)
+            return false;
+
+        try
+        {
+            result = (T)Convert.ChangeType(number, code, CultureInfo.InvariantCulture);
+            return true;
+        }
+        catch (OverflowException)
+        {
+            return false;
+        }
     }
 
     PropertyValue(double number)

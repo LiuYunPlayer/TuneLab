@@ -434,6 +434,25 @@ public class PropertyArrayTests
         Assert.Equal(new PropertyArray(new PropertyValue[] { 2.0 }), live.GetInfo());
     }
 
+    // 默认值写成整数字面量时 T 被推断成 int：存的数要能读出来，而不是恒返回默认值。
+    [Fact]
+    public void GetValue_WithIntegerDefault_ReadsStoredNumber()
+    {
+        var obj = Obj(("count", 5.0), ("big", 3e9), ("ratio", 2.7));
+
+        Assert.Equal(5, obj.GetValue("count", 0));
+        Assert.Equal(5L, obj.GetValue("count", 0L));
+        Assert.Equal(5f, obj.GetValue("count", 0f));
+        Assert.Equal(5m, obj.GetValue("count", 0m));
+        Assert.Equal((byte)5, obj.GetValue("count", (byte)0));
+        Assert.Equal(3_000_000_000L, obj.GetValue("big", 0L));
+        Assert.Equal(2.7f, obj.GetValue("ratio", 0f));
+        // 丢信息的不转：小数读成整数、超出范围，都回落默认值
+        Assert.Equal(-1, obj.GetValue("ratio", -1));
+        Assert.Equal(-1, obj.GetValue("big", -1));
+        Assert.Equal(7u, Obj(("negative", -3.0)).GetValue("negative", 7u));
+    }
+
     // 按原值取（值形状任意的字段）：T = PropertyValue 必须原样返回，不能落到默认值。
     [Fact]
     public void GetValue_AsPropertyValue_ReturnsTheStoredValue()
