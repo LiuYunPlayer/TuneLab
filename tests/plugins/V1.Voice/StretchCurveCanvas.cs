@@ -124,7 +124,10 @@ sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
             return;
         }
         mDragging = hit;
-        host.SetValue(host.Value);   // 先写一份草稿锁住画布：拖动期间面板不刷新、本实例不会被换掉（即使还没移动、没改值）
+        mMoved = false;
+        // 先写一份草稿锁住画布：拖动期间面板不刷新、本实例不会被换掉（即使还没移动、没改值）。
+        // 多选不一致时当前值是 Multiple——拿它当草稿锁画布没问题，但不能提交它（见 OnMouseUp）。
+        host.SetValue(host.Value);
         host.Invalidate();
     }
 
@@ -136,6 +139,7 @@ sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
             var points = Read(host.Value);
             points[mDragging] = (ValueAt(e.Position.Y), true);
             host.SetValue(Write(points));
+            mMoved = true;
             return;
         }
         UpdateHover(e.Position);
@@ -164,7 +168,11 @@ sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
         if (mDragging < 0)
             return;   // 按下时没命中控制点
         mDragging = -1;
-        host.CommitValue();
+        // 只是点了一下：什么都没改，丢掉草稿。若提交，多选不一致时草稿就是按下时写的 Multiple——它不是值，宿主会拒绝。
+        if (mMoved)
+            host.CommitValue();
+        else
+            host.DiscardValue();
         host.Invalidate();
     }
 
@@ -238,4 +246,5 @@ sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
 
     int mHover = -1;
     int mDragging = -1;
+    bool mMoved;
 }

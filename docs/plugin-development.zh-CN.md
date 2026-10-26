@@ -1144,21 +1144,25 @@ sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
     public void OnMouseDown(CanvasMouseButtonEvent e)
     {
         mDragging = HitTest(e.Position);
-        if (mDragging >= 0)
-            host.SetValue(host.Value);                       // 写草稿锁住画布：拖动期间面板不刷新
+        if (mDragging < 0) return;
+        mMoved = false;
+        host.SetValue(host.Value);                           // 写草稿锁住画布：拖动期间面板不刷新
     }
     public void OnMouseMove(CanvasMouseEvent e)
     {
-        if (mDragging >= 0)
-            host.SetValue(Moved(host.Value, mDragging, e.Position));   // 改草稿，还没进工程
+        if (mDragging < 0) return;
+        host.SetValue(Moved(host.Value, mDragging, e.Position));   // 改草稿，还没进工程
+        mMoved = true;
     }
     public void OnMouseUp(CanvasMouseButtonEvent e)
     {
         if (mDragging < 0) return;
         mDragging = -1;
-        host.CommitValue();                                  // 草稿写进工程，成为一个撤销步骤
+        if (mMoved) host.CommitValue();                      // 草稿写进工程，成为一个撤销步骤
+        else host.DiscardValue();                            // 只是点了一下：什么都没改
     }
     int mDragging = -1;
+    bool mMoved;
 }
 ```
 
@@ -1176,7 +1180,7 @@ sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
 
 - **`SetValue`** 写草稿。宿主代为保管——不进工程、别处看不到——`host.Value` 随即返回它，你照常按 `host.Value` 画。
 - **`CommitValue`** 把草稿写进工程，成为一个撤销步骤，并结束编辑。**`DiscardValue`** 丢弃草稿、回到工程里的值（如"取消"），也结束编辑。没有草稿时两者都什么都不做。
-- **有草稿 = 面板仍在使用**：所在窗口的属性面板不刷新（插件宣告的声明失效、别处的修改都留到编辑结束），你的实例也不会被换掉。所以一次操作要防被打断，就**在操作开始时写草稿**——比如按下时还没改值，写入当前值即可（如上例）。草稿可以一直挂着，等用户在画布上点你画的"确认"再提交。
+- **有草稿 = 面板仍在使用**：所在窗口的属性面板不刷新（插件宣告的声明失效、别处的修改都留到编辑结束），你的实例也不会被换掉。所以一次操作要防被打断，就**在操作开始时写草稿**——比如按下时还没改值，写入当前值即可（如上例）。多选不一致时当前值是多值标记（`IsMultiple()`）：拿它当草稿锁住画布没问题，但**不能提交它**——它不是值，宿主会拒绝写入并记一条错误；没改值就 `DiscardValue`（如上例的"只是点了一下"）。草稿可以一直挂着，等用户在画布上点你画的"确认"再提交。
 - **提交只由你发起**，宿主从不代为提交。草稿保不住时宿主将其丢弃：外部改了本字段的值（撤销、别处改了同一份数据）、面板被拆（切换 part 等）、画布离开界面（页签切走、窗口关闭）。
 - 没有"松手"的连续操作（如滚轮）可以**推迟提交**：每格都 `SetValue`，在回调里 `await Task.Delay(…)` 等操作停顿再 `CommitValue()`（`await` 之后回到主线程，可以直接用 `host`），一段连续滚动只成一个撤销步骤。
 

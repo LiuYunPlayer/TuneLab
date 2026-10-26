@@ -1146,21 +1146,25 @@ sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
     public void OnMouseDown(CanvasMouseButtonEvent e)
     {
         mDragging = HitTest(e.Position);
-        if (mDragging >= 0)
-            host.SetValue(host.Value);                       // write a draft to lock the canvas: the panel won't refresh mid-drag
+        if (mDragging < 0) return;
+        mMoved = false;
+        host.SetValue(host.Value);                           // write a draft to lock the canvas: the panel won't refresh mid-drag
     }
     public void OnMouseMove(CanvasMouseEvent e)
     {
-        if (mDragging >= 0)
-            host.SetValue(Moved(host.Value, mDragging, e.Position));   // update the draft; not in the project yet
+        if (mDragging < 0) return;
+        host.SetValue(Moved(host.Value, mDragging, e.Position));   // update the draft; not in the project yet
+        mMoved = true;
     }
     public void OnMouseUp(CanvasMouseButtonEvent e)
     {
         if (mDragging < 0) return;
         mDragging = -1;
-        host.CommitValue();                                  // the draft goes into the project as one undo step
+        if (mMoved) host.CommitValue();                      // the draft goes into the project as one undo step
+        else host.DiscardValue();                            // just a click: nothing changed
     }
     int mDragging = -1;
+    bool mMoved;
 }
 ```
 
@@ -1178,7 +1182,7 @@ While the user is working, the value is only a **draft**; it reaches the project
 
 - **`SetValue`** writes the draft. The host keeps it for you — outside the project, invisible elsewhere — and `host.Value` returns it from then on, so you keep drawing from `host.Value`.
 - **`CommitValue`** writes the draft into the project as one undo step and ends the edit. **`DiscardValue`** drops the draft and goes back to the project value (a "cancel"), also ending the edit. Without a draft, both do nothing.
-- **A draft means the panel is still in use**: the property panels in that window don't refresh (declaration invalidations from your plugin and changes made elsewhere wait until the edit ends) and your instance won't be replaced. So to keep an operation from being interrupted, **write a draft when it starts** — on a press, before anything changed, just write the current value (as above). A draft may stay as long as you like, say until the user clicks a "confirm" you drew on the canvas.
+- **A draft means the panel is still in use**: the property panels in that window don't refresh (declaration invalidations from your plugin and changes made elsewhere wait until the edit ends) and your instance won't be replaced. So to keep an operation from being interrupted, **write a draft when it starts** — on a press, before anything changed, just write the current value (as above). When a multi-selection differs, the current value is the multiple-value marker (`IsMultiple()`): it's fine as a draft that locks the canvas, but **never commit it** — it isn't a value, so the host refuses to write it and logs an error; if nothing changed, call `DiscardValue` (the "just a click" case above). A draft may stay as long as you like, say until the user clicks a "confirm" you drew on the canvas.
 - **Only you commit**; the host never commits on your behalf. When a draft can't be kept, the host drops it: the field's value was changed from outside (undo, the same data edited elsewhere), the panel was torn down (switching parts, say), or the canvas left the screen (another tab, the window closed).
 - Continuous input with no "release" (the wheel, say) can **defer the commit**: `SetValue` on every notch, `await Task.Delay(…)` in the callback until the input pauses, then `CommitValue()` (after the `await` you are back on the main thread and can use `host` directly) — one continuous scroll becomes one undo step.
 

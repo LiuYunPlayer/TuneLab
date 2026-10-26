@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.Loader;
 using Avalonia;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -51,6 +52,14 @@ internal sealed class PluginCanvas : Component
     }
 
     PropertyValue CurrentValue => mField is IRawValueProperty raw ? raw.RawValue : mField?.Value ?? PropertyValue.Null;
+
+    // 没有异常堆栈可归因时（如插件误用 API），按工厂所在程序集的加载上下文名标明来源插件——与 Log.ErrorAttributed
+    // 按堆栈找到的是同一个名字（插件包目录名）。宿主自己的程序集返回空串。
+    string PluginPrefix()
+    {
+        var context = mFactory == null ? null : AssemblyLoadContext.GetLoadContext(mFactory.Method.Module.Assembly);
+        return context == null || context == AssemblyLoadContext.Default || string.IsNullOrEmpty(context.Name) ? "" : "[" + context.Name + "] ";
+    }
 
     void OnFieldModified()
     {
@@ -380,6 +389,18 @@ internal sealed class PluginCanvas : Component
             if (!IsAlive || mDraft is not { } value)
                 return;
             ClearDraft();
+            // 草稿含 Multiple = 插件把多选读出的当前值原样写回（多选不一致时 Value 就是 Multiple）。它不是值、存储层也会拒：
+            // 不写，草稿已丢，记一条归因到插件的错误。不抛——CommitValue 常在 await 之后调（滚轮推迟提交），抛出去没有人接。
+            try
+            {
+                PropertySlot.EnsureStorable(value);
+            }
+            catch (ArgumentException)
+            {
+                Log.Error(view.PluginPrefix() + "Canvas CommitValue was given Multiple (the multi-selection's differing values) and nothing was written. Commit a real value, or call DiscardValue when nothing changed.");
+                view.InvalidateVisual();
+                return;
+            }
             view.mOwnWrite++;
             try
             {
