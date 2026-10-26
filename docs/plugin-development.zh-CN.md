@@ -1120,7 +1120,7 @@ var inputs = await click.DialogService.PromptInputs("导出预设", ObjectConfig
 - **有效期**：从回调开始到它返回的 Task 完成。把 `click.DialogService` 存起来、事后再用会抛 `InvalidOperationException`。
 - 任意线程可调。**不要同步阻塞等待**返回的 Task（`.Result` / `.Wait()`）——弹窗要用 UI 线程，在 UI 线程上阻塞即死锁。
 - `RunWithProgress`：进度窗从 0% 开始；`Report(fraction, status)` 的 `fraction` 为 `null` 时显示不确定进度（滚动条），`status` 是进度条下方的一行文字（自译），省略或传 `null` 表示保持上一次的文字（想清空传 `""`）；`fraction` 没有"保持不变"的写法，只更新文字时要传入当前进度；`progress.SetCancellable(false)` 让取消按钮在不能打断的关键段（替换文件、写索引……）里变灰，出关键段再置回 `true`（默认可取消；应用退出时 token 照样取消，关键段仍须能应对进程被结束）；`Report` 可任意线程、高频调用（宿主按帧合并）；进度窗恒带取消按钮，用户取消或应用退出时 token 取消；`work` 抛出的异常原样传回给你。
-- `PromptInputs`：用和属性面板同一套控件渲染你的 config（与脚本工具的 inputs 是同一个表单窗）；表单数据与工程隔离、不进撤销。
+- `PromptInputs`：用和属性面板同一套控件渲染你的 config（与脚本工具的 inputs 是同一个表单窗）；表单数据与工程隔离、不进撤销。表单要随填写的值变化（某项选了 X 才出现别的字段）时，传一个函数而不是固定的 config：`PromptInputs(title, values => BuildForm(values))`——和属性面板一样，值一变就以表单当前的值重新调用它；`values` 只含用户改过的字段，读不到即默认值。
 
 ### 9.3 插件自己的设置界面
 

@@ -101,7 +101,16 @@ internal sealed class HostDialogService(string source, Window? owner) : IDialogS
         });
     }
 
+    // 固定的表单 = 每次都给同一份 config 的特例。
     public Task<PropertyObject?> PromptInputs(string title, ObjectConfig config)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        return PromptInputs(title, _ => config);
+    }
+
+    // 表单随填写的值重新声明（同属性面板、同脚本工具的 inputs）：值一变就以表单当前的稀疏值调用 config。
+    // 首份 config 的异常原样抛给插件（表单还没开）；之后的异常记日志、表单保留上一份 config，不打断填写。
+    public Task<PropertyObject?> PromptInputs(string title, Func<PropertyObject, ObjectConfig> config)
     {
         ArgumentNullException.ThrowIfNull(config);
         EnsureValid();
@@ -109,10 +118,23 @@ internal sealed class HostDialogService(string source, Window? owner) : IDialogS
         {
             if (Owner() is not { } parent)
                 return null;
-            // 与脚本工具的 inputs 同一个表单窗；静态表单（schema 不随值重算）。
-            var window = new PropertyFormWindow(DecorateTitle(title), config, _ => (config, null), PropertyObject.Empty);
+            var initial = config(PropertyObject.Empty) ?? throw new InvalidOperationException("PromptInputs config returned null.");
+            (ObjectConfig? Schema, string? Error) Compute(PropertyObject values)
+            {
+                try
+                {
+                    return (config(values) ?? throw new InvalidOperationException("PromptInputs config returned null."), null);
+                }
+                catch (Exception ex)
+                {
+                    HostLog.Error("[" + source + "] PromptInputs config threw: " + ex);
+                    return (null, ex.Message);
+                }
+            }
+            var window = new PropertyFormWindow(DecorateTitle(title), initial, Compute, PropertyObject.Empty);
             var sparse = await window.ShowDialog<PropertyObject?>(parent);
-            return sparse == null ? null : Complete(config, sparse);
+            // 补默认值按最终那份 config（条件字段随值出现 / 消失）。
+            return sparse == null ? null : Complete(Compute(sparse).Schema ?? initial, sparse);
         });
     }
 

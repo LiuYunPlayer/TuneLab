@@ -28,6 +28,11 @@ public interface IDialogService
     // 控件）。确定返回**完整的**值——用户没改的字段为 config 声明的默认值（初始值就写在默认值里）；取消 / 关窗返回 null。
     // 表单里的数据与工程隔离、不进撤销。
     Task<PropertyObject?> PromptInputs(string title, ObjectConfig config);
+
+    // 同上，但表单随填写的值重新声明（与属性面板一样：值一变就重新取 config）——用于条件字段（某项选了 X 才出现）等。
+    // config 收到表单当前的值：只含用户改过的字段，读不到即默认值（同声明 context 的口径）。
+    // 在主线程上调用；抛异常时宿主记日志、表单保持上一份 config。
+    Task<PropertyObject?> PromptInputs(string title, Func<PropertyObject, ObjectConfig> config);
 }
 
 // 进度汇报（宿主实现）。任意线程可调、可高频，宿主按帧合并。
