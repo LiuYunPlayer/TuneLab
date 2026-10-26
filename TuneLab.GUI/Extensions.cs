@@ -179,10 +179,10 @@ internal static class Extensions
         return new SolidColorBrush(color);
     }
 
-    public static void DrawString(this DrawingContext context, string text, Rect rect, IBrush brush, double fontSize, int alignment, int pivotAlignment, Avalonia.Point offset = new Avalonia.Point(), Typeface? typeface = null)
+    public static void DrawString(this DrawingContext context, string text, Rect rect, IBrush brush, double fontSize, int alignment, int pivotAlignment, Avalonia.Point offset = new Avalonia.Point(), Typeface? typeface = null, bool alignLines = false)
     {
         var anchor = alignment.Offset(rect.Width, rect.Height);
-        context.DrawString(text, new Avalonia.Point(rect.X - anchor.Item1 + offset.X, rect.Y - anchor.Item2 + offset.Y), brush, fontSize, pivotAlignment, typeface);
+        context.DrawString(text, new Avalonia.Point(rect.X - anchor.Item1 + offset.X, rect.Y - anchor.Item2 + offset.Y), brush, fontSize, pivotAlignment, typeface, alignLines);
     }
 
     // 裸 DrawString（未显式传 typeface）的默认字体。由宿主按用户所选界面字体实时注入（见主工程 AppFont）；
@@ -190,13 +190,22 @@ internal static class Extensions
     // 免去逐个调用点传 typeface。显式传了 typeface 的调用（数值/等宽/加粗）不受影响。
     public static Typeface DrawStringTypeface = Typeface.Default;
 
-    public static void DrawString(this DrawingContext context, string text, Avalonia.Point point, IBrush brush, double fontSize, int alignment, Typeface? typeface = null)
+    // alignLines：多行文字的每一行也按 alignment 的横向分量对齐（如居中 = 每行各自居中）；否则块内每行靠左、只有整块按
+    // alignment 锚定。单行文字两者无差别。
+    public static void DrawString(this DrawingContext context, string text, Avalonia.Point point, IBrush brush, double fontSize, int alignment, Typeface? typeface = null, bool alignLines = false)
     {
         typeface ??= DrawStringTypeface;
         if (string.IsNullOrWhiteSpace(text))
             return;
 
         var formattedText = new FormattedText(text, System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, typeface.Value, fontSize, brush);
+        if (alignLines)
+        {
+            // FormattedText 的 TextAlignment 只在设了 MaxTextWidth 时生效（以它为每行对齐的参照宽度）。取块宽（最宽一行，
+            // 不含行尾空白）作参照：最宽一行恰好放下、不会折行，整块的宽度与锚定也不变。
+            formattedText.TextAlignment = (alignment % 4) switch { 1 => TextAlignment.Center, 2 => TextAlignment.Right, _ => TextAlignment.Left };
+            formattedText.MaxTextWidth = formattedText.Width;
+        }
         var (x, y) = alignment.Offset(formattedText.Width, formattedText.Height);
         context.DrawText(formattedText, point + new Avalonia.Point(x, y));
     }

@@ -26,7 +26,7 @@ public interface ICanvasDrawing
     void FillEllipse(Point center, double radiusX, double radiusY, Color color);
 
     // 文字：按 alignment 对齐在矩形内。矩形宽高为 0 时即"以 (x, y) 为锚点"——如 RightCenter 表示文字右端中点落在该点。
-    // 不换行、超出不截断。字体由宿主决定（跟随界面字体）：按 MeasureText 的结果排版，别写死文字宽度。
+    // 文字里的 \n 换行，多行时每一行也按 alignment 的横向对齐（如 Center = 每行各自居中）。不自动折行、超出不截断。字体由宿主决定（跟随界面字体）：按 MeasureText 的结果排版，别写死文字宽度。
     void DrawText(string text, double x, double y, double width, double height, Color color, double fontSize, CanvasAlignment alignment = CanvasAlignment.Center);
     (double Width, double Height) MeasureText(string text, double fontSize);
 

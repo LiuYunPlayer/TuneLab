@@ -661,7 +661,7 @@ internal sealed class PluginCanvas : Component
             // CanvasAlignment 的取值与宿主的九宫格编码一致（见其注释）；未知值按居中。同一个对齐既定矩形内的锚点、又定文字自身的
             // 对齐点，于是零尺寸矩形 = 以该点为锚。
             int align = Enum.IsDefined(alignment) ? (int)alignment : (int)CanvasAlignment.Center;
-            context.DrawString(text, new Rect(x, y, Math.Max(0, width), Math.Max(0, height)), Brush(color), fontSize, align, align);
+            context.DrawString(text, new Rect(x, y, Math.Max(0, width), Math.Max(0, height)), Brush(color), fontSize, align, align, alignLines: true);
         }
 
         public (double Width, double Height) MeasureText(string text, double fontSize)
