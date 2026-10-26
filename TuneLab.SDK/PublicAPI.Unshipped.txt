@@ -18,6 +18,7 @@ TuneLab.SDK.IButtonClickContext
 TuneLab.SDK.IButtonClickContext.DialogService.get -> TuneLab.SDK.IDialogService!
 TuneLab.SDK.IDialogService
 TuneLab.SDK.IDialogService.Confirm(string! title, string! message) -> System.Threading.Tasks.Task<bool>!
+TuneLab.SDK.IDialogService.PromptInputs(string! title, System.Func<TuneLab.Foundation.PropertyObject!, TuneLab.SDK.ObjectConfig!>! config) -> System.Threading.Tasks.Task<TuneLab.Foundation.PropertyObject?>!
 TuneLab.SDK.IDialogService.PromptInputs(string! title, TuneLab.SDK.ObjectConfig! config) -> System.Threading.Tasks.Task<TuneLab.Foundation.PropertyObject?>!
 TuneLab.SDK.IDialogService.RunWithProgress(string! title, System.Func<TuneLab.SDK.IProgressReporter!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! work) -> System.Threading.Tasks.Task!
 TuneLab.SDK.IDialogService.ShowMessage(string! title, string! message) -> System.Threading.Tasks.Task!

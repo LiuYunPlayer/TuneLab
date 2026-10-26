@@ -67,6 +67,7 @@ internal static class ButtonActions
         public Task<bool> Confirm(string title, string message) => Task.FromResult(false);
         public Task RunWithProgress(string title, Func<IProgressReporter, CancellationToken, Task> work) => work(this, CancellationToken.None);
         public Task<PropertyObject?> PromptInputs(string title, ObjectConfig config) => Task.FromResult<PropertyObject?>(null);
+        public Task<PropertyObject?> PromptInputs(string title, Func<PropertyObject, ObjectConfig> config) => Task.FromResult<PropertyObject?>(null);
         public void Report(double? fraction, string? status = null) { }
         public void SetCancellable(bool cancellable) { }
     }
