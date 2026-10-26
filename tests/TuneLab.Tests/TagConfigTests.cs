@@ -186,4 +186,21 @@ public class TagConfigTests
         PartPresets.ApplyProperties(config, new PropertyObject(new Map<string, PropertyValue> { { "timbre", A() } }), node);
         Assert.Empty(TagModel.Read(node, "timbre", A("resonant")));   // 显式空选择，不回落默认
     }
+
+    // ===== 候选值与默认所选必须是真实值（Null / Multiple 当场报错）=====
+
+    [Fact]
+    public void CreateRejectsNullOrMultipleCandidateValues()
+    {
+        Assert.Throws<System.ArgumentException>(() => TagConfig.Create([new TagItem(PropertyValue.Null, "none")]));
+        Assert.Throws<System.ArgumentException>(() => TagConfig.Create([new TagItem("G", [PropertyValue.Multiple])]));
+        TagConfig.Create([new TagItem("G", ["a"]), TagItem.Separator(), "b"]);   // 分组 / 分隔线自身的 Null 不算
+    }
+
+    [Fact]
+    public void WithDefaultRejectsNullOrMultiple()
+    {
+        Assert.Throws<System.ArgumentException>(() => TagConfig.Create(Catalog).WithDefault([PropertyValue.Null]));
+        Assert.Throws<System.ArgumentException>(() => TagConfig.Create(Catalog).WithDefault([PropertyValue.Multiple]));
+    }
 }

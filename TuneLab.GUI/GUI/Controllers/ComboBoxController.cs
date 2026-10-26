@@ -114,7 +114,7 @@ internal class ComboBoxController : DropDown, IDataValueController<PropertyValue
                 items.Add(new DropDownItem() { Text = option.DisplayText ?? string.Empty, IsSeparator = true });
             else if (option.SubItems is not null)
                 items.Add(new DropDownItem() { Text = option.ShowText(), Children = BuildItems(option.SubItems) });
-            else
+            else if (option.IsListed())   // 与 Leaves() 同口径跳过，菜单序与叶子序才对得上
                 items.Add(new DropDownItem() { Text = option.ShowText(), Tag = option.Value });
         }
         return items;

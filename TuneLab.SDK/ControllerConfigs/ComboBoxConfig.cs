@@ -76,12 +76,34 @@ public sealed class ComboBoxConfig : IValueConfig
 {
     public IReadOnlyList<ComboBoxItem> Items { get; private set; } = [];
 
-    // 默认值缺省取首项（空列表给 default）——未经 WithDefault 设定时由 getter 懒回退到 Items[0]。
+    // 默认值 = WithDefault 指定的项；未指定、或指定的不是一个能选的值（分隔线 / 分组 / 值为 Null 或 Multiple 的项）时，
+    // 取第一个能选的叶子（深度优先、跳过分隔线与分组）——不能取 Items[0]：首项是分组时默认值会成 Null，而宿主按默认值
+    // 判"未设"并定类型。一个能选的都没有（如选项动态为空）时为 default（值为 Null）：本就无可选，这是正常状态。
     ComboBoxItem? mDefaultOption;
     public ComboBoxItem DefaultOption
     {
-        get => mDefaultOption ?? (Items.Count == 0 ? default : Items[0]);
+        get => mDefaultOption is { } option && IsSelectable(option) ? option : FirstSelectable(Items) ?? default;
         private set => mDefaultOption = value;
+    }
+
+    static bool IsSelectable(ComboBoxItem item)
+        => !item.IsSeparator && item.SubItems == null && !item.Value.IsNull() && !item.Value.IsMultiple();
+
+    static ComboBoxItem? FirstSelectable(IReadOnlyList<ComboBoxItem> items)
+    {
+        foreach (var item in items)
+        {
+            if (item.SubItems is { } subItems)
+            {
+                if (FirstSelectable(subItems) is { } leaf)
+                    return leaf;
+            }
+            else if (IsSelectable(item))
+            {
+                return item;
+            }
+        }
+        return null;
     }
 
     private ComboBoxConfig() { }

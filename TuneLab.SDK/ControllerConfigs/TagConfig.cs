@@ -70,9 +70,39 @@ public sealed class TagConfig : IValueConfig
     TagConfig Clone() => (TagConfig)MemberwiseClone();
 
     // 构造即拷贝（[.. items]）：与调用方构造后对原 list 的改动无关。
-    public static TagConfig Create(IReadOnlyList<TagItem> items) => new() { Items = [.. items] };
+    // 候选（叶子）的值与默认所选都必须是真实值：Null 不是值（宿主按"没有"处理），Multiple 只是多选读出时"各对象不一致"的
+    // 标记、绝不入存储——两者都是写错了，当场报出来，免得插件运行起来才莫名其妙。分组 / 分隔线自身的 Null 不在此列。
+    public static TagConfig Create(IReadOnlyList<TagItem> items)
+    {
+        EnsureLeafValues(items);
+        return new() { Items = [.. items] };
+    }
 
-    public TagConfig WithDefault(IReadOnlyList<PropertyValue> tags) { var c = Clone(); c.DefaultTags = [.. tags]; return c; }
+    public TagConfig WithDefault(IReadOnlyList<PropertyValue> tags)
+    {
+        foreach (var tag in tags)
+            EnsureRealValue(tag, nameof(tags));
+        var c = Clone();
+        c.DefaultTags = [.. tags];
+        return c;
+    }
+
+    static void EnsureLeafValues(IReadOnlyList<TagItem> items)
+    {
+        foreach (var item in items)
+        {
+            if (item.SubItems is { } subItems)
+                EnsureLeafValues(subItems);
+            else if (!item.IsSeparator)
+                EnsureRealValue(item.Value, nameof(items));
+        }
+    }
+
+    static void EnsureRealValue(PropertyValue value, string parameter)
+    {
+        if (value.IsNull() || value.IsMultiple())
+            throw new ArgumentException("Tag values must be real values: Null means no value, and Multiple only marks differing values when reading a multi-selection.", parameter);
+    }
 
     PropertyValue IValueConfig.DefaultValue => new PropertyArray(DefaultTags);
 }

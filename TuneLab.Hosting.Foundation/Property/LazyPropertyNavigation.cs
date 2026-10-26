@@ -26,6 +26,9 @@ internal sealed class ObjectView(IDataObject root, ILazyObjectNode owner, string
     public PropertyValue GetValue(string subKey, PropertyValue defaultValue)
         => owner.FindObject(key)?.GetValue(subKey, defaultValue) ?? defaultValue;
 
+    public PropertyValue GetRawValue(string subKey)
+        => owner.FindObject(key)?.GetRawValue(subKey) ?? PropertyValue.Null;
+
     public void SetValue(string subKey, PropertyValue value)
         => owner.GetOrCreateObject(key).SetValue(subKey, value);
 
@@ -57,6 +60,7 @@ internal sealed class ArrayView(IDataObject root, ILazyObjectNode owner, string 
     public IDataPropertyObject Object(string token) => new ObjectView(root, this, token);
     public IDataPropertyArray Array(string token) => new ArrayView(root, this, token);
     public PropertyValue GetValue(string token, PropertyValue defaultValue) => owner.FindArray(key)?.GetValue(token, defaultValue) ?? defaultValue;
+    public PropertyValue GetRawValue(string token) => owner.FindArray(key)?.GetRawValue(token) ?? PropertyValue.Null;
     public void SetValue(string token, PropertyValue value) => owner.FindArray(key)?.SetValue(token, value);
     public void RemoveValue(string token) => owner.FindArray(key)?.RemoveValue(token);
 

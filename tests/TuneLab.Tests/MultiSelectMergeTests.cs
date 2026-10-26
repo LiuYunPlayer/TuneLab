@@ -286,4 +286,32 @@ public class MultiSelectMergeTests
         Assert.Equal(Arr(1.0, 2.0), a.GetInfo().Map["ph"]);
         Assert.Equal(Arr(3.0), b.GetInfo().Map["ph"]);
     }
+
+    // ===== 按原值读（RawValueField）：不按默认值的类型过滤，给选项可为任意类型的 ComboBox 用 =====
+
+    [Fact]
+    public void RawValueField_ReadsAnyStoredType_AbsentIsDefault()
+    {
+        var note = new DataPropertyObject();
+        var field = note.RawValueField("pick", PropertyValue.Create(1.0));
+        Assert.Equal(PropertyValue.Create(1.0), field.Value);                    // 缺席 = 默认
+
+        note.SetValue("pick", "text");                                           // 与默认不同类型的合法选项
+        Assert.Equal(PropertyValue.Create("text"), field.Value);
+        Assert.Equal(PropertyValue.Create(1.0), note.GetValue("pick", PropertyValue.Create(1.0)));   // 对照：类型门把它换成默认
+    }
+
+    [Fact]
+    public void RawValueField_MultiSelect_EqualIsValue_DifferentIsMultiple()
+    {
+        var a = new DataPropertyObject();
+        var b = new DataPropertyObject();
+        a.SetValue("pick", "x");
+        b.SetValue("pick", "x");
+        var merged = new MultipleDataPropertyObject([a, b]);
+        Assert.Equal(PropertyValue.Create("x"), ((IRawValueProperty)merged.RawValueField("pick", PropertyValue.Create(0.0))).RawValue);
+
+        b.SetValue("pick", 2.0);
+        Assert.True(((IRawValueProperty)merged.RawValueField("pick", PropertyValue.Create(0.0))).RawValue.IsMultiple());
+    }
 }
