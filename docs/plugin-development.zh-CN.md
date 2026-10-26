@@ -1093,23 +1093,23 @@ public ObjectConfig GetSettingsConfig(IExtensionSettingsContext context)
 - **位置**：只能作为 `ObjectConfig` 的成员（任意嵌套深度，含列表元素里的对象）。直接当 `ArrayConfig` / `ListConfig` 的元素或 `ExtensibleObjectConfig` 的可加键时不支持——那些位置每一格都是一个值。
 - **两种形态，都占一行**：有标题时（键的显示名；不给显示名则用 id）按钮在标题右侧；键的显示名**显式给空字符串**——`("run", "")`——则不显示标题、按钮铺满整行，适合按钮文字本身就说明一切的操作。除此之外没有布局属性；按钮不可收起（它没有值）。
 
-### 9.2 点击期间的弹窗服务（`click.Dialogs`）
+### 9.2 点击期间的弹窗服务（`click.DialogService`）
 
-**弹窗只能在按钮点击期间弹**，入口只有回调参数 `click.Dialogs`：
+**弹窗只能在按钮点击期间弹**，入口只有回调参数 `click.DialogService`：
 
 ```csharp
 static async Task ClearCacheAsync(IButtonClickContext click)
 {
-    if (!await click.Dialogs.Confirm("清理缓存", "删除全部缓存文件？")) return;
-    await click.Dialogs.RunWithProgress("正在清理…", async (progress, cancel) =>
+    if (!await click.DialogService.Confirm("清理缓存", "删除全部缓存文件？")) return;
+    await click.DialogService.RunWithProgress("正在清理…", async (progress, cancel) =>
     {
         for (int i = 1; i <= n; i++) { cancel.ThrowIfCancellationRequested(); /* … */ progress.Report((double)i / n, $"第 {i} / {n} 个文件"); }
     });
-    await click.Dialogs.ShowMessage("清理缓存", "完成。");
+    await click.DialogService.ShowMessage("清理缓存", "完成。");
 }
 
 // 点了按钮后要用户填几个参数：返回完整的值（没改的字段为默认值），取消返回 null
-var inputs = await click.Dialogs.PromptInputs("导出预设", ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>
+var inputs = await click.DialogService.PromptInputs("导出预设", ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>
 {
     { ("name", "预设名"), TextBoxConfig.Create(lastName) },          // 初始值写在默认值里
     { ("quality", "质量"), SliderConfig.Integer(5, 0, 10) },
@@ -1117,7 +1117,7 @@ var inputs = await click.Dialogs.PromptInputs("导出预设", ObjectConfig.Creat
 ```
 
 - 宿主按自身风格画出来：主题一致，确定 / 取消等按钮文字由宿主翻译，标题和正文由你自译；弹窗以**按钮所在的窗口**为父窗口模态显示，并标明来源插件。
-- **有效期**：从回调开始到它返回的 Task 完成。把 `click.Dialogs` 存起来、事后再用会抛 `InvalidOperationException`。
+- **有效期**：从回调开始到它返回的 Task 完成。把 `click.DialogService` 存起来、事后再用会抛 `InvalidOperationException`。
 - 任意线程可调。**不要同步阻塞等待**返回的 Task（`.Result` / `.Wait()`）——弹窗要用 UI 线程，在 UI 线程上阻塞即死锁。
 - `RunWithProgress`：进度窗从 0% 开始；`Report(fraction, status)` 的 `fraction` 为 `null` 时显示不确定进度（滚动条），`status` 是进度条下方的一行文字（自译），省略或传 `null` 表示保持上一次的文字（想清空传 `""`）；`fraction` 没有"保持不变"的写法，只更新文字时要传入当前进度；`progress.SetCancellable(false)` 让取消按钮在不能打断的关键段（替换文件、写索引……）里变灰，出关键段再置回 `true`（默认可取消；应用退出时 token 照样取消，关键段仍须能应对进程被结束）；`Report` 可任意线程、高频调用（宿主按帧合并）；进度窗恒带取消按钮，用户取消或应用退出时 token 取消；`work` 抛出的异常原样传回给你。
 - `PromptInputs`：用和属性面板同一套控件渲染你的 config（与脚本工具的 inputs 是同一个表单窗）；表单数据与工程隔离、不进撤销。

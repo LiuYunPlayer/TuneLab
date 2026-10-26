@@ -15,7 +15,7 @@ TuneLab.SDK.ButtonConfig
 TuneLab.SDK.ButtonConfig.OnClick.get -> System.Func<TuneLab.SDK.IButtonClickContext!, System.Threading.Tasks.Task!>!
 TuneLab.SDK.ButtonConfig.Text.get -> string!
 TuneLab.SDK.IButtonClickContext
-TuneLab.SDK.IButtonClickContext.Dialogs.get -> TuneLab.SDK.IDialogService!
+TuneLab.SDK.IButtonClickContext.DialogService.get -> TuneLab.SDK.IDialogService!
 TuneLab.SDK.IDialogService
 TuneLab.SDK.IDialogService.Confirm(string! title, string! message) -> System.Threading.Tasks.Task<bool>!
 TuneLab.SDK.IDialogService.PromptInputs(string! title, TuneLab.SDK.ObjectConfig! config) -> System.Threading.Tasks.Task<TuneLab.Foundation.PropertyObject?>!

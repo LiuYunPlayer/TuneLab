@@ -62,7 +62,7 @@ internal static class ButtonActions
     sealed class NoWindowClick : IButtonClickContext, IDialogService, IProgressReporter
     {
         public static readonly NoWindowClick Instance = new();
-        public IDialogService Dialogs => this;
+        public IDialogService DialogService => this;
         public Task ShowMessage(string title, string message) => Task.CompletedTask;
         public Task<bool> Confirm(string title, string message) => Task.FromResult(false);
         public Task RunWithProgress(string title, Func<IProgressReporter, CancellationToken, Task> work) => work(this, CancellationToken.None);

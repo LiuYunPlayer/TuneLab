@@ -1095,23 +1095,23 @@ public ObjectConfig GetSettingsConfig(IExtensionSettingsContext context)
 - **Placement**: only as a member of an `ObjectConfig` (at any depth, including objects inside list elements). Not supported directly as an `ArrayConfig` / `ListConfig` element or an `ExtensibleObjectConfig` addable key — every slot there is a value.
 - **Two forms, both one row**: with a title (the key's display name, or its id when no display name is given) the button sits on the right of the title; give the key an **empty** display name — `("run", "")` — and the title is dropped and the button spans the whole row, for actions whose button text already says it all. Buttons have no layout properties beyond that and are not collapsible (they hold no value).
 
-### 9.2 The dialog service during a click (`click.Dialogs`)
+### 9.2 The dialog service during a click (`click.DialogService`)
 
-**Dialogs can only be shown while a button click is running**, and the only entry point is the callback argument `click.Dialogs`:
+**Dialogs can only be shown while a button click is running**, and the only entry point is the callback argument `click.DialogService`:
 
 ```csharp
 static async Task ClearCacheAsync(IButtonClickContext click)
 {
-    if (!await click.Dialogs.Confirm("Clear cache", "Delete all cached files?")) return;
-    await click.Dialogs.RunWithProgress("Clearing…", async (progress, cancel) =>
+    if (!await click.DialogService.Confirm("Clear cache", "Delete all cached files?")) return;
+    await click.DialogService.RunWithProgress("Clearing…", async (progress, cancel) =>
     {
         for (int i = 1; i <= n; i++) { cancel.ThrowIfCancellationRequested(); /* … */ progress.Report((double)i / n, $"File {i} / {n}"); }
     });
-    await click.Dialogs.ShowMessage("Clear cache", "Done.");
+    await click.DialogService.ShowMessage("Clear cache", "Done.");
 }
 
 // ask the user for a few parameters after the click: complete values (untouched fields = defaults), null when cancelled
-var inputs = await click.Dialogs.PromptInputs("Export preset", ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>
+var inputs = await click.DialogService.PromptInputs("Export preset", ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>
 {
     { ("name", "Preset name"), TextBoxConfig.Create(lastName) },     // initial values go into the defaults
     { ("quality", "Quality"), SliderConfig.Integer(5, 0, 10) },
@@ -1119,7 +1119,7 @@ var inputs = await click.Dialogs.PromptInputs("Export preset", ObjectConfig.Crea
 ```
 
 - The host draws them in its own style: consistent theme, OK / Cancel text translated by the host, title and body translated by you. Dialogs are modal over **the window holding the button** and name the plugin they came from.
-- **Lifetime**: from the start of the callback until the Task it returns completes. Keeping `click.Dialogs` and using it afterwards throws `InvalidOperationException`.
+- **Lifetime**: from the start of the callback until the Task it returns completes. Keeping `click.DialogService` and using it afterwards throws `InvalidOperationException`.
 - Callable from any thread. **Never block synchronously** on the returned Task (`.Result` / `.Wait()`) — dialogs need the UI thread, and blocking it deadlocks.
 - `RunWithProgress`: the progress window starts at 0%; in `Report(fraction, status)` a `null` fraction shows indeterminate progress (a moving bar), and `status` is one line of text under the bar (translated by you) — omit it or pass `null` to keep the previous text (pass `""` to clear it); `fraction` has no "keep as is" value, so pass the current progress when only the text changes; `progress.SetCancellable(false)` greys out the cancel button during a critical section that must not be interrupted (replacing files, writing an index…) and `SetCancellable(true)` restores it (cancellable by default; the token is still cancelled when the app exits, so a critical section must still survive the process being terminated); `Report` may be called from any thread at any rate (the host coalesces per frame); the progress window always has a cancel button, and the token is cancelled when the user cancels or the app exits; exceptions thrown by `work` come back to you unchanged.
 - `PromptInputs`: renders your config with the same controls as property panels (the same form window as script tools' inputs); form data is isolated from the project and not undoable.

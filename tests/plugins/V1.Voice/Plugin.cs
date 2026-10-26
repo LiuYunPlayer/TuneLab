@@ -124,7 +124,7 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
     Task ShowPartSummary(IButtonClickContext click, IReadOnlyList<string> partIds)
     {
         int toned = partIds.Sum(id => mAnalyses.TryGetValue(id, out var analysis) ? analysis.Tones.Count : 0);
-        return click.Dialogs.ShowMessage("Analysis",
+        return click.DialogService.ShowMessage("Analysis",
             string.Format("{0} part(s) selected, {1} note(s) with an analyzed tone.", partIds.Count, toned));
     }
 
@@ -148,7 +148,7 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
     {
         mAnalyses.TryGetValue(partId, out var analysis);
         var lines = noteIds.Select(id => analysis != null && analysis.Tones.TryGetValue(id, out int tone) ? "note " + id + ": tone " + tone : "note " + id + ": no tone");
-        return click.Dialogs.ShowMessage("Tones", string.Join("\n", lines));
+        return click.DialogService.ShowMessage("Tones", string.Join("\n", lines));
     }
 
     bool IsBlinkVisible(string partId) => mAnalyses.TryGetValue(partId, out var analysis) && analysis.BlinkVisible;

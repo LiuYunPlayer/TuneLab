@@ -12,7 +12,7 @@ namespace TuneLab.TestPlugins.V1Settings;
 //   ② 保存时普通字段明文落盘、IsPassword 字段加密落盘（Win=DPAPI 内联 / mac+linux=OS 凭据库）；
 //   ③ 重启后宿主经 ApplySettings 把持久值回喂（此处打日志为可观测点）。
 // 不参与实际合成（CreateSession 抛异常）——设置链路全程不触发 Init/合成。
-// 按钮（ButtonConfig）+ 点击期弹窗服务（click.Dialogs）演示：清理缓存（确认 → 可取消进度 → 提示，按钮文字随缓存大小刷新）、
+// 按钮（ButtonConfig）+ 点击期弹窗服务（click.DialogService）演示：清理缓存（确认 → 可取消进度 → 提示，按钮文字随缓存大小刷新）、
 // 测试连接（用窗口里尚未保存的 API Key）、导出预设（PromptInputs 索取输入）、故意抛异常；另有嵌套对象里与列表元素里的按钮。
 // 插件自己的设置界面（独立进程）演示在 V1.CustomWindow。
 // DisplayText 由插件自译（演示自带极简词典，未收录词回退原文）。
@@ -119,7 +119,7 @@ public sealed class SettingsVoiceEngine : IVoiceSynthesisEngine, IExtensionSetti
         }));
         props.Add(("advanced", L.Tr("Advanced")), ObjectConfig.Create(advanced));
 
-        // —— 按钮（弹窗服务只在点击期间经 click.Dialogs 可用）——
+        // —— 按钮（弹窗服务只在点击期间经 click.DialogService 可用）——
         // 按钮文字带当前缓存大小：点完后宿主自动重新询问本函数，文字随之刷新——验证"点击结束即刷新所在面板"。
         props.Add(("cache", L.Tr("Cache")), ButtonConfig.Create(string.Format("{0} ({1} MB)", L.Tr("Clear"), sCacheMB), ClearCache));
         // 闭包只捕获值：在声明时把（可能尚未保存的）API Key 读出来，而不是捕获 context。
@@ -159,11 +159,11 @@ public sealed class SettingsVoiceEngine : IVoiceSynthesisEngine, IExtensionSetti
 
     static async Task ClearCache(IButtonClickContext click)
     {
-        if (!await click.Dialogs.Confirm(L.Tr("Clear Cache"), L.Tr("Delete all cached files?")))
+        if (!await click.DialogService.Confirm(L.Tr("Clear Cache"), L.Tr("Delete all cached files?")))
             return;
 
         bool cancelled = false;
-        await click.Dialogs.RunWithProgress(L.Tr("Clearing cache..."), async (progress, cancel) =>
+        await click.DialogService.RunWithProgress(L.Tr("Clearing cache..."), async (progress, cancel) =>
         {
             const int steps = 30;
             int start = sCacheMB;
@@ -184,23 +184,23 @@ public sealed class SettingsVoiceEngine : IVoiceSynthesisEngine, IExtensionSetti
             await Task.Delay(1500);
             progress.SetCancellable(true);
         });
-        await click.Dialogs.ShowMessage(L.Tr("Clear Cache"), cancelled ? L.Tr("Cancelled; part of the cache was kept.") : L.Tr("Cache cleared."));
+        await click.DialogService.ShowMessage(L.Tr("Clear Cache"), cancelled ? L.Tr("Cancelled; part of the cache was kept.") : L.Tr("Cache cleared."));
     }
 
     static async Task TestConnection(IButtonClickContext click, string apiKey)
     {
         if (string.IsNullOrEmpty(apiKey))
         {
-            await click.Dialogs.ShowMessage(L.Tr("Test Connection"), L.Tr("Fill in the API Key first."));
+            await click.DialogService.ShowMessage(L.Tr("Test Connection"), L.Tr("Fill in the API Key first."));
             return;
         }
         // 不确定进度（fraction = null）：只显示滚动条。
-        await click.Dialogs.RunWithProgress(L.Tr("Connecting..."), async (progress, cancel) =>
+        await click.DialogService.RunWithProgress(L.Tr("Connecting..."), async (progress, cancel) =>
         {
             progress.Report(null, "api.example.com");
             await Task.Delay(1500, cancel);
         });
-        await click.Dialogs.ShowMessage(L.Tr("Test Connection"), L.Tr("Connected."));
+        await click.DialogService.ShowMessage(L.Tr("Test Connection"), L.Tr("Connected."));
     }
 
     // 点按钮后要用户填几个参数：PromptInputs 返回完整值（没改的字段为默认值），取消返回 null。
@@ -212,11 +212,11 @@ public sealed class SettingsVoiceEngine : IVoiceSynthesisEngine, IExtensionSetti
             { ("quality", L.Tr("Quality")), SliderConfig.Integer(sLastExport.GetDouble("quality", 5), 0, 10) },
             { ("include_keys", L.Tr("Include API Key")), CheckBoxConfig.Create(sLastExport.GetBoolean("include_keys", false)) },
         });
-        var inputs = await click.Dialogs.PromptInputs(L.Tr("Export Preset"), form);
+        var inputs = await click.DialogService.PromptInputs(L.Tr("Export Preset"), form);
         if (inputs == null)
             return;
         sLastExport = inputs;
-        await click.Dialogs.ShowMessage(L.Tr("Export Preset"), string.Format("name={0}, quality={1}, include_keys={2}",
+        await click.DialogService.ShowMessage(L.Tr("Export Preset"), string.Format("name={0}, quality={1}, include_keys={2}",
             inputs.GetString("name", ""), inputs.GetDouble("quality", 0), inputs.GetBoolean("include_keys", false)));
     }
 
@@ -225,7 +225,7 @@ public sealed class SettingsVoiceEngine : IVoiceSynthesisEngine, IExtensionSetti
     static async Task Ping(IButtonClickContext click, string url)
     {
         await Task.Delay(1200);   // 各行独立置灰：执行期间只有本行按钮不可点
-        await click.Dialogs.ShowMessage("Ping", L.Tr("Reached ") + url);
+        await click.DialogService.ShowMessage("Ping", L.Tr("Reached ") + url);
     }
 
     // 回喂可观测点：把收到的设置打日志，供测试核对"重启后引擎确实收到了持久化的值"。密钥只记录是否非空、不打印明文。

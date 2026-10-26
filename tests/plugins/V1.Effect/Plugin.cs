@@ -58,7 +58,7 @@ public sealed class GainEffectEngine : IEffectSynthesisEngine
         map.Add("gain", SliderConfig.Linear(1.0, 0.0, 2.0));
         map.Add(("env_enabled", "Show Gain Env"), CheckBoxConfig.Create(true));
         // effect 面板上的按钮：带进度弹窗（验证 effect 侧点击 + 弹窗服务）。
-        map.Add(("calibrate", "Calibrate"), ButtonConfig.Create("Run", click => click.Dialogs.RunWithProgress("Calibrating", async (progress, token) =>
+        map.Add(("calibrate", "Calibrate"), ButtonConfig.Create("Run", click => click.DialogService.RunWithProgress("Calibrating", async (progress, token) =>
         {
             for (int i = 1; i <= 10; i++)
             {
