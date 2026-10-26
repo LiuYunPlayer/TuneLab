@@ -33,7 +33,7 @@ TuneLab.SDK.CanvasConfig.CreateControl.get -> System.Func<TuneLab.SDK.ICanvasHos
 TuneLab.SDK.CanvasConfig.DefaultValue.get -> TuneLab.Foundation.PropertyValue
 TuneLab.SDK.CanvasConfig.Height.get -> double
 TuneLab.SDK.CanvasConfig.Summary.get -> string?
-TuneLab.SDK.CanvasConfig.WithSummary(string? summary) -> TuneLab.SDK.CanvasConfig!
+TuneLab.SDK.CanvasConfig.WithSummary(string! summary) -> TuneLab.SDK.CanvasConfig!
 TuneLab.SDK.CanvasEvent
 TuneLab.SDK.CanvasEvent.Handled.get -> bool
 TuneLab.SDK.CanvasEvent.Handled.set -> void

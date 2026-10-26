@@ -50,5 +50,5 @@ public sealed class CanvasConfig : IValueConfig
         return new() { DefaultValue = defaultValue, Height = height, CreateControl = createControl };
     }
 
-    public CanvasConfig WithSummary(string? summary) { var c = Clone(); c.Summary = summary; return c; }
+    public CanvasConfig WithSummary(string summary) { var c = Clone(); c.Summary = summary; return c; }
 }
