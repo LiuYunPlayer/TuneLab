@@ -376,7 +376,7 @@ readonly ObjectConfig mNoteConfig = ObjectConfig.Create(new OrderedMap<PropertyK
 });
 ```
 
-- **读值**：合成时从 `VoiceSynthesisNoteSnapshot.Properties`（`PropertyObject` 值拷）读，用 `GetDouble(key, default)` / `GetBoolean` / `GetString`。**稀疏存储**——只有用户改过的字段才在里面；读不到就用你声明的默认值（`PropertyObject` 的 `Get*` 第二参数就是 fallback，传与声明一致的默认值即可）。
+- **读值**：合成时从 `VoiceSynthesisNoteSnapshot.Properties`（`PropertyObject` 值拷）读，用 `GetDouble(key, default)` / `GetBoolean` / `GetString`（完整规则见下文「属性值的语义」）。**稀疏存储**——只有用户改过的字段才在里面；读不到就用你声明的默认值（`PropertyObject` 的 `Get*` 第二参数就是 fallback，传与声明一致的默认值即可）。
 - **`AutomationConfig`**：`DefaultValue` / `MinValue` / `MaxValue` / `Scale` / `Color`（如 `"#E5A573"`） / `Randomizable`（默认值面板的滑条右侧加随机入口，宜用于连续轨）/ `MinLabel` / `MaxLabel` / `Format`，经 `AutomationConfig.Create(...)` 构造、流式 `WithColor` / `WithDefault` / `WithRandomizable` / `WithMinLabel` / `WithMaxLabel` / `WithFormat` 配置。**轨的显示名不在 config 上**——它随 map 的键走（`PropertyKey` 的 `DisplayText`），与属性面板同一套。**`DefaultValue = double.NaN` ⇒ 分段轨**（无默认基线、段间断开，如 pitch 类、bend）；实数 ⇒ 连续轨（处处有值、有基线，如 growl）。回显轨恒为分段形（`DefaultValue = NaN`）。
 - **值轴标度**：`AutomationConfig.Create(minValue, maxValue)` 是线性轴；`Create(INormalizedScale)` 重载可传自定义标度（与 `SliderConfig.Create` 对偶）——如 `NormalizedScale.Integer(min, max)` 让该轨成为整数轨，或自实现对数轴等。**离散标度 ⇒ 信号处处落格**：宿主不止在写入时吸附锚点，还在**求值与渲染**时把 Hermite 连续输出投影回标度（曲线呈阶梯、`Evaluate` 返回的最终值即落格），所以**引擎无需自行取整**、也覆盖 load/preset/回喂等一切编辑路径。连续标度下投影为恒等（仅有浮点往返的 ULP 级扰动，勿依赖值被逐位原样透传）。
   **标度定义的是值轴形状与格点，不是值域保证。**宿主**不**把求值结果钳进 `[MinValue, MaxValue]`——这个保证无法兑现：标度单调递增只是文档约定（`INormalizedScale` 是公共接口、`NormalizedScale.Custom` 收任意两个 lambda），非单调标度的端点不是极值，钳位既不保证落进引擎理解的范围、又会破坏合法值。所以越界值确实会到达 `Evaluate`——现实来源是改过量程后的旧工程、从别处带来的 preset、以及引擎自己回喂的值——请**在引擎侧按算法需要自行校验**（数组下标、查表参数、除数是最容易出事的几处）。宿主的**落笔**本身不越界（拖拽、锚点输入都钳在量程内），但值模型是**加性**的，所以正常使用也会出界：锚点存的是相对 `DefaultValue` 的偏移（用户事后改默认值滑条 ⇒ 整批锚点求值结果平移出界），vibrato 偏移也是加性叠到轨上（曲线贴近上界时让 vibrato 影响该轨 ⇒ 出界）。这两条是加性模型的刻意设计，不是缺陷。参数面板绘制裁剪到面板内，故越界锚点呈现为贴边。
@@ -463,6 +463,21 @@ public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext con
 
 参考实现：`tests/plugins/V1.Voice` 的 `LyricAnalysis`（歌词以声调数字结尾如 `ma3`，约 0.6 秒后 note 面板出现 Tone Depth、part 面板出现 Tone Strength）。
 
+#### 属性值的语义（所有面板通用）
+
+本节适用于所有声明面板的地方：part / note / 音素属性、instrument、effect 参数、扩展设置。插件最常踩的坑都在这里，写面板前请通读；后面各控件的说明只讲各自特有的部分。
+
+- **默认值就是"未设"，也定了字段的类型。** 用户没改过的字段不在数据里（稀疏存储），读不到就是默认值，不需要另找一个值（比如 `PropertyValue.Null`）当"未设"的哨兵。所以默认值必须是这个字段的一个真实值：用 `PropertyValue.Null` 或 `PropertyValue.Multiple` 作默认值，字段就永远存不进值——tag 在构造时直接报参数错误；下拉框没指定默认值、或指定的项不能选时，取第一个能选的选项。
+- **恢复默认 = 删掉这个键。** 标题行右键的「恢复默认」删掉存值，此后读到的就是默认值。别让含义依赖"存没存过"：设成与默认相同的值，和没设过，读出来是一样的。
+- **存值的类型与默认值不同时，按默认值处理。** 滑条、数字框只认数，复选框只认布尔，文本框、路径只认字符串，tag、列表只认数组，对象容器只认对象。例外是下拉框：选项值可以混用类型，存什么读什么，不在选项里的值原样保留、显示为琥珀色。这条是宿主对非法数据的兜底，**不能拿来做迁移**（见下一节「字段形状演进」）。
+- **读值用对 API。** 读快照或声明 context 里的 `PropertyObject`：
+  - 数值用 `GetDouble(key, 默认值)`，布尔用 `GetBoolean`，字符串用 `GetString`。别写 `GetValue(key, 0)`：`0` 让泛型推断成 `int`，SDK 1.1 及以前的宿主上它恒返回默认值。
+  - 形状不定的值（数组、对象）按原值取：`props.Map.TryGetValue(key, out var value)`。`GetValue(key, PropertyValue.Null)` 在老宿主上同样恒返回默认值。
+  - 读到的值一律校验：撤销、preset、粘贴、旧版本的插件都可能带来任意形状。
+- **多选。** 声明时 context 给的是每个选中对象各自的值，要合并就自己 `.Merge()`（同键全等给该值，不等或部分缺给 `Multiple`）。面板上的显示：标量按整值比较，不一致就显示为多值；列表按下标逐个合并；tag 显示并集。编辑时把同一个值写给全部对象（列表、tag 按元素扇出）。
+- **`Multiple` 只是多选读出时"各对象不一致"的标记，不是值。** 不能作默认值，也不能写回——宿主拒绝写入。没改值就别提交。
+- **闭包、重建与字段形状演进**：见下一节。
+
 #### 声明里的闭包与字段演进（所有面板通用）
 
 本节适用于所有声明面板的地方：part / note / 音素属性、instrument、effect 参数、扩展设置。
@@ -494,6 +509,7 @@ public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext con
   - 在旧键上继续返回旧形状的 config（可以只在它还有内容时显示、只删不加），合成时按旧逻辑读取它；
   - 或者把旧值转换成新形状，作为新键 config 的**默认值**返回：用户看到的就是转换后的值，一编辑就以新形状存在新键上。合成时有新键用新键，否则按同一套逻辑转换旧键。
 - **多选**：默认值是这一次声明共用的。所选对象的旧值转换结果不一致时，没有一个默认值能同时代表它们，这时返回原本的默认值。
+- **为什么原键换形状在新旧类型相同时一定出错**：面板编辑是在当前显示的值上改、再整体写回（比如 tag 加一项，是把"显示的那组 + 新项"写回去）。新旧形状类型相同时，宿主照原样显示旧值，用户一编辑就在旧值上继续改，你在默认值里给的转换结果根本不会出现。
 
 ### 5.3 输入活视图 `IVoiceSynthesisContext` 与 `IVoiceSynthesisNote`
 
