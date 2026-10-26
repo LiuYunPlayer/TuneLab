@@ -54,8 +54,10 @@ public static class IDataPropertyObjectExtension
             v => v.ToBoolean(out var value) ? value : defaultValue, value => PropertyValue.Create(value));
     }
 
-    // 裸值字段：读写都是未 coerce 的 PropertyValue（identity 适配器），供值类型不定的控件（如 option 可为任意基础类型的
-    // ComboBox）按原始值绑定。三态（Multiple/Invalid）经 IRawValueProperty.RawValue 由绑定层分派，Display 只收具体值。
+    // 裸值字段：读写都是 PropertyValue（identity 适配器），但**读值仍按默认值的类型过滤**（GetValue 的类型门：存值类型与
+    // 默认值不同即读成默认值）——适合值类型固定、形状由插件定的字段（如画布）。合法取值本就可为多种类型的控件（如选项可混合
+    // 类型的 ComboBox）别用它：会把另一类型的合法值读成默认值，用 RawValueField。三态（Multiple/Invalid）经
+    // IRawValueProperty.RawValue 由绑定层分派，Display 只收具体值。
     public static IDataProperty<PropertyValue> ValueField(this IDataPropertyObject dataObject, string key, PropertyValue defaultValue)
     {
         return new PropertyField<PropertyValue>(dataObject, key, defaultValue, v => v, value => value);

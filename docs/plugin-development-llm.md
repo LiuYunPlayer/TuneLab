@@ -174,7 +174,8 @@ public sealed class SynthesizedParameter { IReadOnlyList<IReadOnlyList<Point>> S
 - 失效自管：构造订阅 context（`Notes` 增删用 `WhenAny` 自动接线 / `note.*.Modified` 字段 / `PartProperties.Modified` / `Pitch`+`PitchDeviation`+各轨 `RangeModified`(秒区间)）handler 只廉价标脏，重活（重分块）推迟到 `context.Committed`（逻辑编辑收口、单条也补发→批量编辑只重分块一次）。tempo 变化/part 平移无独立信号也无增量通知——宿主整体重建会话（旧会话 Dispose、新 context 新会话即新秒值），正确实现 Dispose 即天然正确；边界 `Modified`/轨 `RangeModified` 只在 note/曲线自身编辑时触发。`Dispose` 退订 + Dispose 所有音频段。重叠 note(和弦) 分块判间隙用「组内最大结束」、块尾取 `Max(EndTime)`。
 - 相关类型：`IVoiceSynthesisSession`、`IVoiceSynthesisContext`、`SynthesisRange`、`VoiceSynthesisSnapshot`、`VoiceSynthesisNoteSnapshot`、`VoiceSynthesisPhonemeSnapshot`、`SynthesisAutomationSnapshot`、`IAutomationEvaluator`、`IVoiceSynthesisNote`、`ISynthesisAutomation`、`IAudioSegment`、`SynthesizedPhoneme`、`PhonemeLayout`、`PhonemeLayoutNote`、`PhonemeTiming`、`PhonemeSlots`、`SynthesizedPitch`、`SynthesizedParameter`、`VoiceSourceInfo`、`FileImageResource`、`AutomationConfig`、`IVoiceSynthesisPartPropertyContext`、`IVoiceSynthesisNotePropertyContext`、`IVoiceSynthesisNoteView`、`IVoiceSynthesisPhonemeView`、`SynthesisStatusSegment`。
 - 声明失效（gap：声明依赖插件自有派生状态，如后台歌词解析/声调分析）：声明可另依赖你自己算的派生状态（宿主看不见），派生状态一变须在会话里调 `IVoiceSynthesisContext.InvalidateNotes(IEnumerable<string> noteIds)` / `InvalidatePart()` 宣告，宿主才重新调 `Get*Config`。任意线程可调、宿主 marshal+合拍（连调只刷一次）；会话销毁后调用被忽略、未知 id 忽略。范围：`InvalidatePart`=part 面板+自动化轨集+回显轨集并**向下级联**到 note/音素声明；`InvalidateNotes`=这些 note 的 note/音素声明、**不向上级联**（影响 part 面板就另调 `InvalidatePart`）。**只作废声明回答**：不宣告用户数据变化、不使任何区段待重合成（合成失效自管）；**不含 `IsContinuation`**（延音判定须由当前数据同步答出，不许"先答后改"）；派生状态只能是用户数据的函数、不得依赖声明输出（防环）。身份对号：`IVoiceSynthesisNoteView.Id`=`IVoiceSynthesisNote.Id`=`VoiceSynthesisNoteSnapshot.Id`、`IVoiceSynthesisPartView.PartId`=`IVoiceSynthesisContext.PartId`；对象存活期间恒定、跨会话重建（换声库/改速度）不变、不持久——结果存引擎上按 id 查回。`PartId` 空串=声明未绑定具体 part（静态 schema 枚举），按"无派生状态"作答。参考 `tests/plugins/V1.Voice` 的 `LyricAnalysis`。
-- 声明里的闭包与字段演进（所有声明面板通用：part/note/音素、instrument、effect、扩展设置）：**闭包只捕获值**——按钮回调、画布工厂、`WithSummary` 都在声明调用结束后才执行，而 context/视图只在调用期间有效 ⇒ 在 `Get*Config` 里先取出 PartId、note Id、音素符号、同级字段已填的值等，让闭包捕获这些值，不捕获 context/视图。依赖 context 的 config 每次声明现建（闭包廉价），其余照样缓存；宿主既不要求共用也不要求现建。闭包与其建出的实例只活一次声明：用户改值/选中变化宿主自动重新声明，插件自算数据变了（解析出的声调、合成后缓存的分析结果）调 `InvalidatePart`/`InvalidateNotes`。**字段形状演进用新键**：改了值形状（对象→数组、对象内换字段）就把新形状放新键，别在旧键上换形状——宿主对类型不符的存值只做兜底（按缺省、显示声明默认值），判据是数据类型，形状只差在对象成员、类型相同时察觉不到，不得依赖它迁移。检测到旧键有旧形状值时二选一：旧键继续返回旧形状 config（可只在有内容时显示、只删不加），合成按旧逻辑读；或把旧值转成新形状、作为新键 config 的**默认值**返回（用户看到转换后的值，一编辑即以新形状存新键；合成有新键用新键，否则同一套逻辑转换旧键）。多选时默认值整次声明共用：各成员转换结果不一致就返回原本的默认值。
+- 属性值的语义（所有声明面板通用）：**默认值 = 未设状态并定字段类型**（稀疏存储，读不到即默认，勿另设 Null 哨兵；默认值须为真实值，`PropertyValue.Null`/`Multiple` 不行——tag 与画布构造报错，下拉框缺省或所给项不能选时取第一个能选的选项）；**恢复默认 = 删键**（设成与默认相同 ≡ 没设过，勿依赖"存没存过"）；**存值类型与默认不同按默认处理**（滑条/数字框=数、复选框=布尔、文本/路径=字符串、tag/列表=数组、对象容器=对象；下拉框例外：选项可混合类型、存什么读什么、不在选项里原样保留琥珀显示）——这是对非法数据的兜底、**不可用于迁移**；**读值**：数值 `GetDouble`/布尔 `GetBoolean`/字符串 `GetString`，**勿用 `GetValue(key, 0)`**（推断成 int，SDK≤1.1 宿主恒返回默认），形状不定的值用 `props.Map.TryGetValue(key, out var v)`（`GetValue(key, PropertyValue.Null)` 老宿主同样恒返回默认），读到的一律校验；**多选**：声明 context 给各成员值、合并自己 `.Merge()`；面板显示标量与画布整值比较、列表按下标、tag 取并集；编辑同值写全部（列表/tag 按元素扇出）；**`Multiple` 只是多选读出时"各对象不一致"的标记、不是值**：不能作默认、不能写回（宿主拒写；画布提交它时不写并记错误），没改值就别提交。
+- 声明里的闭包与字段演进（所有声明面板通用：part/note/音素、instrument、effect、扩展设置）：**闭包只捕获值**——按钮回调、画布工厂、`WithSummary` 都在声明调用结束后才执行，而 context/视图只在调用期间有效 ⇒ 在 `Get*Config` 里先取出 PartId、note Id、音素符号、同级字段已填的值等，让闭包捕获这些值，不捕获 context/视图。依赖 context 的 config 每次声明现建（闭包廉价），其余照样缓存；宿主既不要求共用也不要求现建。闭包与其建出的实例只活一次声明：用户改值/选中变化宿主自动重新声明，插件自算数据变了（解析出的声调、合成后缓存的分析结果）调 `InvalidatePart`/`InvalidateNotes`。**字段形状演进用新键**：改了值形状（对象→数组、对象内换字段）就把新形状放新键，别在旧键上换形状——宿主对类型不符的存值只做兜底（按缺省、显示声明默认值），判据是数据类型，形状只差在对象成员、类型相同时察觉不到，不得依赖它迁移。检测到旧键有旧形状值时二选一：旧键继续返回旧形状 config（可只在有内容时显示、只删不加），合成按旧逻辑读；或把旧值转成新形状、作为新键 config 的**默认值**返回（用户看到转换后的值，一编辑即以新形状存新键；合成有新键用新键，否则同一套逻辑转换旧键）。多选时默认值整次声明共用：各成员转换结果不一致就返回原本的默认值。原键换形状在新旧类型相同时必错：面板编辑是在当前显示值上改再整体写回，宿主照原样显示旧值，转换结果根本不会出现。
 
 ### Instrument 接口（命名空间 `TuneLab.SDK`）
 > instrument = **多声部音源**（合成器/采样器）。与 voice **机制同构**（引擎/会话/调度/隔离快照/音频段/effect 链/扩展设置一致），接口族 `IInstrument*` 平行、与 voice 无继承。**仅三处实质不同**：
@@ -275,6 +276,13 @@ public interface IExtensionSettingsContext { PropertyObject Settings { get; } } 
 - ❌ 目标框架非 net8.0。
 - ❌ 插件类缺无参构造函数 → 无法实例化。
 - ❌ 臆造 SDK API / 接口成员 → 严格按上方签名。
+- ❌ 用 `PropertyValue.Null` 等特殊值当"未设"哨兵 → 默认值本身就是未设状态；Null 作默认值的字段永远存不进值。
+- ❌ 存值类型与默认值不同（如默认是数、存了字符串）→ 读成默认值。值的类型要固定。
+- ❌ `GetValue(key, 0)` 读数值 → `0` 推断成 int，老宿主恒返回默认值；用 `GetDouble`。
+- ❌ 把多选读出的 `Multiple` 写回去 → 它不是值，宿主拒绝写入；没改值就别提交。
+- ❌ 改了字段的值形状仍用原键 → 换新键（见「声明里的闭包与字段演进」）；宿主的类型兜底不能用来迁移。
+- ❌ 闭包里捕获声明 context / 视图 → 只捕获取出的值，context 只在声明调用期间有效。
+- ❌ 声明依赖插件自算的数据，数据变了却不调 `InvalidatePart`/`InvalidateNotes` → 面板停在旧样子。
 
 ---
 

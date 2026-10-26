@@ -468,6 +468,21 @@ Key points:
 
 Reference implementation: `LyricAnalysis` in `tests/plugins/V1.Voice` (a lyric ending in a tone digit such as `ma3` makes Tone Depth appear on the note panel and Tone Strength on the part panel after ~0.6 s).
 
+#### What property values mean (applies to every panel)
+
+This section applies wherever you declare a panel: part / note / phoneme properties, instruments, effect parameters, extension settings. Most plugin pitfalls live here, so read it before writing a panel; the sections on individual controls only cover what is specific to them.
+
+- **The default value is "unset", and it also fixes the field's type.** A field the user never changed isn't in the data (storage is sparse); reading it gives the default, so you don't need some other value (such as `PropertyValue.Null`) as an "unset" sentinel. The default therefore has to be a real value of the field: with `PropertyValue.Null` or `PropertyValue.Multiple` as the default, the field can never hold a value — tags throw an argument error on construction; a drop-down with no default, or a default that can't be selected, uses its first selectable option.
+- **Reset to default = remove the key.** "Reset to Default" on the title row removes the stored value, after which reads give the default. Don't make meaning depend on "was it ever stored": a value set equal to the default reads the same as one never set.
+- **A stored value of a different type than the default reads as the default.** Sliders and number boxes only take numbers, check boxes booleans, text boxes and paths strings, tags and lists arrays, object containers objects. The exception is the drop-down: option values may mix types, whatever is stored is read as is, and a value not among the options is kept and shown in amber. This is the host's safety net for bad data — **don't use it for migration** (see "Changing a field's shape" in the next section).
+- **Read with the right API.** On a `PropertyObject` from a snapshot or a declaration context:
+  - numbers with `GetDouble(key, default)`, booleans with `GetBoolean`, strings with `GetString`. Don't write `GetValue(key, 0)`: the `0` makes the generic type `int`, and on hosts with SDK 1.1 or earlier it always returns the default.
+  - values of no fixed shape (arrays, objects) as they are: `props.Map.TryGetValue(key, out var value)`. `GetValue(key, PropertyValue.Null)` also always returns the default on older hosts.
+  - validate whatever you read: undo, presets, paste and older versions of your plugin can all bring any shape.
+- **Multi-selection.** A declaration context gives each selected object's own values; merge them yourself with `.Merge()` (equal values give that value; differing or partly missing give `Multiple`). In the panel, scalars compare whole values and show the multiple-value marker when they differ; lists merge index by index; tags show the union. An edit writes the same value to every object (lists and tags fan out per element).
+- **`Multiple` only marks "differs across the selection" when reading; it is not a value.** It can't be a default, and it can't be written back — the host refuses to store it. If nothing changed, don't commit.
+- **Closures, rebuilding and changing a field's shape**: see the next section.
+
 #### Closures in declarations and evolving a field's shape (applies to every panel)
 
 This section applies wherever you declare a panel: part / note / phoneme properties, instruments, effect parameters, extension settings.
@@ -499,6 +514,7 @@ public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext con
   - keep returning the old-shape config for the old key (shown only while it has content, remove-only if you like), and read it with the old logic when synthesizing;
   - or convert the old value to the new shape and return it as the **default** of the new key's config: the user sees the converted value, and the first edit stores it in the new shape under the new key. When synthesizing, use the new key if present, otherwise convert the old key with the same logic.
 - **Multi-selection**: the default is shared by the whole declaration. If the selected objects' old values convert to different results, no single default represents them all — return the plain default then.
+- **Why changing the shape under the old key always fails when the types match**: panel edits change the value currently shown and write the whole thing back (adding a tag writes "the shown tags + the new one"). When the old and new shapes have the same type, the host shows the old value as is, the user's edit builds on it, and the converted value you offered as the default never appears.
 
 ### 5.3 Input live view `IVoiceSynthesisContext` and `IVoiceSynthesisNote`
 
