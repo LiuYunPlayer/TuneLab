@@ -52,6 +52,19 @@ internal class PropertyObjectController : StackPanel
 
     static string ItemsSummary(int count) => string.Format("{0} items".Tr("PropertyObjectController"), count);
 
+    // 收起时的摘要：首个非空行（开头的空行不算，否则摘要为空、看着像没填）；其后还有内容就补 "…"，
+    // 让人知道不止这一行。\r\n 与 \r 都按换行切（粘贴来的文本常带 \r，留着会混进宽度与截断）。
+    // 全是空白则不显示摘要（同空字符串）。
+    internal static string? FirstLineSummary(string text)
+    {
+        var lines = text.Split(["\r\n", "\r", "\n"], StringSplitOptions.None);
+        int first = Array.FindIndex(lines, line => !string.IsNullOrWhiteSpace(line));
+        if (first < 0)
+            return null;
+        bool more = lines.Skip(first + 1).Any(line => !string.IsNullOrWhiteSpace(line));
+        return more ? lines[first] + " …" : lines[first];
+    }
+
     // 宿主注入的逐属性右键菜单项（返回 null/空 = 不加）：菜单项在每次右键时现取，随宿主状态（如钉选态）即时变化，
     // 排在通用项「恢复默认值」之前。嵌套 ObjectConfig 的子控制器不继承本钩子（作用面 = 本层直属属性）。
     public Func<PropertyKey, IControllerConfig, IReadOnlyList<MenuItem>?>? ItemContextMenuProvider { get; set; }
@@ -507,10 +520,10 @@ internal class PropertyObjectController : StackPanel
             mHost = ObjectPoolManager.Get<Panel>();
             mHost.Margin = new(24, FieldGap, 24, 12);
             Build(config);
-            // 摘要：首行（多行文本只取第一行）；掩码字段不泄露内容。
+            // 摘要：多行文本取首个非空行；掩码字段不泄露内容。
             mFold = new FieldFold(mTitle, [mHost], parent.FoldKey(key),
                 summary: () => MultipleOr(parent.DataObject.GetValue(key.Id, PropertyValue.Create(config.DefaultValue)),
-                    v => !v.ToString(out var text) ? null : mIsPassword ? (text.Length == 0 ? null : "••••••") : text.Split('\n')[0]),
+                    v => !v.ToString(out var text) ? null : mIsPassword ? (text.Length == 0 ? null : "••••••") : FirstLineSummary(text)),
                 watch: parent.DataObject);
             AttachContextMenu(key, () => config, mFold.Header, mHost);
         }
