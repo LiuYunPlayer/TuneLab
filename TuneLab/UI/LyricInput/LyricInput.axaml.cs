@@ -46,7 +46,7 @@ internal partial class LyricInput : Window
 
         Content.Background = Style.INTERFACE.ToBrush();
 
-        mLyricInputBox = new MultilineTextInput();
+        mLyricInputBox = new MultilineTextInput() { EnterCommits = false };   // 歌词逐行录入：Enter 换行（全应用唯一的例外）
         mLyricInputBox.Width = 432;
         mLyricInputBox.Height = 168;
         mLyricInputBox.Background = Style.BACK.ToBrush();

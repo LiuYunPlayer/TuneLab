@@ -116,7 +116,7 @@ public class ExtensionSettingsCommandTests
             },
         }));
 
-        Assert.StartsWith("Settings of \"示例引擎\" (voice:v1.voice, package \"示例包\"), 1 field(s). Change one with set_extension_setting."
+        Assert.StartsWith("Settings of \"示例引擎\" (voice:v1.voice, package \"示例包\", packageId=pkg.a), 1 field(s). Change one with set_extension_setting."
             + "\nFormat: <key> \"<label>\": <allowed> — current <value>, default <value>", text);
         Assert.Contains("\n- modelPath (\"Model path\"): text — current \"D:/m.onnx\", default \"\"", text);
         Assert.EndsWith("\n(Fields can appear/disappear depending on other values — re-list after a change if you expect that.)", text);
