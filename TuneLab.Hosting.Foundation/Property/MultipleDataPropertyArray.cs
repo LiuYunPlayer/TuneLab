@@ -76,6 +76,7 @@ public sealed class MultipleDataPropertyArray : IDataPropertyArray
     {
         if (!TryIndex(token, out var index))
             return;
+        PropertySlot.EnsureStorable(value);
         FanOut(array =>
         {
             for (int k = array.Count; k <= index; k++)
@@ -115,10 +116,17 @@ public sealed class MultipleDataPropertyArray : IDataPropertyArray
     }
 
     // 结构操作扇出：Add 追加到所有成员；Insert 插到能容纳该位的成员（更短的追加到尾）；RemoveAt 删掉拥有该位的成员。
-    public void Add(PropertyValue value) => FanOut(array => array.Add(value));
+    public void Add(PropertyValue value)
+    {
+        PropertySlot.EnsureStorable(value);
+        FanOut(array => array.Add(value));
+    }
 
     public void Insert(int index, PropertyValue value)
-        => FanOut(array => { if (index <= array.Count) array.Insert(index, value); else array.Add(value); });
+    {
+        PropertySlot.EnsureStorable(value);
+        FanOut(array => { if (index <= array.Count) array.Insert(index, value); else array.Add(value); });
+    }
 
     public void RemoveAt(int index)
         => FanOut(array => { if (index < array.Count) array.RemoveAt(index); });

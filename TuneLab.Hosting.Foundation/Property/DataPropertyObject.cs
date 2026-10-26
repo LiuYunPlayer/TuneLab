@@ -35,8 +35,9 @@ public class DataPropertyObject : DataObject, IDataObject<PropertyObject>, IRead
     // 本层叶子写：缺键则建叶子。撤销由 DataPropertyValue 自带命令承担。
     public DataPropertyValue SetValue(string key, PropertyValue value)
     {
+        var slot = PropertySlot.Canonicalize(value);   // 先规范（Multiple 在此被拒），再建键：被拒的写入不留空键
         var dataPropertyValue = FindValue(key);
-        dataPropertyValue.Set(PropertySlot.Canonicalize(value));
+        dataPropertyValue.Set(slot);
         return dataPropertyValue;
     }
 

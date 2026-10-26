@@ -46,8 +46,9 @@ public class MultipleDataProperty<T> : IDataProperty<T>, IRawValueProperty where
         }
     }
 
-    public void Set(T value) => FanOut(p => p.Set(value));
-    public void SetInfo(T value) => FanOut(p => p.SetInfo(value));
+    // 扇出前先查整值能否入存储（Multiple 拒绝，见 PropertySlot.EnsureStorable）：写到一半才抛会让成员停在合并通知里。
+    public void Set(T value) { PropertySlot.EnsureStorable(mToRawValue(value)); FanOut(p => p.Set(value)); }
+    public void SetInfo(T value) { PropertySlot.EnsureStorable(mToRawValue(value)); FanOut(p => p.SetInfo(value)); }
 
     void FanOut(Action<IDataProperty<T>> action)
     {

@@ -18,8 +18,11 @@ public readonly struct PropertySlot : IEquatable<PropertySlot>
     public DataPropertyArray? Array => mArray;
 
     // 把 PropertyValue 规范成槽：object/array 型建成活子节点（标量槽永不含复合值的不变量在此保证）；标量直入。
+    // 单对象的写入口都经这里，嵌套对象 / 数组经 SetInfo 递归回到这里，故 Multiple 在此一处即拦住全树（见 EnsureStorable）。
     public static PropertySlot Canonicalize(PropertyValue value)
     {
+        if (value.IsMultiple())
+            throw new ArgumentException(MultipleNotStorable, nameof(value));
         if (value.ToObject(out var objectValue))
         {
             var child = new DataPropertyObject();
@@ -34,6 +37,27 @@ public readonly struct PropertySlot : IEquatable<PropertySlot>
         }
         return new PropertySlot(value);
     }
+
+    // Multiple 是多选合并读出时"各对象不一致"的标记，只在数据交互中出现，绝不入存储——写入它一定是调用方写错了
+    //（典型：把多选读出的当前值原样写回）。不论单选多选一律拒绝而不是当成"不改"：静默放过只会把错误藏起来。
+    // 多选扇出在动手前整值深查：等到某个成员写入时才抛，各成员会停在合并通知里。
+    public static void EnsureStorable(PropertyValue value)
+    {
+        if (value.IsMultiple())
+            throw new ArgumentException(MultipleNotStorable, nameof(value));
+        if (value.ToObject(out var objectValue))
+        {
+            foreach (var kvp in objectValue.Map)
+                EnsureStorable(kvp.Value);
+        }
+        else if (value.ToArray(out var arrayValue))
+        {
+            foreach (var element in arrayValue)
+                EnsureStorable(element);
+        }
+    }
+
+    const string MultipleNotStorable = "Multiple marks values that differ across a multi-selection when reading; it is not a value and cannot be stored.";
 
     // 物化为纯值（子节点槽 = 子树值快照，每次调用新算）。
     public PropertyValue ToPropertyValue()

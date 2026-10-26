@@ -68,6 +68,7 @@ public class MultipleDataPropertyObject : IDataPropertyObject
     // （否则会反复清空正在编辑的文本框/令 checkbox 闪回 dash）。三段分开循环是关键：必须所有 set 完成后才退首个 merge。
     public void SetValue(string key, PropertyValue value)
     {
+        PropertySlot.EnsureStorable(value);
         foreach (var dataObject in mDataObjects)
             dataObject.BeginMergeNotify();
         foreach (var dataObject in mDataObjects)
