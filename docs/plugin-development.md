@@ -1163,24 +1163,23 @@ sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
     {
         mDragging = HitTest(e.Position);
         if (mDragging < 0) return;
-        mMoved = false;
-        host.SetValue(host.Value);                           // write a draft to lock the canvas: the panel won't refresh mid-drag
+        mEdit = host.EditScope();                            // declare the edit: the panel won't refresh or replace us mid-drag
     }
     public void OnMouseMove(CanvasMouseEvent e)
     {
         if (mDragging < 0) return;
         host.SetValue(Moved(host.Value, mDragging, e.Position));   // update the draft; not in the project yet
-        mMoved = true;
     }
     public void OnMouseUp(CanvasMouseButtonEvent e)
     {
         if (mDragging < 0) return;
         mDragging = -1;
-        if (mMoved) host.CommitValue();                      // the draft goes into the project as one undo step
-        else host.DiscardValue();                            // just a click: nothing changed
+        host.CommitValue();                                  // only a drag left a draft: it becomes one undo step; a mere click does nothing
+        mEdit?.Dispose();                                    // end the edit
+        mEdit = null;
     }
     int mDragging = -1;
-    bool mMoved;
+    IDisposable? mEdit;
 }
 ```
 
@@ -1194,14 +1193,14 @@ sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
 - **CLI / agent** can read and write the value as is (any JSON shape). The host doesn't know the shape, so it doesn't validate it — values the agent writes go through your read-time validation like any other. The host tells the agent to read your introduction first and, failing that, to infer the shape from the current or default value, so **describe this field's value shape and meaning in your introduction**: what each member is, its range, and how the shape varies with state (say, the element count depends on another setting). The declaration can't carry this; only your description can be exact.
 - **Placement**: only as a member of an `ObjectConfig` (same as buttons, see §9.1).
 
-### 10.2 Drafts and commits
+### 10.2 Editing, drafts and commits
 
-While the user is working, the value is only a **draft**; it reaches the project when you commit:
+Two things are kept apart: the **editing state** (is the canvas being edited) and the **value** (drafts and commits).
 
-- **`SetValue`** writes the draft. The host keeps it for you — outside the project, invisible elsewhere — and `host.Value` returns it from then on, so you keep drawing from `host.Value`.
-- **`CommitValue`** writes the draft into the project as one undo step and ends the edit. **`DiscardValue`** drops the draft and goes back to the project value (a "cancel"), also ending the edit. Without a draft, both do nothing.
-- **A draft means the panel is still in use**: the property panels in that window don't refresh (declaration invalidations from your plugin and changes made elsewhere wait until the edit ends) and your instance won't be replaced. So to keep an operation from being interrupted, **write a draft when it starts** — on a press, before anything changed, just write the current value (as above). When a multi-selection differs, the current value is the multiple-value marker (`IsMultiple()`): it's fine as a draft that locks the canvas, but **never commit it** — it isn't a value, so the host refuses to write it and logs an error; if nothing changed, call `DiscardValue` (the "just a click" case above). A draft may stay as long as you like, say until the user clicks a "confirm" you drew on the canvas.
-- **Only you commit**; the host never commits on your behalf. When a draft can't be kept, the host drops it: the field's value was changed from outside (undo, the same data edited elsewhere), the panel was torn down (switching parts, say), or the canvas left the screen (another tab, the window closed).
+- **You declare the editing state** — only you know whether an edit is going on; the host doesn't guess. Call `BeginEdit` / `EndEdit` in pairs; in between, the panel counts as still in use: the property panels in that window don't refresh (declaration invalidations from your plugin and changes made elsewhere wait until the edit ends) and your instance won't be replaced. It counts and nests: several operations may overlap (dragging a point while holding an arrow key), each with its own Begin / End, and the canvas unlocks when all have ended; an extra `EndEdit` does nothing and the host logs an error. For an edit spanning events the scope form is handier: `mEdit = host.EditScope()`, then `mEdit.Dispose()` when done (a second `Dispose` is harmless; see above). **Forget to end it and the panels in that window never refresh.**
+- **`SetValue`** writes the draft. The host keeps it for you — outside the project, invisible elsewhere — and `host.Value` returns it from then on, so you keep drawing from `host.Value`. **Write only when the value really changed, and only real values**: when a multi-selection differs `host.Value` is the multiple-value marker (`IsMultiple()`), which isn't a value — `SetValue` returns `false` for it and writes nothing (the host logs an error); to hold the canvas without changing the value, use `BeginEdit`. A draft also keeps the panel in use (alongside `BeginEdit`, neither replacing the other), so operations without a "press" (wheel, keyboard) are held just by writing their draft. A draft may stay as long as you like, say until the user clicks a "confirm" you drew on the canvas.
+- **`CommitValue`** writes the draft into the project as one undo step; **`DiscardValue`** drops the draft and goes back to the project value (a "cancel"). Both only deal with the value — they don't end an edit begun with `BeginEdit` — and without a draft they do nothing. Cancelling a drag = `DiscardValue`, then end the edit: two separate things.
+- **Committing and ending the edit are only ever up to you**; the host never commits or ends the edit on your behalf. When the instance is invalidated (the field's value was changed from outside — undo, the same data edited elsewhere; the panel was torn down — switching parts, say; the canvas left the screen — another tab, the window closed) the draft and the editing state go with it, and later calls have no effect.
 - Continuous input with no "release" (the wheel, say) can **defer the commit**: `SetValue` on every notch, `await Task.Delay(…)` in the callback until the input pauses, then `CommitValue()` (after the `await` you are back on the main thread and can use `host` directly) — one continuous scroll becomes one undo step.
 
 ### 10.3 Control instance lifetime
@@ -1209,7 +1208,7 @@ While the user is working, the value is only a **draft**; it reaches the project
 - **The factory is not called at declaration time**: the host calls it when the canvas is about to show (a collapsed field builds no instance).
 - **An instance lives for one declaration**: every time the panel updates to a new declaration — after your commit, after an outside change, on a selection change — the host rebuilds the control with the new config's factory. The old instance is discarded and its `host` stops working (`SetValue` returns `false`). So **keep the factory cheap** (no IO, no heavy computation); the control object only carries event and drawing logic, and heavy resources are cached at plugin level.
 - **Needing context** (the owning part / note, values of sibling fields, data you computed such as a waveform): read the values at declaration time and let the factory capture them; when the data changes, call `InvalidatePart` / `InvalidateNotes` so the host declares again — see §5.2, "Closures in declarations and evolving a field's shape".
-- **Transient state doesn't survive the instance**: hover and the like are lost with it, so make them recomputable from the value and event positions. A drag without a draft may switch instances midway — the new instance never gets that release; treat it as "not dragging".
+- **Transient state doesn't survive the instance**: hover and the like are lost with it, so make them recomputable from the value and event positions. A drag that neither declared an edit nor wrote a draft may switch instances midway — the new instance never gets that release; treat it as "not dragging".
 - **Events come in strict pairs**: each instance's `OnMouseEnter` / `OnMouseLeave` strictly alternate (when the instance is replaced, or the canvas appears under a pointer that isn't moving, the host sends an Enter right away instead of waiting for the user to move the mouse — **compute hover-like state in `OnMouseEnter` from its position**, not only on moves); every `OnMouseUp` has a matching `OnMouseDown` that this instance received; if mouse capture is lost unexpectedly (say, switching windows with the button held), the host sends an `OnMouseUp` with `IsClick` false so you can wrap up and commit as usual.
 
 ### 10.4 Drawing and input

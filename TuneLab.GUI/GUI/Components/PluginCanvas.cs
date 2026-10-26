@@ -19,9 +19,9 @@ namespace TuneLab.GUI.Components;
 // 生命周期：实例寿命 = 一次声明。SetFactory（每次声明更新都会调）与"值被外部改了"都只作废当前实例，真正调工厂推迟到
 // 下一次需要它时（渲染 / 鼠标事件）——收起的字段不建实例，同一轮里的多次作废也只建一次。
 // 草稿：插件的 SetValue 只写进本实例的草稿（不进工程——工程里未提交的写入是整个文档共享的，会被别处任何一次提交顺手带走、
-// 也会让撤销失效）；CommitValue 才把草稿一次写入工程并提交成一个撤销步。有草稿 = 面板仍在使用：登记为所在窗口的
-// "编辑中"（见 EditGate），期间面板不按新声明刷新、本实例不会被换掉。宿主从不替插件提交：草稿保不住时（外部改了本字段的值、
-// 面板被拆、画布离开界面）一律丢弃。
+// 也会让撤销失效）；CommitValue 才把草稿一次写入工程并提交成一个撤销步。编辑状态由插件宣告（BeginEdit / EndEdit，宿主不猜）。
+// 插件宣告了编辑、或有草稿 = 面板仍在使用：登记为所在窗口的"编辑中"（见 EditGate），期间面板不按新声明刷新、本实例不会被换掉。
+// 宿主从不替插件提交、也不替它结束编辑：实例作废时（外部改了本字段的值、面板被拆、画布离开界面）草稿与编辑状态一律作废。
 // 外部改值的判定：本字段的值变了、且不是本画布自己提交的（提交时记下写后的值，通知来时与它比对）。
 // 插件回调一律包在 try 里：抛出即记录（经 ErrorAttributed 标明来源插件）并让该实例失效，直到下次重建。
 // 事件的 Handled：只在宿主有默认动作的事件上读（滚轮 = 滚动面板），其余事件忽略。事件按实例成对转发，见下方事件转发。
@@ -372,13 +372,47 @@ internal sealed class PluginCanvas : Component
                 view.InvalidateVisual();
         }
 
+        // 编辑状态：插件声明（是否正在编辑只有插件知道，宿主不猜）。计数、可嵌套；与草稿同时起作用，见 UpdateLock。
+        public void BeginEdit()
+        {
+            VerifyThread();
+            if (!IsAlive)
+                return;
+            mEditCount++;
+            UpdateLock();
+        }
+
+        public void EndEdit()
+        {
+            VerifyThread();
+            if (!IsAlive)
+                return;   // 实例已作废：编辑状态随之清零，配对的 EndEdit 不算错
+            if (mEditCount == 0)
+            {
+                Log.Error(view.PluginPrefix() + "Canvas EndEdit was called without a matching BeginEdit; ignored.");
+                return;
+            }
+            mEditCount--;
+            UpdateLock();
+        }
+
         public bool SetValue(PropertyValue value)
         {
             VerifyThread();
             if (!IsAlive)
                 return false;
+            // Multiple 不是值（多选读出时"各对象不一致"的标记），草稿也不收：收了就会被提交、或被当成"有值"画出来。
+            try
+            {
+                PropertySlot.EnsureStorable(value);
+            }
+            catch (ArgumentException)
+            {
+                Log.Error(view.PluginPrefix() + "Canvas SetValue was given Multiple (the multi-selection's differing values) and nothing was written. Write a real value; to hold the canvas while editing without changing the value, use BeginEdit.");
+                return false;
+            }
             mDraft = value;
-            mEditing ??= EditGate.Of(view)?.BeginEdit();   // 有草稿 = 面板仍在使用
+            UpdateLock();
             view.InvalidateVisual();
             return true;
         }
@@ -389,8 +423,8 @@ internal sealed class PluginCanvas : Component
             if (!IsAlive || mDraft is not { } value)
                 return;
             ClearDraft();
-            // 草稿含 Multiple = 插件把多选读出的当前值原样写回（多选不一致时 Value 就是 Multiple）。它不是值、存储层也会拒：
-            // 不写，草稿已丢，记一条归因到插件的错误。不抛——CommitValue 常在 await 之后调（滚轮推迟提交），抛出去没有人接。
+            // 兜底：SetValue 已拒收 Multiple，正常走不到这里。仍留一道：存储层会拒它，而 CommitValue 常在 await 之后调
+            //（滚轮推迟提交），抛出去没有人接——不写，草稿已丢，记一条归因到插件的错误。
             try
             {
                 PropertySlot.EnsureStorable(value);
@@ -455,8 +489,24 @@ internal sealed class PluginCanvas : Component
         void ClearDraft()
         {
             mDraft = null;
-            mEditing?.Dispose();
-            mEditing = null;
+            UpdateLock();
+        }
+
+        // 面板是否在用 = 插件声明了编辑（BeginEdit 未配平）或有草稿，两者同时起作用、互不替代；实例作废后一律不算。
+        // 在用即在所在窗口的 EditGate 上登记一次（所在窗口的属性面板推迟刷新、本实例不被换掉），不在用即撤销登记。
+        void UpdateLock()
+        {
+            if (!IsAlive)
+                mEditCount = 0;
+            if (IsAlive && (mEditCount > 0 || mDraft != null))
+            {
+                mEditing ??= EditGate.Of(view)?.BeginEdit();
+            }
+            else
+            {
+                mEditing?.Dispose();
+                mEditing = null;
+            }
         }
 
         static void VerifyThread()
@@ -467,7 +517,8 @@ internal sealed class PluginCanvas : Component
 
         bool mClosed;
         PropertyValue? mDraft;
-        IDisposable? mEditing;   // 有草稿期间在所在窗口 EditGate 上的登记
+        int mEditCount;          // 插件 BeginEdit 未配平的次数
+        IDisposable? mEditing;   // 面板在用期间在所在窗口 EditGate 上的登记（见 UpdateLock）
     }
 
     // ICanvasDrawing 的 Avalonia 实现：只在一次 Render 期间有效（之后调用抛 InvalidOperationException）。

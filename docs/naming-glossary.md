@@ -44,6 +44,8 @@
 | 属性面板里由插件自己绘制、自己处理鼠标的值字段 | `CanvasConfig` / `ICanvas*`（SDK）；`PluginCanvas`（GUI） | 画布 | 「自定义 UI」「自定义控件」（太宽：插件自己的独立界面是另一回事，见插件文档 §9.3）；`handle`（不给插件原生窗口句柄） |
 | 一个逻辑像素对应的物理像素数（随屏幕缩放） | `DevicePixelRatio`（SDK `ICanvasHost`） | 设备像素比 | `RenderScaling`（Avalonia 的叫法，宿主只在翻译层碰它）、`Scale` / `DpiScale`（含糊：没说清是谁比谁） |
 | 鼠标 / 键盘事件携带的修饰键集合（跨平台归一：macOS 的 Cmd 记作 Ctrl） | `ModifierKeys`（SDK `CanvasModifierKeys`；GUI `TuneLab.GUI.Input.ModifierKeys`），事件上的属性名 `Modifiers` | 修饰键 | `KeyModifiers`（那是 Avalonia 的物理按键枚举、带 Meta，语义不同；宿主只在翻译层碰它） |
+| 插件宣告"正在编辑"（锁住面板不刷新、实例不被换掉；与值无关，与草稿同时起作用） | `BeginEdit` / `EndEdit`（SDK `ICanvasHost`，计数可嵌套）；作用域写法 `EditScope()`（扩展方法） | 编辑状态 / 宣告编辑 | `Lock` / `Hold`（易误解成锁数据）；单独的 `Edit()`（动词，读着像"执行一次编辑"） |
+| 返回 `IDisposable`、`Dispose` 即结束的便利写法 | `*Scope()`（如 `EditScope`），做成扩展方法、不进接口 | 作用域写法 | 与原语同名的动词（`Edit()`）；`Defer*`（描述的是宿主那边的效果） |
 | 从一组固定候选里挑若干个值（有序、不重复）的字段及其候选 | `TagConfig` / `TagItem`（SDK）；`TagController`（GUI） | 标签 | `MultiSelect*`（「多选」在本仓指同时选中多个音符/片段，撞词）；`ChipConfig`（描述的是界面形态不是语义）；候选别复用 `ComboBoxItem`（两者各自演进） |
 
 ### 三条边界的说明

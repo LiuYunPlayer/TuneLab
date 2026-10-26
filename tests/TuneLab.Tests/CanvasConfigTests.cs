@@ -14,6 +14,22 @@ public class CanvasConfigTests
 {
     sealed class NullControl : ICanvasControl { }
 
+    // 只记 Begin / End 的调用次数，验 EditScope 的配对语义。
+    sealed class CountingHost : ICanvasHost
+    {
+        public int Begins, Ends;
+        public double Width => 0;
+        public double Height => 0;
+        public double DevicePixelRatio => 1;
+        public PropertyValue Value => PropertyValue.Null;
+        public void Invalidate() { }
+        public void BeginEdit() => Begins++;
+        public void EndEdit() => Ends++;
+        public bool SetValue(PropertyValue value) => true;
+        public void CommitValue() { }
+        public void DiscardValue() { }
+    }
+
     static PropertyValue Curve => new PropertyArray([PropertyValue.Create(0.0), PropertyValue.Create(1.0)]);
 
     [Fact]
@@ -96,5 +112,18 @@ public class CanvasConfigTests
         ICanvasControl control = new NullControl();
         control.Render(null!);
         control.OnScroll(null!);
+    }
+
+    // EditScope = BeginEdit + 句柄：Dispose 即 EndEdit，只生效一次（插件重复 Dispose 不会多减一次、误解别的操作的锁）。
+    [Fact]
+    public void EditScope_PairsBeginWithExactlyOneEnd()
+    {
+        var host = new CountingHost();
+        var scope = host.EditScope();
+        Assert.Equal((1, 0), (host.Begins, host.Ends));
+
+        scope.Dispose();
+        scope.Dispose();
+        Assert.Equal((1, 1), (host.Begins, host.Ends));
     }
 }

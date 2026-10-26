@@ -1161,24 +1161,23 @@ sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
     {
         mDragging = HitTest(e.Position);
         if (mDragging < 0) return;
-        mMoved = false;
-        host.SetValue(host.Value);                           // 写草稿锁住画布：拖动期间面板不刷新
+        mEdit = host.EditScope();                            // 宣告开始编辑：拖动期间面板不刷新、实例不被换掉
     }
     public void OnMouseMove(CanvasMouseEvent e)
     {
         if (mDragging < 0) return;
         host.SetValue(Moved(host.Value, mDragging, e.Position));   // 改草稿，还没进工程
-        mMoved = true;
     }
     public void OnMouseUp(CanvasMouseButtonEvent e)
     {
         if (mDragging < 0) return;
         mDragging = -1;
-        if (mMoved) host.CommitValue();                      // 草稿写进工程，成为一个撤销步骤
-        else host.DiscardValue();                            // 只是点了一下：什么都没改
+        host.CommitValue();                                  // 拖动过才有草稿，写进工程成一个撤销步骤；只点了一下则什么都不做
+        mEdit?.Dispose();                                    // 结束编辑
+        mEdit = null;
     }
     int mDragging = -1;
-    bool mMoved;
+    IDisposable? mEdit;
 }
 ```
 
@@ -1192,14 +1191,14 @@ sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
 - **CLI / agent** 能原样读写这个值（任意 JSON 形状）。宿主不知道形状，也就不校验——agent 写入的值同样要经过你读值时的校验。宿主会提示 agent 先读你的 introduction、读不到再照当前值或默认值推断，所以**强烈建议在 introduction 里写清这个字段的值形状与含义**：每个成员是什么、取值范围、随状态变化的形状（如元素个数随别的设置变）。声明里给不出这些，只有你的说明能讲准确。
 - **位置**：只能作为 `ObjectConfig` 的成员（与按钮相同，见 §9.1）。
 
-### 10.2 草稿与提交
+### 10.2 编辑状态、草稿与提交
 
-操作期间的值只是**草稿**，提交时才进工程：
+两件事分开管：**编辑状态**（画布是不是正在被编辑）和**值**（草稿与提交）。
 
-- **`SetValue`** 写草稿。宿主代为保管——不进工程、别处看不到——`host.Value` 随即返回它，你照常按 `host.Value` 画。
-- **`CommitValue`** 把草稿写进工程，成为一个撤销步骤，并结束编辑。**`DiscardValue`** 丢弃草稿、回到工程里的值（如"取消"），也结束编辑。没有草稿时两者都什么都不做。
-- **有草稿 = 面板仍在使用**：所在窗口的属性面板不刷新（插件宣告的声明失效、别处的修改都留到编辑结束），你的实例也不会被换掉。所以一次操作要防被打断，就**在操作开始时写草稿**——比如按下时还没改值，写入当前值即可（如上例）。多选不一致时当前值是多值标记（`IsMultiple()`）：拿它当草稿锁住画布没问题，但**不能提交它**——它不是值，宿主会拒绝写入并记一条错误；没改值就 `DiscardValue`（如上例的"只是点了一下"）。草稿可以一直挂着，等用户在画布上点你画的"确认"再提交。
-- **提交只由你发起**，宿主从不代为提交。草稿保不住时宿主将其丢弃：外部改了本字段的值（撤销、别处改了同一份数据）、面板被拆（切换 part 等）、画布离开界面（页签切走、窗口关闭）。
+- **编辑状态由你宣告**——是否正在编辑只有你知道，宿主不猜。`BeginEdit` / `EndEdit` 成对调用，两者之间面板视为仍在使用：所在窗口的属性面板不刷新（插件宣告的声明失效、别处的修改都留到编辑结束），你的实例也不会被换掉。它计数、可嵌套：几种操作可能同时进行（拖着点的同时按住方向键），各自 Begin / End，全部结束才解锁；多余的 `EndEdit` 什么都不做，宿主记一条错误。跨事件的编辑用作用域写法更省事：`mEdit = host.EditScope()`，结束时 `mEdit.Dispose()`（重复 `Dispose` 无副作用，如上例）。**忘了结束，所在窗口的面板就一直不刷新。**
+- **`SetValue`** 写草稿。宿主代为保管——不进工程、别处看不到——`host.Value` 随即返回它，你照常按 `host.Value` 画。**只在值真的变了时写，只写真实的值**：多选不一致时 `host.Value` 是多值标记（`IsMultiple()`），它不是值，`SetValue` 收到它返回 `false`、什么都不写（宿主记一条错误）；要在没改值时就锁住画布，用 `BeginEdit`。有草稿也算面板在用（与 `BeginEdit` 同时起作用、互不替代），所以没有"按下"的操作（滚轮、键盘）直接写草稿就锁住了。草稿可以一直挂着，等用户在画布上点你画的"确认"再提交。
+- **`CommitValue`** 把草稿写进工程，成为一个撤销步骤；**`DiscardValue`** 丢弃草稿、回到工程里的值（如"取消"）。两者都只管值，不结束 `BeginEdit` 开始的编辑；没有草稿时都什么都不做。取消一次拖动 = `DiscardValue` 再结束编辑，两件事各说各的。
+- **提交与结束编辑都只由你发起**，宿主从不代为提交、也从不替你结束编辑。实例作废时（外部改了本字段的值——撤销、别处改了同一份数据；面板被拆——切换 part 等；画布离开界面——页签切走、窗口关闭）草稿与编辑状态一并作废，之后的调用都不生效。
 - 没有"松手"的连续操作（如滚轮）可以**推迟提交**：每格都 `SetValue`，在回调里 `await Task.Delay(…)` 等操作停顿再 `CommitValue()`（`await` 之后回到主线程，可以直接用 `host`），一段连续滚动只成一个撤销步骤。
 
 ### 10.3 控件实例的生命周期
@@ -1207,7 +1206,7 @@ sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
 - **工厂不在声明时调用**：画布要显示时宿主才调用它（收起的字段不建实例）。
 - **实例的寿命 = 一次声明**：面板每次按新声明更新——你提交之后、外部改值之后、选中变化——都用新 config 的工厂重建；旧实例作废，它手里的 `host` 随之失效（再 `SetValue` 返回 `false`）。所以**工厂要廉价**（不做 IO、不做重计算），控件对象只放事件和绘制逻辑，重资源在插件级缓存。
 - **需要上下文**（所属 part / note、同级字段的值、你自己算出的数据如波形）：在声明时取出值让工厂捕获，数据变了用 `InvalidatePart` / `InvalidateNotes` 让宿主重新声明——见 §5.2「声明里的闭包与字段演进」。
-- **临时状态不跨实例**：悬停之类的状态随实例丢失，要能从值与事件位置重新算出。没写草稿的拖动可能中途换实例——新实例收不到那次抬起，按"没在拖动"处理即可。
+- **临时状态不跨实例**：悬停之类的状态随实例丢失，要能从值与事件位置重新算出。没宣告编辑、也没写草稿的拖动可能中途换实例——新实例收不到那次抬起，按"没在拖动"处理即可。
 - **事件严格成对**：每个实例收到的 `OnMouseEnter` / `OnMouseLeave` 严格交替（换了实例、或画布出现在静止的指针下时，宿主主动发一次 Enter，不等用户动鼠标——**悬停之类的状态要在 `OnMouseEnter` 里按它带的位置算出**，别只在移动里算）；每个 `OnMouseUp` 都有本实例收到过的对应 `OnMouseDown`；鼠标捕获意外丢失（如按着鼠标切走窗口）时宿主补发 `OnMouseUp`（`IsClick` 为 false），你照常在里面收尾、提交。
 
 ### 10.4 绘制与输入

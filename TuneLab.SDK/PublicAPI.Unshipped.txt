@@ -3,6 +3,7 @@ override TuneLab.SDK.TagItem.Equals(object? obj) -> bool
 override TuneLab.SDK.TagItem.GetHashCode() -> int
 static TuneLab.SDK.ButtonConfig.Create(string! text, System.Func<TuneLab.SDK.IButtonClickContext!, System.Threading.Tasks.Task!>! onClick) -> TuneLab.SDK.ButtonConfig!
 static TuneLab.SDK.CanvasConfig.Create(TuneLab.Foundation.PropertyValue defaultValue, double height, System.Func<TuneLab.SDK.ICanvasHost!, TuneLab.SDK.ICanvasControl!>! createControl) -> TuneLab.SDK.CanvasConfig!
+static TuneLab.SDK.CanvasHostExtensions.EditScope(this TuneLab.SDK.ICanvasHost! host) -> System.IDisposable!
 static TuneLab.SDK.CanvasImage.FromEncodedData(System.ReadOnlySpan<byte> data) -> TuneLab.SDK.CanvasImage!
 static TuneLab.SDK.CanvasImage.FromPixelData(int width, int height, System.ReadOnlySpan<byte> rgba) -> TuneLab.SDK.CanvasImage!
 static TuneLab.SDK.TagConfig.Create(System.Collections.Generic.IReadOnlyList<TuneLab.SDK.TagItem>! items) -> TuneLab.SDK.TagConfig!
@@ -36,6 +37,7 @@ TuneLab.SDK.CanvasConfig.WithSummary(System.Func<TuneLab.Foundation.PropertyValu
 TuneLab.SDK.CanvasEvent
 TuneLab.SDK.CanvasEvent.Handled.get -> bool
 TuneLab.SDK.CanvasEvent.Handled.set -> void
+TuneLab.SDK.CanvasHostExtensions
 TuneLab.SDK.CanvasImage
 TuneLab.SDK.CanvasImage.Dispose() -> void
 TuneLab.SDK.CanvasImage.Height.get -> double
@@ -157,9 +159,11 @@ TuneLab.SDK.ICanvasDrawing.PushClip(double x, double y, double width, double hei
 TuneLab.SDK.ICanvasDrawing.PushOpacity(double opacity) -> System.IDisposable!
 TuneLab.SDK.ICanvasDrawing.PushTransform(System.Numerics.Matrix3x2 transform) -> System.IDisposable!
 TuneLab.SDK.ICanvasHost
+TuneLab.SDK.ICanvasHost.BeginEdit() -> void
 TuneLab.SDK.ICanvasHost.CommitValue() -> void
 TuneLab.SDK.ICanvasHost.DevicePixelRatio.get -> double
 TuneLab.SDK.ICanvasHost.DiscardValue() -> void
+TuneLab.SDK.ICanvasHost.EndEdit() -> void
 TuneLab.SDK.ICanvasHost.Height.get -> double
 TuneLab.SDK.ICanvasHost.Invalidate() -> void
 TuneLab.SDK.ICanvasHost.SetValue(TuneLab.Foundation.PropertyValue value) -> bool

@@ -7,10 +7,10 @@ namespace TuneLab.TestPlugins.V1Voice;
 
 // 画布（CanvasConfig）演示：音素内部的拉伸曲线——横向等距的若干控制点，纵向拖动改值（0..1）。
 // 值 = { "points": [y0, …] }，默认 {}（未设 = 线性）。顶层用对象：以后要加成员（如曲线类型）只是多一个键，不必换形状。
-// 覆盖：绘制（网格 / 折线 / 控制点 / 文字）、悬停（Enter / Move / Leave）、拖动写草稿 + 松手提交（一个撤销步骤；按下即写草稿锁住画布）、
+// 覆盖：绘制（网格 / 折线 / 控制点 / 文字）、悬停（Enter / Move / Leave）、按下 EditScope 宣告编辑、拖动写草稿、松手提交（一个撤销步骤）、
 // 双击控制点复位为线性、滚轮微调指针所在竖列的控制点（只在列上置 Handled，列间照常滚面板；停顿后才提交）、
 // 键盘（画布有焦点时）：↑ / ↓ 微调指针所在竖列的控制点（按住连发，松开才提交）、拖动中按 Esc 取消（丢弃草稿）、
-// 多选合并值（不一致的点画成空心）。
+// 多选不一致（宿主给整体 Multiple，控制点全画成空心）。
 // 值由插件自定形状，读取时一律校验（撤销 / preset / 粘贴都可能带来任意形状）：形状不对的位置按线性默认处理。
 sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
 {
@@ -138,10 +138,8 @@ sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
             return;
         }
         mDragging = hit;
-        mMoved = false;
-        // 先写一份草稿锁住画布：拖动期间面板不刷新、本实例不会被换掉（即使还没移动、没改值）。
-        // 多选不一致时当前值是 Multiple——拿它当草稿锁画布没问题，但不能提交它（见 OnMouseUp）。
-        host.SetValue(host.Value);
+        // 宣告开始编辑：拖动期间面板不刷新、本实例不会被换掉（即使还没移动）。不写任何值——还没改呢。
+        mDragEdit = host.EditScope();
         host.Invalidate();
     }
 
@@ -153,7 +151,6 @@ sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
             var points = Read(host.Value);
             points[mDragging] = (ValueAt(e.Position.Y), true);
             host.SetValue(Write(points));
-            mMoved = true;
             return;
         }
         UpdateHover(e.Position);
@@ -182,11 +179,8 @@ sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
         if (mDragging < 0)
             return;   // 按下时没命中控制点
         mDragging = -1;
-        // 只是点了一下：什么都没改，丢掉草稿。若提交，多选不一致时草稿就是按下时写的 Multiple——它不是值，宿主会拒绝。
-        if (mMoved)
-            host.CommitValue();
-        else
-            host.DiscardValue();
+        host.CommitValue();   // 拖动过才有草稿；只是点了一下就没有草稿，这里什么都不做
+        EndDrag();
         host.Invalidate();
     }
 
@@ -235,7 +229,8 @@ sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
         {
             e.Handled = true;
             mDragging = -1;
-            host.DiscardValue();
+            host.DiscardValue();   // 取消：丢掉草稿回到工程里的值……
+            EndDrag();             // ……再结束编辑——两件事各说各的
             host.Invalidate();
             return;
         }
@@ -258,7 +253,13 @@ sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
 
     Point? mPointer;   // 指针在画布内的位置（Enter / Move 记下，Leave 清掉）；新实例由宿主补发的 Enter 带来
 
+    void EndDrag()
+    {
+        mDragEdit?.Dispose();
+        mDragEdit = null;
+    }
+
     int mHover = -1;
     int mDragging = -1;
-    bool mMoved;
+    IDisposable? mDragEdit;   // 拖动期间的编辑作用域（按下时 EditScope、松开或 Esc 时结束）
 }
