@@ -662,7 +662,7 @@ internal class PropertyObjectController : StackPanel
             BindWith(config);
             // 摘要：选中项的显示文本；值不在选项里时显示原值字面量（同下拉本体的呈现）。
             mFold = new FieldFold(mTitle, [mController], parent.FoldKey(key),
-                summary: () => MultipleOr(parent.DataObject.GetValue(mKey, mConfig.DefaultOption.Value),
+                summary: () => MultipleOr(parent.DataObject.RawValueField(mKey, mConfig.DefaultOption.Value).Value,
                     v => mConfig.Items.Leaves().Where(item => item.Value.Equals(v)).Select(item => item.ShowText()).FirstOrDefault() ?? v.ToString()),
                 watch: parent.DataObject);
             AttachContextMenu(key, () => mConfig, mFold.Header, mController);
@@ -673,8 +673,9 @@ internal class PropertyObjectController : StackPanel
         void BindWith(ComboBoxConfig config)
         {
             mController.SetConfig(config);
-            // 绑裸 PropertyValue 字段：option 值可为任意基础类型，存进数据的就是该值本身（非显示文本）。
-            mController.BindDataProperty(Parent.DataObject.ValueField(mKey, config.DefaultOption.Value), s);
+            // 绑裸 PropertyValue 字段：option 值可为任意类型，存进数据的就是该值本身（非显示文本）。按原值读、不按默认值的
+            // 类型过滤——另一类型的合法选项、不在候选里要琥珀显示的旧值都得原样读出（见 RawValueField）。
+            mController.BindDataProperty(Parent.DataObject.RawValueField(mKey, config.DefaultOption.Value), s);
             EditGate.Track(mController, s);
         }
 

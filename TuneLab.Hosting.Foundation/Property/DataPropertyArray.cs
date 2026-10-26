@@ -82,6 +82,9 @@ public class DataPropertyArray : DataObject, IDataObject<PropertyArray>, IDataPr
         return propertyValue.TypeEquals(defaultValue) ? propertyValue : defaultValue;
     }
 
+    // 本层叶子按原值读：陈旧 token = Null（不按 default 的类型过滤，见 IDataPropertyObject.GetRawValue）。
+    public PropertyValue GetRawValue(string token) => ResolveToken(token)?.Value.ToPropertyValue() ?? PropertyValue.Null;
+
     // 本层叶子写：陈旧 token → no-op（绑定元素已被删，写入作废）。撤销由 DataPropertyValue 自带命令承担。
     public void SetValue(string token, PropertyValue value) => ResolveToken(token)?.Set(PropertySlot.Canonicalize(value));
 

@@ -1045,7 +1045,7 @@ internal abstract class ElementWidget : IDisposable
         void BindWith(ComboBoxConfig config)
         {
             mController.SetConfig(config);
-            mController.BindDataProperty(mDataObject.ValueField(mToken, config.DefaultOption.Value), s);
+            mController.BindDataProperty(mDataObject.RawValueField(mToken, config.DefaultOption.Value), s);   // 选项可为任意类型：按原值读，见 RawValueField
             EditGate.Track(mController, s);
         }
 
@@ -1237,6 +1237,10 @@ sealed class SeedPositionView : ForwardingDataObject, IDataPropertyObject
 
     public PropertyValue GetValue(string key, PropertyValue defaultValue)
         => Real ? mArray.GetValue(mArray.Tokens[mPosition], defaultValue) : defaultValue;
+
+    // 未物化 = 还没有存值（Null），读的一方按缺席回落默认值。
+    public PropertyValue GetRawValue(string key)
+        => Real ? mArray.GetRawValue(mArray.Tokens[mPosition]) : PropertyValue.Null;
 
     public void SetValue(string key, PropertyValue value)
     {

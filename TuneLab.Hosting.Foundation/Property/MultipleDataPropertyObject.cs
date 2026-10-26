@@ -62,6 +62,21 @@ public class MultipleDataPropertyObject : IDataPropertyObject
         return first;
     }
 
+    // 按原值读的多选合并：口径同 GetValue（全等→该值、不等→Multiple），只是各成员不按默认值的类型过滤。
+    public PropertyValue GetRawValue(string key)
+    {
+        if (mDataObjects.Count == 0)
+            return PropertyValue.Null;
+
+        var first = mDataObjects[0].GetRawValue(key);
+        for (int i = 1; i < mDataObjects.Count; i++)
+        {
+            if (!mDataObjects[i].GetRawValue(key).Equals(first))
+                return PropertyValue.Multiple;
+        }
+        return first;
+    }
+
     // 扇出期间合并通知：先让所有对象进 merge，再统一写值，最后统一退 merge。
     // 这样写到一半时各对象只发 canIgnore 中间通知（结果态订阅者不触发），全部写完退 merge 才发结果态，
     // 此刻每次刷新看到的都是"所有对象已写完"的最终值——消除"部分写完→瞬时 Multiple"的中间态闪烁

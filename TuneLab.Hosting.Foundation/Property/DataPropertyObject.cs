@@ -32,6 +32,10 @@ public class DataPropertyObject : DataObject, IDataObject<PropertyObject>, IRead
         return propertyValue.TypeEquals(defaultValue) ? propertyValue : defaultValue;
     }
 
+    // 本层叶子按原值读（不按 default 的类型过滤，见 IDataPropertyObject.GetRawValue）。
+    public PropertyValue GetRawValue(string key)
+        => mMap.TryGetValue(key, out var dataPropertyValue) ? dataPropertyValue.Value.ToPropertyValue() : PropertyValue.Null;
+
     // 本层叶子写：缺键则建叶子。撤销由 DataPropertyValue 自带命令承担。
     public DataPropertyValue SetValue(string key, PropertyValue value)
     {
