@@ -180,8 +180,9 @@ internal sealed class ExtensionSettingsCommand : ICommand
             return string.Format("\"{0}\" declares no settings fields (at the current values).", displayName) + ExtensionSettingsText.HintSuffix(obj);
 
         var sb = new StringBuilder();
-        sb.Append(string.Format("Settings of \"{0}\" ({1}, package \"{2}\"), {3} field(s). Change one with set_extension_setting.",
-            displayName, obj["extensionKey"]!.GetValue<string>(), obj["package"]!.GetValue<string>(), fields.Count));
+        // 包 id 也列出来：调用方最先在 extension list 里看到的就是它，只给包名会让人拿不准该填哪种写法。
+        sb.Append(string.Format("Settings of \"{0}\" ({1}, package \"{2}\", packageId={3}), {4} field(s). Change one with set_extension_setting.",
+            displayName, obj["extensionKey"]!.GetValue<string>(), obj["package"]!.GetValue<string>(), obj["packageId"]!.GetValue<string>(), fields.Count));
         sb.Append("\nFormat: <key> \"<label>\": <allowed> — current <value>, default <value>");
         foreach (var node in fields)
         {
