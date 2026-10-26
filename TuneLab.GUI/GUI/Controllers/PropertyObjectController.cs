@@ -1025,7 +1025,7 @@ internal class PropertyObjectController : StackPanel
     }
 
     // 插件画布（CanvasConfig）：标题行 + 插件自己画的区域（宽随面板、高由声明）。值是插件自定形状的裸 PropertyValue，
-    // 读写、撤销、外部改值后重建都在 PluginCanvas 里。每次声明更新都换上新工厂（旧实例作废，见 PluginCanvas）。
+    // 插件在声明时取值、让工厂捕获；写回、撤销、外部改值后作废都在 PluginCanvas 里。每次声明更新都换上新工厂（旧实例作废）。
     // 右键菜单只挂标题行：画布里的右键归插件。
     class CanvasCreator : Creator
     {
@@ -1049,23 +1049,13 @@ internal class PropertyObjectController : StackPanel
             mCanvas.SetFactory(config.CreateControl);
         }
 
-        // 值的形状只有插件懂：给了格式化就交给它，没给则只分"默认 / 已修改"。
+        // 值的形状只有插件懂：插件在声明时算好了摘要就用它（多选怎么说也由它定），没给则只分"默认 / 已修改 / 多值"。
         string? Summary(PropertyValue value)
         {
+            if (mConfig.Summary is { } summary)
+                return summary;
             if (value.IsMultiple())
                 return "(Multiple)";
-            if (mConfig.Summary is { } format)
-            {
-                try
-                {
-                    return format(value);
-                }
-                catch (Exception ex)
-                {
-                    Log.ErrorAttributed("Canvas summary threw", ex);
-                    return null;
-                }
-            }
             return (value.Equals(mConfig.DefaultValue) ? "Default" : "Modified").Tr("PropertyObjectController");
         }
 

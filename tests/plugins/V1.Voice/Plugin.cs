@@ -61,12 +61,8 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
         var offset = DraggableNumberBoxConfig.Create(0).WithSensitivity(0.5).WithFormat(NumberFormat.Decimals(1));
         mCorePhonemeProperties.Add(("offset", "Offset (ms)"), offset);
         mConsonantPhonemeProperties.Add(("offset", "Offset (ms)"), offset);
-        // 插件自绘画布（验证 CanvasConfig：绘制 / 鼠标与键盘交互 / 草稿 + 提交 / 多选合并 / 收起摘要），见 StretchCurveCanvas。
-        // note 面板与核音素面板各放一个：后者是它的本来用途（音素内部的拉伸曲线），前者选中 note 即可见、测起来方便。
-        mNoteProperties.Add(("stretch", "Stretch Curve"), StretchCurveCanvas.Config);
-        mCorePhonemeProperties.Add(("stretch", "Stretch"), StretchCurveCanvas.Config);
-        // 画布图片与绘制状态（验证 CanvasImage 位图 / SVG / 自生成像素、裁剪 / 透明度 / 变换、设备像素比、键盘），见 ImageDemoCanvas。
-        mNoteProperties.Add(("image_demo", "Canvas Images"), ImageDemoCanvas.Config);
+        // 画布（StretchCurveCanvas / ImageDemoCanvas）不在这里：它们的值在声明时从 context 取，见 GetNotePropertyConfig /
+        // GetPhonemePropertyConfigs。
         // 条件自动化轨开关（part 级）：勾选才暴露 Growl 轨——验证轨集合 = f(part 参数值)，
         // 取消勾选时 Growl 已画曲线由宿主保留隐藏、重新勾选即原样恢复。
         mPartProperties.Add(("growl_enabled", "Enable Growl"), CheckBoxConfig.Create(true));
@@ -139,7 +135,13 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
     {
         string partId = context.Part.PartId;
         var noteIds = context.Notes.Select(n => n.Id).ToList();
-        var properties = With(mNoteProperties, ("inspect", "Inspect"), ButtonConfig.Create("Show Tones", click => ShowNoteTones(click, partId, noteIds)));
+        // 插件自绘画布（验证 CanvasConfig：绘制 / 鼠标与键盘交互 / 草稿 + 提交 / 多选合并 / 收起摘要 / 弹出），见 StretchCurveCanvas；
+        // 画布图片与绘制状态（CanvasImage 位图 / SVG / 自生成像素、裁剪 / 透明度 / 变换、设备像素比、键盘），见 ImageDemoCanvas。
+        // 值在声明时取：各选中 note 这个字段的值交给画布的工厂（宿主不把值读回给画布控件）。
+        var notes = context.Notes.Select(n => n.Properties).ToList();
+        var properties = With(mNoteProperties, ("stretch", "Stretch Curve"), StretchCurveCanvas.Config(ValuesOf(notes, "stretch", StretchCurveCanvas.Default)));
+        properties = With(properties, ("image_demo", "Canvas Images"), ImageDemoCanvas.Config(ValuesOf(notes, "image_demo", ImageDemoCanvas.Default)));
+        properties = With(properties, ("inspect", "Inspect"), ButtonConfig.Create("Show Tones", click => ShowNoteTones(click, partId, noteIds)));
         if (IsBlinkVisible(partId))
             properties = With(properties, ("blink", "Blinking Slider"), mBlinkConfig);
         bool allToned = context.Notes.Count > 0
@@ -159,6 +161,13 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
 
     bool IsBlinkVisible(string partId) => mAnalyses.TryGetValue(partId, out var analysis) && analysis.BlinkVisible;
 
+    // 一个字段在各对象上的值：读不到（未设过）给默认值；没有对象带它（如音素未钉死）时只给一个默认值。
+    static IReadOnlyList<PropertyValue> ValuesOf(IEnumerable<PropertyObject?> owners, string key, PropertyValue unset)
+    {
+        var values = owners.OfType<PropertyObject>().Select(o => o.Map.TryGetValue(key, out var value) ? value : unset).ToList();
+        return values.Count > 0 ? values : [unset];
+    }
+
     static OrderedMap<PropertyKey, IControllerConfig> With(OrderedMap<PropertyKey, IControllerConfig> properties, PropertyKey key, IControllerConfig config)
     {
         var map = new OrderedMap<PropertyKey, IControllerConfig>();
@@ -172,8 +181,9 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
     // schema 若依赖当前属性值，在此对同 slot 各成员值做三态 Merge（同 GetNotePropertyConfig 契约）再条件化。
     public IReadOnlyMap<int, ObjectConfig> GetPhonemePropertyConfigs(IVoiceSynthesisNotePropertyContext context)
     {
-        // 核（slot 0）另带一个按钮：验证音素面板上的按钮。
-        var coreProperties = With(mCorePhonemeProperties, ("audition", "Audition"),
+        // 核（slot 0）另带拉伸曲线画布（它的本来用途：音素内部的拉伸曲线；值取各 note 核音素的）与一个按钮（验证音素面板上的按钮）。
+        var stretch = StretchCurveCanvas.Config(ValuesOf(context.Notes.Select(n => n.PhonemeAt(0)?.Properties), "stretch", StretchCurveCanvas.Default));
+        var coreProperties = With(With(mCorePhonemeProperties, ("stretch", "Stretch"), stretch), ("audition", "Audition"),
             ButtonConfig.Create("Play", _ =>
             {
                 TuneLabContext.Global.GetLogger().Info("[V1.Voice] audition clicked");

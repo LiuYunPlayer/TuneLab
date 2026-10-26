@@ -12,13 +12,19 @@ namespace TuneLab.TestPlugins.V1Voice;
 // · 立绘（编码位图 WebP，插件级缓存）：圆角裁剪；指针不在画布上时半透明；
 // · 星形（SVG，插件级缓存）：按值旋转（PushTransform）——横拖旋转、双击复位、画布有焦点时 ← / → 每次 5°（按住连发，松开才提交）；
 // · 色带（FromPixelData 自生成）：按 宽 × 设备像素比 生成才清晰，尺寸或像素比变了就先 Dispose 旧的再新建。
-// 值 = 星形的旋转角度（度）。
-sealed class ImageDemoCanvas(ICanvasHost host) : ICanvasControl
+// 值 = 星形的旋转角度（度）。声明时取各选中对象的值交给工厂；多选不一致时按第一个对象的角度画、标签写 Mixed。
+sealed class ImageDemoCanvas(ICanvasHost host, IReadOnlyList<PropertyValue> values) : ICanvasControl
 {
     const double Pad = 8;
 
-    public static CanvasConfig Config { get; } = CanvasConfig.Create(PropertyValue.Create(0.0), 96, host => new ImageDemoCanvas(host))
-        .WithSummary(value => $"{Angle(value):0}°");
+    public static readonly PropertyValue Default = PropertyValue.Create(0.0);
+
+    // 声明时调用：values = 每个选中对象的这个字段的值（未设过的给 Default）。
+    public static CanvasConfig Config(IReadOnlyList<PropertyValue> values)
+        => CanvasConfig.Create(Default, 96, host => new ImageDemoCanvas(host, values))
+            .WithSummary(IsMixed(values) ? "Mixed" : $"{Angle(values[0]):0}°");
+
+    static bool IsMixed(IReadOnlyList<PropertyValue> values) => values.Any(v => !v.Equals(values[0]));
 
     // 重资源在插件级缓存：控件实例每次声明都会重建，图片不跟着它重复解码。
     static readonly Lazy<CanvasImage?> Portrait = new(() =>
@@ -38,6 +44,18 @@ sealed class ImageDemoCanvas(ICanvasHost host) : ICanvasControl
 
     static double Angle(PropertyValue value) => value.ToDouble(out var angle) && double.IsFinite(angle) ? angle : 0;
 
+    // 现在画的角度：有草稿画草稿（自己记的），否则画工程里的值（多选不一致时取第一个对象的）。
+    double CurrentAngle => mDraft ?? Angle(values[0]);
+    bool Mixed => mDraft == null && IsMixed(values);
+
+    void Draft(double angle)
+    {
+        if (host.SetValue(PropertyValue.Create(angle)))
+            mDraft = angle;
+    }
+
+    double? mDraft;
+
     public void Render(ICanvasDrawing d)
     {
         double w = host.Width, h = host.Height, size = h - 2 * Pad;
@@ -53,9 +71,9 @@ sealed class ImageDemoCanvas(ICanvasHost host) : ICanvasControl
 
         // 星形：绕自身中心旋转。
         double cx = w / 2, cy = h / 2;
-        using (d.PushTransform(Matrix3x2.CreateRotation((float)(Angle(host.Value) * Math.PI / 180), new Vector2((float)cx, (float)cy))))
+        using (d.PushTransform(Matrix3x2.CreateRotation((float)(CurrentAngle * Math.PI / 180), new Vector2((float)cx, (float)cy))))
             d.DrawImage(Star.Value, cx - size / 2, cy - size / 2, size, size);
-        d.DrawText($"{Angle(host.Value):0}°", cx + size / 2 + 4, h - Pad, 0, 0, Color.FromArgb(160, 255, 255, 255), 11, CanvasAlignment.LeftBottom);
+        d.DrawText(Mixed ? "Mixed" : $"{CurrentAngle:0}°", cx + size / 2 + 4, h - Pad, 0, 0, Color.FromArgb(160, 255, 255, 255), 11, CanvasAlignment.LeftBottom);
 
         // 色带：按物理像素生成。
         double gw = Math.Min(120, w / 4), gx = w - Pad - gw;
@@ -96,19 +114,19 @@ sealed class ImageDemoCanvas(ICanvasHost host) : ICanvasControl
             return;
         if (e.IsDoubleClick)
         {
-            host.SetValue(PropertyValue.Create(0.0));
+            Draft(0);
             host.CommitValue();
             return;
         }
         mDragFrom = e.Position.X;
-        mDragAngle = Angle(host.Value);
-        host.SetValue(host.Value);   // 写草稿锁住画布
+        mDragAngle = CurrentAngle;
+        mDragEdit = host.EditScope();   // 宣告编辑：拖动期间面板不刷新、实例不被换掉（还没改值，不写草稿）
     }
 
     public void OnMouseMove(CanvasMouseEvent e)
     {
         if (mDragFrom is { } from)
-            host.SetValue(PropertyValue.Create(Math.Round(mDragAngle + (e.Position.X - from) * 2)));
+            Draft(Math.Round(mDragAngle + (e.Position.X - from) * 2));
     }
 
     public void OnMouseUp(CanvasMouseButtonEvent e)
@@ -116,8 +134,12 @@ sealed class ImageDemoCanvas(ICanvasHost host) : ICanvasControl
         if (mDragFrom == null)
             return;
         mDragFrom = null;
-        host.CommitValue();
+        host.CommitValue();   // 拖动过才有草稿；只点了一下则什么都不做
+        mDragEdit?.Dispose();
+        mDragEdit = null;
     }
+
+    IDisposable? mDragEdit;
 
     // ← / → 旋转：每次按下（含按住时系统的重复）改草稿，松开才提交——按住转一圈只成一个撤销步骤。
     // 只吞用到的两个键（置 Handled），其余键照常冒泡给快捷键（空格播放等）。按着键时拖动 / 拖动时按键都按同一份草稿接着改。
@@ -127,7 +149,7 @@ sealed class ImageDemoCanvas(ICanvasHost host) : ICanvasControl
         if (direction == 0 || e.Modifiers != CanvasModifierKeys.None)
             return;
         e.Handled = true;
-        host.SetValue(PropertyValue.Create(Angle(host.Value) + 5 * direction));
+        Draft(CurrentAngle + 5 * direction);
     }
 
     public void OnKeyUp(CanvasKeyEvent e)

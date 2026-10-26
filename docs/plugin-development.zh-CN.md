@@ -474,7 +474,7 @@ public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext con
   - 数值用 `GetDouble(key, 默认值)`，布尔用 `GetBoolean`，字符串用 `GetString`。别写 `GetValue(key, 0)`：`0` 让泛型推断成 `int`，SDK 1.1 及以前的宿主上它恒返回默认值。
   - 形状不定的值（数组、对象）按原值取：`props.Map.TryGetValue(key, out var value)`。`GetValue(key, PropertyValue.Null)` 在老宿主上同样恒返回默认值。
   - 读到的值一律校验：撤销、preset、粘贴、旧版本的插件都可能带来任意形状。
-- **多选。** 声明时 context 给的是每个选中对象各自的值，要合并就自己 `.Merge()`（同键全等给该值，不等或部分缺给 `Multiple`）。面板上的显示：标量与画布按整值比较，不一致就整体为多值（画布见 §10.1）；列表按下标逐个合并；tag 显示并集。编辑时把同一个值写给全部对象（列表、tag 按元素扇出）。
+- **多选。** 声明时 context 给的是每个选中对象各自的值，要合并就自己 `.Merge()`（同键全等给该值，不等或部分缺给 `Multiple`）。面板上的显示：标量按整值比较，不一致就显示为多值；画布由你自己合并（§10.1）；列表按下标逐个合并；tag 显示并集。编辑时把同一个值写给全部对象（列表、tag 按元素扇出）。
 - **`Multiple` 只是多选读出时"各对象不一致"的标记，不是值。** 不能作默认值，也不能写回——宿主拒绝写入（画布提交它时不写入，并记一条错误）。没改值就别提交。
 - **闭包、重建与字段形状演进**：见下一节。
 
@@ -482,7 +482,7 @@ public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext con
 
 本节适用于所有声明面板的地方：part / note / 音素属性、instrument、effect 参数、扩展设置。
 
-**闭包只捕获值。** 声明返回的 config 里可以带函数：按钮的点击回调（§9）、画布的工厂与收起摘要（§10）。它们都在声明调用结束之后才执行，而声明 context 与视图只在调用期间有效。需要什么——PartId、note Id、音素符号、同级字段已填的值——就在 `GetXxxConfig` 里先取出来，让闭包捕获这些值，不要捕获 context 或视图对象本身。
+**闭包只捕获值。** 声明返回的 config 里可以带函数：按钮的点击回调（§9）、画布的工厂（§10）。它们都在声明调用结束之后才执行，而声明 context 与视图只在调用期间有效。需要什么——PartId、note Id、音素符号、同级字段已填的值——就在 `GetXxxConfig` 里先取出来，让闭包捕获这些值，不要捕获 context 或视图对象本身。
 
 ```csharp
 public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext context)
@@ -1120,7 +1120,7 @@ var inputs = await click.DialogService.PromptInputs("导出预设", ObjectConfig
 - **有效期**：从回调开始到它返回的 Task 完成。把 `click.DialogService` 存起来、事后再用会抛 `InvalidOperationException`。
 - 任意线程可调。**不要同步阻塞等待**返回的 Task（`.Result` / `.Wait()`）——弹窗要用 UI 线程，在 UI 线程上阻塞即死锁。
 - `RunWithProgress`：进度窗从 0% 开始；`Report(fraction, status)` 的 `fraction` 为 `null` 时显示不确定进度（滚动条），`status` 是进度条下方的一行文字（自译），省略或传 `null` 表示保持上一次的文字（想清空传 `""`）；`fraction` 没有"保持不变"的写法，只更新文字时要传入当前进度；`progress.SetCancellable(false)` 让取消按钮在不能打断的关键段（替换文件、写索引……）里变灰，出关键段再置回 `true`（默认可取消；应用退出时 token 照样取消，关键段仍须能应对进程被结束）；`Report` 可任意线程、高频调用（宿主按帧合并）；进度窗恒带取消按钮，用户取消或应用退出时 token 取消；`work` 抛出的异常原样传回给你。
-- `PromptInputs`：用和属性面板同一套控件渲染你的 config（与脚本工具的 inputs 是同一个表单窗）；表单数据与工程隔离、不进撤销。表单要随填写的值变化（某项选了 X 才出现别的字段）时，传一个函数而不是固定的 config：`PromptInputs(title, values => BuildForm(values))`——和属性面板一样，值一变就以表单当前的值重新调用它；`values` 只含用户改过的字段，读不到即默认值。
+- `PromptInputs`：用和属性面板同一套控件渲染你的 config（与脚本工具的 inputs 是同一个表单窗）；表单数据与工程隔离、不进撤销。表单要随填写的值变化（某项选了 X 才出现别的字段、依赖当前值的画布）时，传一个函数而不是固定的 config：`PromptInputs(title, values => BuildForm(values))`——和属性面板一样，值一变就以表单当前的值重新调用它；`values` 只含用户改过的字段，读不到即默认值。
 
 ### 9.3 插件自己的设置界面
 
@@ -1147,14 +1147,19 @@ props.Add(("editor", "编辑器"), ButtonConfig.Create("打开...", async _ =>
 官方控件表达不了的编辑（比如音素内部的拉伸曲线），可以声明一块**画布**：你自己画、自己处理鼠标，编辑完把结果提交给这个字段。
 
 ```csharp
-props.Add(("stretch", "拉伸曲线"), CanvasConfig.Create(PropertyObject.Empty, 96, host => new StretchCurveCanvas(host))   // 值 = { "points": [...] }，{} = 未设
-    .WithSummary(value => IsLinear(value) ? "线性" : "自定义"));
+// 在声明里（如 GetNotePropertyConfig）：取各选中对象这个字段的值（读不到 = 默认值）交给工厂，摘要也在这时算好
+var values = context.Notes.Select(n => n.Properties.Map.TryGetValue("stretch", out var v) ? v : StretchCurveCanvas.Default).ToList();
+props.Add(("stretch", "拉伸曲线"), CanvasConfig.Create(StretchCurveCanvas.Default, 96, host => new StretchCurveCanvas(host, values))
+    .WithSummary(SummaryOf(values)));
 
-sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
+sealed class StretchCurveCanvas(ICanvasHost host, IReadOnlyList<PropertyValue> values) : ICanvasControl
 {
+    public static readonly PropertyValue Default = PropertyObject.Empty;   // 值 = { "points": [...] }，{} = 未设
+    PropertyValue? mDraft;                                   // 草稿自己记着：宿主不把值读回给控件
+
     public void Render(ICanvasDrawing d)
     {
-        var curve = Read(host.Value);                       // 读值一律校验，见 §10.1
+        var curve = mDraft is { } draft ? Read(draft) : Merge(values);   // 读值一律校验；多选怎么合并你定，见 §10.1
         d.DrawPolyline(ToPoints(curve), Color.SkyBlue, 2);
     }
     public void OnMouseDown(CanvasMouseButtonEvent e)
@@ -1166,7 +1171,8 @@ sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
     public void OnMouseMove(CanvasMouseEvent e)
     {
         if (mDragging < 0) return;
-        host.SetValue(Moved(host.Value, mDragging, e.Position));   // 改草稿，还没进工程
+        var moved = Moved(mDraft ?? StartFrom(values), mDragging, e.Position);
+        if (host.SetValue(moved)) mDraft = moved;            // 改草稿（交给宿主保管，还没进工程），自己也记下来画
     }
     public void OnMouseUp(CanvasMouseButtonEvent e)
     {
@@ -1186,8 +1192,9 @@ sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
 - **值的形状由你定**（任意 `PropertyValue`，可以是对象或数组），宿主不解读。恢复默认、preset、撤销、多选都照常参与，所以**读值时一律校验**——撤销、preset、粘贴都可能带来任意形状的值，形状不对的地方按默认处理。
 - **默认值**：就是"未设"状态，同时定了字段的类型——存值类型与默认值不同时按默认值处理，所以**值的类型要固定**（形状可以变）。默认值不能是 `PropertyValue.Null` / `PropertyValue.Multiple`，`Create` 会直接报参数错误。
 - **建议顶层用对象**（默认 `{}`，如上例的 `{ "points": [...] }`）：以后要加功能只是多一个成员，旧值仍是对象、照样读得出，缺的成员按你的默认处理；顶层是数组或标量的话，想扩展就只能换形状（得换新键，见 §5.2「声明里的闭包与字段演进」）。确定只存一个数之类的简单值时，用标量也完全正确。
-- **多选**：各目标的值完全相同时就是那个值；只要有不同，**整个值**就是多值标记（`IsMultiple()`）——宿主不逐元素合并，值的形状只有你懂。怎么画由你决定；提交时把同一个值写到全部目标。
-- **收起摘要**：`WithSummary(format)`——字段收起时宿主用当前值调用它，显示在标题行；值整体不一致时宿主直接显示多值标记、不调用。不给则显示"默认 / 已修改"。
+- **值在声明时取**：声明 context 带着每个选中对象各自的值（读不到 = 默认值，用和 `Create` 同一个默认值常量），取出来让工厂捕获、交给控件（如上例）；宿主没有读值的接口。一个实例的生命周期内工程里的值不变（变了就换实例，见 §10.3），所以构造时拿到的就是它该显示的值。
+- **多选**：你拿到的是每个对象各自的值，怎么合并、怎么呈现由你定——比如逐点比较，各对象一致的点画实心、不一致的画空心。宿主不合并，值的形状只有你懂。提交时把同一个值写到全部目标；各对象不一致时改值从哪个值开始（第一个对象的？默认值？）也由你定，各对象自己的其余部分会被这个值覆盖。
+- **收起摘要**：`WithSummary(text)`——在声明时按当时的值算好（值一变就会重新声明，摘要随之更新），多选不一致时写什么也由你定。不给则宿主显示"默认 / 已修改 / 多值"。
 - **CLI / agent** 能原样读写这个值（任意 JSON 形状）。宿主不知道形状，也就不校验——agent 写入的值同样要经过你读值时的校验。宿主会提示 agent 先读你的 introduction、读不到再照当前值或默认值推断，所以**强烈建议在 introduction 里写清这个字段的值形状与含义**：每个成员是什么、取值范围、随状态变化的形状（如元素个数随别的设置变）。声明里给不出这些，只有你的说明能讲准确。
 - **位置**：只能作为 `ObjectConfig` 的成员（与按钮相同，见 §9.1）。
 
@@ -1196,18 +1203,19 @@ sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
 两件事分开管：**编辑状态**（画布是不是正在被编辑）和**值**（草稿与提交）。
 
 - **编辑状态由你宣告**——是否正在编辑只有你知道，宿主不猜。`BeginEdit` / `EndEdit` 成对调用，两者之间面板视为仍在使用：所在窗口的属性面板不刷新（插件宣告的声明失效、别处的修改都留到编辑结束），你的实例也不会被换掉。它计数、可嵌套：几种操作可能同时进行（拖着点的同时按住方向键），各自 Begin / End，全部结束才解锁；多余的 `EndEdit` 什么都不做，宿主记一条错误。跨事件的编辑用作用域写法更省事：`mEdit = host.EditScope()`，结束时 `mEdit.Dispose()`（重复 `Dispose` 无副作用，如上例）。**忘了结束，所在窗口的面板就一直不刷新。**
-- **`SetValue`** 写草稿。宿主代为保管——不进工程、别处看不到——`host.Value` 随即返回它，你照常按 `host.Value` 画。**只在值真的变了时写，只写真实的值**：多选不一致时 `host.Value` 是多值标记（`IsMultiple()`），它不是值，`SetValue` 收到它返回 `false`、什么都不写（宿主记一条错误）；要在没改值时就锁住画布，用 `BeginEdit`。有草稿也算面板在用（与 `BeginEdit` 同时起作用、互不替代），所以没有"按下"的操作（滚轮、键盘）直接写草稿就锁住了。草稿可以一直挂着，等用户在画布上点你画的"确认"再提交。
-- **`CommitValue`** 把草稿写进工程，成为一个撤销步骤；**`DiscardValue`** 丢弃草稿、回到工程里的值（如"取消"）。两者都只管值，不结束 `BeginEdit` 开始的编辑；没有草稿时都什么都不做。取消一次拖动 = `DiscardValue` 再结束编辑，两件事各说各的。
+- **`SetValue`** 写草稿。宿主代为保管——不进工程、别处看不到——提交时写进工程；宿主不把它读回给你，你自己记着它来画（如上例的 `mDraft`，`SetValue` 返回 `true` 才记）。**只在值真的变了时写，只写真实的值**：`PropertyValue.Multiple` 不是值，`SetValue` 收到它（或内部含它的值）返回 `false`、什么都不写（宿主记一条错误）；要在没改值时就锁住画布，用 `BeginEdit`。有草稿也算面板在用（与 `BeginEdit` 同时起作用、互不替代），所以没有"按下"的操作（滚轮、键盘）直接写草稿就锁住了。草稿可以一直挂着，等用户在画布上点你画的"确认"再提交。
+- **`CommitValue`** 把草稿写进工程，成为一个撤销步骤；**`DiscardValue`** 丢弃草稿、回到工程里的值（如"取消"；你自己记的草稿也清掉，回到声明给你的值）。两者都只管值，不结束 `BeginEdit` 开始的编辑；没有草稿时都什么都不做。取消一次拖动 = `DiscardValue` 再结束编辑，两件事各说各的。
 - **提交与结束编辑都只由你发起**，宿主从不代为提交、也从不替你结束编辑。实例作废时（外部改了本字段的值——撤销、别处改了同一份数据；面板被拆——切换 part 等；画布离开界面——页签切走、窗口关闭）草稿与编辑状态一并作废，之后的调用都不生效。
 - 没有"松手"的连续操作（如滚轮）可以**推迟提交**：每格都 `SetValue`，在回调里 `await Task.Delay(…)` 等操作停顿再 `CommitValue()`（`await` 之后回到主线程，可以直接用 `host`），一段连续滚动只成一个撤销步骤。
 
 ### 10.3 控件实例的生命周期
 
 - **工厂不在声明时调用**：画布要显示时宿主才调用它（收起的字段不建实例）。
+- **值一变，实例就作废**：工程里这个字段的值变了（你的提交、撤销、别处改了同一份数据），当前实例立即作废——不再收到事件、写回不生效，屏幕上只留它最后画出的一帧——面板随即按新声明（带着新值）用新工厂建新实例。所以一个实例的生命周期内工程里的值不变，构造时拿到的值始终有效。
 - **实例的寿命 = 一次声明**：面板每次按新声明更新——你提交之后、外部改值之后、选中变化——都用新 config 的工厂重建；旧实例作废，它手里的 `host` 随之失效（再 `SetValue` 返回 `false`）。所以**工厂要廉价**（不做 IO、不做重计算），控件对象只放事件和绘制逻辑，重资源在插件级缓存。
 - **需要上下文**（所属 part / note、同级字段的值、你自己算出的数据如波形）：在声明时取出值让工厂捕获，数据变了用 `InvalidatePart` / `InvalidateNotes` 让宿主重新声明——见 §5.2「声明里的闭包与字段演进」。
 - **临时状态不跨实例**：悬停之类的状态随实例丢失，要能从值与事件位置重新算出。没宣告编辑、也没写草稿的拖动可能中途换实例——新实例收不到那次抬起，按"没在拖动"处理即可。
-- **事件严格成对**：每个实例收到的 `OnMouseEnter` / `OnMouseLeave` 严格交替（换了实例、或画布出现在静止的指针下时，宿主主动发一次 Enter，不等用户动鼠标——**悬停之类的状态要在 `OnMouseEnter` 里按它带的位置算出**，别只在移动里算）；每个 `OnMouseUp` 都有本实例收到过的对应 `OnMouseDown`；鼠标捕获意外丢失（如按着鼠标切走窗口）时宿主补发 `OnMouseUp`（`IsClick` 为 false），你照常在里面收尾、提交。
+- **事件严格成对**：每个实例收到的 `OnMouseEnter` / `OnMouseLeave` 严格交替（换了实例、或画布出现在静止的指针下时，宿主主动发一次 Enter，不等用户动鼠标）；**每个 Enter 之后都紧跟一个同位置的 `OnMouseMove`**（宿主补发的也一样），所以悬停之类按位置算的状态只在 `OnMouseMove` 里算即可，`OnMouseEnter` 只放"进来了"本身要做的事；每个 `OnMouseUp` 都有本实例收到过的对应 `OnMouseDown`；鼠标捕获意外丢失（如按着鼠标切走窗口）时宿主补发 `OnMouseUp`（`IsClick` 为 false），你照常在里面收尾、提交。
 
 ### 10.4 绘制与输入
 
@@ -1238,7 +1246,7 @@ if (picked is { } v && v.ToString(out var command) && command == "set")
     string? text = await host.PopupTextBox(label, host.Width - 10, 10, 0, 0, 11, CanvasAlignment.RightTop);
     if (text != null && double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var y))
     {
-        host.SetValue(WithPoint(host.Value, index, y));   // 弹出只返回结果，改值照常 SetValue + CommitValue
+        host.SetValue(WithPoint(mDraft ?? StartFrom(values), index, y));   // 弹出只返回结果，改值照常 SetValue + CommitValue
         host.CommitValue();
     }
 }

@@ -20,8 +20,11 @@ namespace TuneLab.GUI.Components;
 
 // 插件画布（CanvasConfig）的宿主侧：一块区域 + 插件控件实例的生命周期 + 草稿 / 提交 + 绘图 / 事件翻译。
 //
-// 生命周期：实例寿命 = 一次声明。SetFactory（每次声明更新都会调）与"值被外部改了"都只作废当前实例，真正调工厂推迟到
-// 下一次需要它时（渲染 / 鼠标事件）——收起的字段不建实例，同一轮里的多次作废也只建一次。
+// 生命周期：实例寿命 = 一次声明。值由插件在声明时取、让工厂捕获（宿主不读回给控件），所以工厂只对它那次声明时的值有效：
+// · SetFactory（每次声明更新都会调）：换上新工厂、作废当前实例并重画，真正调工厂推迟到下一次需要它时（渲染 / 鼠标事件）——
+//   收起的字段不建实例，同一轮里的多次作废也只建一次。这是建实例的唯一来源。
+// · 本字段的值被外部改了：实例与工厂一并作废，但不重画——屏幕上留着最后画出的一帧，撑到面板按新声明送来新工厂（面板刷新
+//   推迟到下一拍，所在窗口编辑中则推迟到编辑结束）。旧工厂捕获的是旧值，绝不拿它重建。
 // 草稿：插件的 SetValue 只写进本实例的草稿（不进工程——工程里未提交的写入是整个文档共享的，会被别处任何一次提交顺手带走、
 // 也会让撤销失效）；CommitValue 才把草稿一次写入工程并提交成一个撤销步。编辑状态由插件宣告（BeginEdit / EndEdit，宿主不猜）。
 // 插件宣告了编辑、或有草稿、或有弹出 / 弹窗开着 = 面板仍在使用：登记为所在窗口的"编辑中"（见 EditGate），期间面板不按新声明刷新、
@@ -38,6 +41,7 @@ internal sealed class PluginCanvas : Component
         Drop();
         s.DisposeAll();
         mField = field;
+        mSeen = CurrentValue;   // 与 SetFactory 先后不限：两处都记下声明时的值
         field.Modified.AsEverytime().Subscribe(_ => OnFieldModified(), s);
     }
 
@@ -49,11 +53,13 @@ internal sealed class PluginCanvas : Component
         mFactory = null;
     }
 
-    // 换上新声明的工厂：当前实例作废。
+    // 换上新声明的工厂：当前实例作废并重画。记下声明时的值：此后值再变，这个工厂就过时了（见 OnFieldModified）。
     public void SetFactory(Func<ICanvasHost, ICanvasControl> factory)
     {
         mFactory = factory;
+        mSeen = CurrentValue;
         Drop();
+        InvalidateVisual();
     }
 
     PropertyValue CurrentValue => mField is IRawValueProperty raw ? raw.RawValue : mField?.Value ?? PropertyValue.Null;
@@ -103,10 +109,22 @@ internal sealed class PluginCanvas : Component
     {
         if (mOwnWrite > 0)
             return;
-        // 通知面是整个数据对象（任一字段变都会来），只有本字段的值真的变了才算外部改值：草稿据以的值已经不在了，丢弃。
-        if (mSession == null || CurrentValue.Equals(mSeen))
+        // 通知面是整个数据对象（任一字段变都会来），只有本字段的值真的变了才算外部改值。
+        if (CurrentValue.Equals(mSeen))
             return;
-        Drop();
+        Kill();
+    }
+
+    // 值变了：实例（连同草稿、编辑状态、弹出）与工厂一并作废，不再收事件、写回不生效。不请求重画——留着最后一帧，
+    // 等新工厂（SetFactory）到了再建；这期间万一被迫重画（如尺寸变了），只画底色。
+    void Kill()
+    {
+        mFactory = null;
+        if (mSession == null)
+            return;
+        var session = mSession;
+        mSession = null;
+        session.Close();
     }
 
     // 作废当前实例（连同草稿，下次需要时重建）并请求重画。
@@ -129,7 +147,6 @@ internal sealed class PluginCanvas : Component
 
         var session = new Session(this, mField);
         mSession = session;
-        mSeen = CurrentValue;
         try
         {
             session.Control = mFactory(session) ?? throw new InvalidOperationException("CanvasConfig factory returned null.");
@@ -144,13 +161,22 @@ internal sealed class PluginCanvas : Component
 
         // 新实例建好时指针可能已停在画布上（换了实例 / 面板重建后画布出现在静止的指针下）：主动给它补 Enter，
         // 不等用户动鼠标（悬停高亮等）。不靠 Avalonia：控件没变时它不再发指针事件，新控件的命中检测要等后续画面更新、
-        // 时有时无——按窗口最后的指针位置自己判（PointerTracker）。推迟一拍：Ensure 可能正处在 Render 里，布局也要先落定。
-        Dispatcher.UIThread.Post(() =>
-        {
-            if (mSession == session && !session.Inside && PointerTracker.TryGetOver(this, out var position, out var modifiers))
-                Enter(session, ToPoint(position), ToModifiers(modifiers.ToModifierKeys()));
-        });
+        // 时有时无——按窗口最后的指针位置自己判（PointerTracker）。
+        // 先当场补：在 Render 里建的实例，第一帧就带着悬停状态画出来（推迟的话第一帧是"指针不在"的样子，下一拍才亮——
+        // 每次提交后换实例都会闪一下）。Render 时布局已定，判得出；判不出（如刚挂上、尺寸还是 0）再推迟一拍补。
+        if (!TryEnter(session))
+            Dispatcher.UIThread.Post(() => TryEnter(session));
         return session;
+    }
+
+    bool TryEnter(Session session)
+    {
+        if (mSession != session || session.Inside)
+            return true;
+        if (!PointerTracker.TryGetOver(this, out var position, out var modifiers))
+            return false;
+        Enter(session, ToPoint(position), ToModifiers(modifiers.ToModifierKeys()));
+        return true;
     }
 
     public override void Render(DrawingContext context)
@@ -158,12 +184,22 @@ internal sealed class PluginCanvas : Component
         // 底 = 宿主输入框同款（Style.BACK、圆角 4，同数值框 / 路径框）：一眼看出这是一块可编辑的区域；
         // 也让画布整块可命中（插件没画东西的地方同样收得到鼠标）。插件画在它上面。
         context.FillRectangle(Style.BACK.ToBrush(), new Rect(Bounds.Size), 4);
-        if (Ensure() is not { } session)
-            return;
-        var drawing = new Drawing(context, Scaling);
-        session.Call(control => control.Render(drawing));
-        drawing.Expire();
+        mRendering = true;
+        try
+        {
+            if (Ensure() is not { } session)
+                return;
+            var drawing = new Drawing(context, Scaling);
+            session.Call(control => control.Render(drawing));
+            drawing.Expire();
+        }
+        finally
+        {
+            mRendering = false;
+        }
     }
+
+    bool mRendering;   // 正在画：这期间插件请求重画（如建实例时补发的 Enter 里）不必再排一帧
 
     // —— 事件转发：宿主保证每个实例收到的事件成对（契约见 ICanvasControl）——
     // · Enter / Leave 严格交替：换了实例时指针可能已在画布内，转发下一个事件前先给新实例补一次 Enter；
@@ -308,10 +344,13 @@ internal sealed class PluginCanvas : Component
         return session is { IsFaulted: false } ? session : null;
     }
 
+    // Enter 之后紧跟一个同位置的 Move（真实进入与宿主补发的一样）：按位置算的状态（悬停等）插件只在 OnMouseMove 里算即可。
+    // 真实进入时 Avalonia 随后还会再发一个同位置的移动，插件可能连收两个，位移为零、无害。
     static void Enter(Session session, Point position, CanvasModifierKeys modifiers)
     {
         session.Inside = true;
         session.Call(control => control.OnMouseEnter(new CanvasMouseEvent(position, modifiers)));
+        session.Call(control => control.OnMouseMove(new CanvasMouseEvent(position, modifiers)));
     }
 
     static void Leave(Session session, Point position, CanvasModifierKeys modifiers)
@@ -401,12 +440,10 @@ internal sealed class PluginCanvas : Component
         public double Width => view.Bounds.Width;
         public double Height => view.Bounds.Height;
         public double DevicePixelRatio => view.Scaling;
-        public PropertyValue Value { get { VerifyThread(); return mDraft ?? view.CurrentValue; } }
-
         public void Invalidate()
         {
             VerifyThread();
-            if (IsAlive)
+            if (IsAlive && !view.mRendering)
                 view.InvalidateVisual();
         }
 
@@ -645,6 +682,7 @@ internal sealed class PluginCanvas : Component
             public Task RunWithProgress(string title, Func<IProgressReporter, CancellationToken, Task> work)
                 => Run(async d => { await d.RunWithProgress(title, work); return true; });
             public Task<PropertyObject?> PromptInputs(string title, ObjectConfig config) => Run(d => d.PromptInputs(title, config));
+            public Task<PropertyObject?> PromptInputs(string title, Func<PropertyObject, ObjectConfig> config) => Run(d => d.PromptInputs(title, config));
 
             Task<T> Run<T>(Func<IDialogService, Task<T>> call)
                 => Dispatcher.UIThread.CheckAccess() ? session.RunDialog(call) : Dispatcher.UIThread.InvokeAsync(() => session.RunDialog(call));

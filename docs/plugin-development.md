@@ -479,7 +479,7 @@ This section applies wherever you declare a panel: part / note / phoneme propert
   - numbers with `GetDouble(key, default)`, booleans with `GetBoolean`, strings with `GetString`. Don't write `GetValue(key, 0)`: the `0` makes the generic type `int`, and on hosts with SDK 1.1 or earlier it always returns the default.
   - values of no fixed shape (arrays, objects) as they are: `props.Map.TryGetValue(key, out var value)`. `GetValue(key, PropertyValue.Null)` also always returns the default on older hosts.
   - validate whatever you read: undo, presets, paste and older versions of your plugin can all bring any shape.
-- **Multi-selection.** A declaration context gives each selected object's own values; merge them yourself with `.Merge()` (equal values give that value; differing or partly missing give `Multiple`). In the panel, scalars and canvases compare whole values and become the multiple-value marker as a whole when they differ (canvases: §10.1); lists merge index by index; tags show the union. An edit writes the same value to every object (lists and tags fan out per element).
+- **Multi-selection.** A declaration context gives each selected object's own values; merge them yourself with `.Merge()` (equal values give that value; differing or partly missing give `Multiple`). In the panel, scalars compare whole values and show the multiple-value marker when they differ; canvases merge however you choose (§10.1); lists merge index by index; tags show the union. An edit writes the same value to every object (lists and tags fan out per element).
 - **`Multiple` only marks "differs across the selection" when reading; it is not a value.** It can't be a default, and it can't be written back — the host refuses to store it (a canvas committing it writes nothing and gets an error logged). If nothing changed, don't commit.
 - **Closures, rebuilding and changing a field's shape**: see the next section.
 
@@ -487,7 +487,7 @@ This section applies wherever you declare a panel: part / note / phoneme propert
 
 This section applies wherever you declare a panel: part / note / phoneme properties, instruments, effect parameters, extension settings.
 
-**Capture values only.** A config can carry functions: a button's click handler (§9), a canvas factory and its collapsed summary (§10). They all run after the declaration call has returned, and the declaration context and its views are valid only during that call. Read what you need — the PartId, note ids, phoneme symbols, values already filled into sibling fields — in `GetXxxConfig`, and let the closure capture those values, never the context or a view object.
+**Capture values only.** A config can carry functions: a button's click handler (§9), a canvas factory (§10). They all run after the declaration call has returned, and the declaration context and its views are valid only during that call. Read what you need — the PartId, note ids, phoneme symbols, values already filled into sibling fields — in `GetXxxConfig`, and let the closure capture those values, never the context or a view object.
 
 ```csharp
 public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext context)
@@ -1122,7 +1122,7 @@ var inputs = await click.DialogService.PromptInputs("Export preset", ObjectConfi
 - **Lifetime**: from the start of the callback until the Task it returns completes. Keeping `click.DialogService` and using it afterwards throws `InvalidOperationException`.
 - Callable from any thread. **Never block synchronously** on the returned Task (`.Result` / `.Wait()`) — dialogs need the UI thread, and blocking it deadlocks.
 - `RunWithProgress`: the progress window starts at 0%; in `Report(fraction, status)` a `null` fraction shows indeterminate progress (a moving bar), and `status` is one line of text under the bar (translated by you) — omit it or pass `null` to keep the previous text (pass `""` to clear it); `fraction` has no "keep as is" value, so pass the current progress when only the text changes; `progress.SetCancellable(false)` greys out the cancel button during a critical section that must not be interrupted (replacing files, writing an index…) and `SetCancellable(true)` restores it (cancellable by default; the token is still cancelled when the app exits, so a critical section must still survive the process being terminated); `Report` may be called from any thread at any rate (the host coalesces per frame); the progress window always has a cancel button, and the token is cancelled when the user cancels or the app exits; exceptions thrown by `work` come back to you unchanged.
-- `PromptInputs`: renders your config with the same controls as property panels (the same form window as script tools' inputs); form data is isolated from the project and not undoable. When the form should follow what is being filled in (fields that appear only when another is X), pass a function instead of a fixed config: `PromptInputs(title, values => BuildForm(values))` — like a property panel, it is called again with the form's current values whenever a value changes; `values` holds only the fields the user changed, and a missing one means its default.
+- `PromptInputs`: renders your config with the same controls as property panels (the same form window as script tools' inputs); form data is isolated from the project and not undoable. When the form should follow what is being filled in (fields that appear only when another is X, a canvas that depends on the current value), pass a function instead of a fixed config: `PromptInputs(title, values => BuildForm(values))` — like a property panel, it is called again with the form's current values whenever a value changes; `values` holds only the fields the user changed, and a missing one means its default.
 
 ### 9.3 Your own settings UI
 
@@ -1149,14 +1149,20 @@ Reference implementations: `tests/plugins/V1.CustomWindow` + `tests/plugins/V1.C
 For edits the built-in controls can't express (say, a stretch curve inside a phoneme), declare a **canvas**: you draw it, you handle the mouse, and when the edit is done you commit the result to the field.
 
 ```csharp
-props.Add(("stretch", "Stretch Curve"), CanvasConfig.Create(PropertyObject.Empty, 96, host => new StretchCurveCanvas(host))   // value = { "points": [...] }, {} = unset
-    .WithSummary(value => IsLinear(value) ? "Linear" : "Custom"));
+// In the declaration (GetNotePropertyConfig, say): take each selected object's value of this field (missing = the default)
+// and hand it to the factory; compute the summary here too
+var values = context.Notes.Select(n => n.Properties.Map.TryGetValue("stretch", out var v) ? v : StretchCurveCanvas.Default).ToList();
+props.Add(("stretch", "Stretch Curve"), CanvasConfig.Create(StretchCurveCanvas.Default, 96, host => new StretchCurveCanvas(host, values))
+    .WithSummary(SummaryOf(values)));
 
-sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
+sealed class StretchCurveCanvas(ICanvasHost host, IReadOnlyList<PropertyValue> values) : ICanvasControl
 {
+    public static readonly PropertyValue Default = PropertyObject.Empty;   // value = { "points": [...] }, {} = unset
+    PropertyValue? mDraft;                                   // keep your own draft: the host doesn't read values back to the control
+
     public void Render(ICanvasDrawing d)
     {
-        var curve = Read(host.Value);                       // always validate what you read, see §10.1
+        var curve = mDraft is { } draft ? Read(draft) : Merge(values);   // always validate what you read; merging a multi-selection is up to you, see §10.1
         d.DrawPolyline(ToPoints(curve), Color.SkyBlue, 2);
     }
     public void OnMouseDown(CanvasMouseButtonEvent e)
@@ -1168,7 +1174,8 @@ sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
     public void OnMouseMove(CanvasMouseEvent e)
     {
         if (mDragging < 0) return;
-        host.SetValue(Moved(host.Value, mDragging, e.Position));   // update the draft; not in the project yet
+        var moved = Moved(mDraft ?? StartFrom(values), mDragging, e.Position);
+        if (host.SetValue(moved)) mDraft = moved;            // update the draft (the host keeps it; not in the project yet) and draw it yourself
     }
     public void OnMouseUp(CanvasMouseButtonEvent e)
     {
@@ -1188,8 +1195,9 @@ sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
 - **You define the value's shape** (any `PropertyValue`, objects and arrays included); the host doesn't interpret it. Reset to default, presets, undo and multi-selection all work as usual — so **always validate what you read**: undo, presets and paste can bring in a value of any shape; treat whatever doesn't fit as the default.
 - **Default value**: it is the "unset" state and also fixes the field's type — a stored value of a different type reads as the default, so **keep the value's type fixed** (its shape may vary). The default can't be `PropertyValue.Null` / `PropertyValue.Multiple`; `Create` throws an argument error.
 - **Prefer an object at the top level** (default `{}`, like `{ "points": [...] }` above): adding a feature later is just one more member, old values are still objects and keep reading fine, and missing members fall back to your defaults. With an array or a scalar at the top, extending means changing the shape (which needs a new key — see §5.2, "Closures in declarations and evolving a field's shape"). For something that will only ever be a single number, a scalar is perfectly fine.
-- **Multi-selection**: when all targets hold the same value you get that value; if any differ, the **whole value** is the multiple-value marker (`IsMultiple()`) — the host doesn't merge element by element, since only you know the shape. How to draw it is up to you. A commit writes the same value to every target.
-- **Collapsed summary**: `WithSummary(format)` — when the field is collapsed the host calls it with the current value and shows the result on the title row; when the whole value differs across targets the host shows the multiple-value marker without calling it. Without it the host shows "Default / Modified".
+- **The value comes from the declaration**: a declaration context carries each selected object's own values (a missing one means the default — use the same default constant you pass to `Create`); take them out and let the factory capture them for the control (as above). The host has no interface for reading the value. Within one instance's lifetime the project's value doesn't change (if it does, the instance is replaced, see §10.3), so what the constructor gets is exactly what it should show.
+- **Multi-selection**: you get every object's own value, and how to merge and present them is yours to decide — compare point by point, say, drawing points that agree as filled and points that differ as hollow. The host doesn't merge; only you know the shape. A commit writes the same value to every target; when the objects differ, which value an edit starts from (the first object's? the default?) is your call too, and the rest of each object's value is overwritten by it.
+- **Collapsed summary**: `WithSummary(text)` — computed at declaration time from the values then (the field is declared again whenever its value changes, so the summary follows), including what to say for a mixed multi-selection. Without it the host shows "Default / Modified / Multiple".
 - **CLI / agent** can read and write the value as is (any JSON shape). The host doesn't know the shape, so it doesn't validate it — values the agent writes go through your read-time validation like any other. The host tells the agent to read your introduction first and, failing that, to infer the shape from the current or default value, so **describe this field's value shape and meaning in your introduction**: what each member is, its range, and how the shape varies with state (say, the element count depends on another setting). The declaration can't carry this; only your description can be exact.
 - **Placement**: only as a member of an `ObjectConfig` (same as buttons, see §9.1).
 
@@ -1198,18 +1206,19 @@ sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
 Two things are kept apart: the **editing state** (is the canvas being edited) and the **value** (drafts and commits).
 
 - **You declare the editing state** — only you know whether an edit is going on; the host doesn't guess. Call `BeginEdit` / `EndEdit` in pairs; in between, the panel counts as still in use: the property panels in that window don't refresh (declaration invalidations from your plugin and changes made elsewhere wait until the edit ends) and your instance won't be replaced. It counts and nests: several operations may overlap (dragging a point while holding an arrow key), each with its own Begin / End, and the canvas unlocks when all have ended; an extra `EndEdit` does nothing and the host logs an error. For an edit spanning events the scope form is handier: `mEdit = host.EditScope()`, then `mEdit.Dispose()` when done (a second `Dispose` is harmless; see above). **Forget to end it and the panels in that window never refresh.**
-- **`SetValue`** writes the draft. The host keeps it for you — outside the project, invisible elsewhere — and `host.Value` returns it from then on, so you keep drawing from `host.Value`. **Write only when the value really changed, and only real values**: when a multi-selection differs `host.Value` is the multiple-value marker (`IsMultiple()`), which isn't a value — `SetValue` returns `false` for it and writes nothing (the host logs an error); to hold the canvas without changing the value, use `BeginEdit`. A draft also keeps the panel in use (alongside `BeginEdit`, neither replacing the other), so operations without a "press" (wheel, keyboard) are held just by writing their draft. A draft may stay as long as you like, say until the user clicks a "confirm" you drew on the canvas.
-- **`CommitValue`** writes the draft into the project as one undo step; **`DiscardValue`** drops the draft and goes back to the project value (a "cancel"). Both only deal with the value — they don't end an edit begun with `BeginEdit` — and without a draft they do nothing. Cancelling a drag = `DiscardValue`, then end the edit: two separate things.
+- **`SetValue`** writes the draft. The host keeps it for you — outside the project, invisible elsewhere — and writes it into the project on commit; it doesn't read it back to you, so keep it yourself and draw from it (`mDraft` above — record it only when `SetValue` returns `true`). **Write only when the value really changed, and only real values**: `PropertyValue.Multiple` isn't a value — `SetValue` returns `false` for it (or for a value containing it) and writes nothing (the host logs an error); to hold the canvas without changing the value, use `BeginEdit`. A draft also keeps the panel in use (alongside `BeginEdit`, neither replacing the other), so operations without a "press" (wheel, keyboard) are held just by writing their draft. A draft may stay as long as you like, say until the user clicks a "confirm" you drew on the canvas.
+- **`CommitValue`** writes the draft into the project as one undo step; **`DiscardValue`** drops the draft and goes back to the project value (a "cancel"; clear your own copy of the draft too, back to the value the declaration gave you). Both only deal with the value — they don't end an edit begun with `BeginEdit` — and without a draft they do nothing. Cancelling a drag = `DiscardValue`, then end the edit: two separate things.
 - **Committing and ending the edit are only ever up to you**; the host never commits or ends the edit on your behalf. When the instance is invalidated (the field's value was changed from outside — undo, the same data edited elsewhere; the panel was torn down — switching parts, say; the canvas left the screen — another tab, the window closed) the draft and the editing state go with it, and later calls have no effect.
 - Continuous input with no "release" (the wheel, say) can **defer the commit**: `SetValue` on every notch, `await Task.Delay(…)` in the callback until the input pauses, then `CommitValue()` (after the `await` you are back on the main thread and can use `host` directly) — one continuous scroll becomes one undo step.
 
 ### 10.3 Control instance lifetime
 
 - **The factory is not called at declaration time**: the host calls it when the canvas is about to show (a collapsed field builds no instance).
+- **When the value changes, the instance is gone**: once this field's value changes in the project (your commit, an undo, the same data edited elsewhere), the current instance is invalidated at once — it gets no more events and its write-backs have no effect, and only the last frame it drew stays on screen — and the panel then builds a new instance with the new declaration's factory (carrying the new value). So within an instance's lifetime the project's value doesn't change, and the value the constructor got stays valid.
 - **An instance lives for one declaration**: every time the panel updates to a new declaration — after your commit, after an outside change, on a selection change — the host rebuilds the control with the new config's factory. The old instance is discarded and its `host` stops working (`SetValue` returns `false`). So **keep the factory cheap** (no IO, no heavy computation); the control object only carries event and drawing logic, and heavy resources are cached at plugin level.
 - **Needing context** (the owning part / note, values of sibling fields, data you computed such as a waveform): read the values at declaration time and let the factory capture them; when the data changes, call `InvalidatePart` / `InvalidateNotes` so the host declares again — see §5.2, "Closures in declarations and evolving a field's shape".
 - **Transient state doesn't survive the instance**: hover and the like are lost with it, so make them recomputable from the value and event positions. A drag that neither declared an edit nor wrote a draft may switch instances midway — the new instance never gets that release; treat it as "not dragging".
-- **Events come in strict pairs**: each instance's `OnMouseEnter` / `OnMouseLeave` strictly alternate (when the instance is replaced, or the canvas appears under a pointer that isn't moving, the host sends an Enter right away instead of waiting for the user to move the mouse — **compute hover-like state in `OnMouseEnter` from its position**, not only on moves); every `OnMouseUp` has a matching `OnMouseDown` that this instance received; if mouse capture is lost unexpectedly (say, switching windows with the button held), the host sends an `OnMouseUp` with `IsClick` false so you can wrap up and commit as usual.
+- **Events come in strict pairs**: each instance's `OnMouseEnter` / `OnMouseLeave` strictly alternate (when the instance is replaced, or the canvas appears under a pointer that isn't moving, the host sends an Enter right away instead of waiting for the user to move the mouse); **every Enter is followed by an `OnMouseMove` at the same position** (the host's own Enters too), so hover-like state computed from the position only needs to live in `OnMouseMove`, and `OnMouseEnter` holds only what entering itself should do; every `OnMouseUp` has a matching `OnMouseDown` that this instance received; if mouse capture is lost unexpectedly (say, switching windows with the button held), the host sends an `OnMouseUp` with `IsClick` false so you can wrap up and commit as usual.
 
 ### 10.4 Drawing and input
 
@@ -1240,7 +1249,7 @@ if (picked is { } v && v.ToString(out var command) && command == "set")
     string? text = await host.PopupTextBox(label, host.Width - 10, 10, 0, 0, 11, CanvasAlignment.RightTop);
     if (text != null && double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var y))
     {
-        host.SetValue(WithPoint(host.Value, index, y));   // a popup only returns a result; change the value with SetValue + CommitValue as usual
+        host.SetValue(WithPoint(mDraft ?? StartFrom(values), index, y));   // a popup only returns a result; change the value with SetValue + CommitValue as usual
         host.CommitValue();
     }
 }

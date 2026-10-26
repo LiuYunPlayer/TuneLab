@@ -13,13 +13,16 @@ namespace TuneLab.SDK;
 // 加性约定（插件实现面）：将来在本面新增成员一律带默认接口方法体（DIM），使增补不破已装插件。
 public interface ICanvasControl
 {
-    // 宿主需要重画时调用（尺寸变化、ICanvasHost.Invalidate 之后……）。只画、不改状态；值与尺寸读 ICanvasHost。
+    // 宿主需要重画时调用（尺寸变化、ICanvasHost.Invalidate 之后……）。只画、不改状态；尺寸读 ICanvasHost，值是你自己持有的
+    //（声明时交给工厂的值，或你写的草稿）。
     // 宿主先画好底（与宿主输入框同款的深色圆角底），插件画在它上面。
     void Render(ICanvasDrawing drawing) { }
 
     void OnMouseDown(CanvasMouseButtonEvent e) { }
     void OnMouseMove(CanvasMouseEvent e) { }
     void OnMouseUp(CanvasMouseButtonEvent e) { }
+    // 指针进入画布。宿主保证其后紧跟一个同位置的 OnMouseMove（换了实例、画布出现在静止的指针下时宿主补发的 Enter 也一样），
+    // 所以悬停之类按位置算的状态只在 OnMouseMove 里算即可；这里只放"进来了"本身要做的事。
     void OnMouseEnter(CanvasMouseEvent e) { }
     void OnMouseLeave(CanvasMouseEvent e) { }
     // 默认动作 = 滚动所在面板：用了这次滚轮就置 e.Handled = true（面板不滚）；没置则照常滚动面板——

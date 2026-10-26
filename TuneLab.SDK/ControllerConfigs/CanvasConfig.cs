@@ -12,10 +12,13 @@ namespace TuneLab.SDK;
 // 只能作为 ObjectConfig 的成员（任意嵌套深度，含列表元素里的对象）。
 //
 // 契约：
-// · createControl 是工厂，**不在声明时调用**：宿主把画布放进面板时才调用。控件实例的寿命 = 一次声明：面板每次按新声明
-//   更新（值提交后、外部改值后、选中变化……）都用新 config 的工厂重建控件，旧实例随即作废（它手里的 ICanvasHost 失效）。
-//   插件宣告编辑期间（ICanvasHost.BeginEdit / EndEdit）或有草稿期间（SetValue）面板不刷新、实例不会被换掉；否则实例随时
-//   可能被换掉，临时状态（悬停等）要能从值与事件位置重新算出。
+// · 值由插件在声明时取：声明 context 带着每个选中对象各自的值（未设过的读不到 = 默认值），多选怎么合并、怎么呈现由插件定；
+//   取出的值让工厂捕获、交给控件。宿主不把值读回给控件（ICanvasHost 没有读值的接口）。
+// · createControl 是工厂，**不在声明时调用**：宿主把画布放进面板时才调用。控件实例的寿命 = 一次声明：工程里的值一变
+//  （提交、撤销、别处改了同一份数据），当前实例就作废——不再收到事件、写回不生效，只留它最后画出的一帧撑到新声明到达；
+//   面板按新声明更新（值变了之后、选中变化……）时用新 config 的工厂建新实例。所以一个实例的生命周期内工程里的值不变。
+//   插件宣告编辑期间（ICanvasHost.BeginEdit / EndEdit）或有草稿、弹出期间面板不刷新、实例不会被换掉；否则实例随时可能
+//   被换掉，临时状态（悬停等）要能从值与事件位置重新算出。
 // · 工厂必须廉价（不做 IO、不做重计算）：选中变化、提交都会重建。控件只承载事件与绘制逻辑，重资源由插件自己在插件级缓存。
 // · 与按钮同样的线程约定：控件的全部回调都在主线程上；插件别在回调里阻塞主线程。
 public sealed class CanvasConfig : IValueConfig
@@ -28,9 +31,9 @@ public sealed class CanvasConfig : IValueConfig
 
     public Func<ICanvasHost, ICanvasControl> CreateControl { get; private init; } = null!;
 
-    // 字段收起时标题行的一行摘要：宿主用当前值调用（插件自译）。值整体不一致（多选）时宿主直接显示多值标记、不调用。
-    // null = 宿主按"默认 / 已修改"兜底。
-    public Func<PropertyValue, string?>? Summary { get; private set; }
+    // 字段收起时标题行的一行摘要（插件自译），在声明时按当时的值算好——值一变就会重新声明，摘要随之更新。
+    // 多选不一致时显示什么也由插件定。null = 宿主按"默认 / 已修改 / 多值"兜底。
+    public string? Summary { get; private set; }
 
     private CanvasConfig() { }
     CanvasConfig Clone() => (CanvasConfig)MemberwiseClone();
@@ -47,5 +50,5 @@ public sealed class CanvasConfig : IValueConfig
         return new() { DefaultValue = defaultValue, Height = height, CreateControl = createControl };
     }
 
-    public CanvasConfig WithSummary(Func<PropertyValue, string?>? summary) { var c = Clone(); c.Summary = summary; return c; }
+    public CanvasConfig WithSummary(string? summary) { var c = Clone(); c.Summary = summary; return c; }
 }

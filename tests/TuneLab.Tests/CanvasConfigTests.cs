@@ -23,7 +23,6 @@ public class CanvasConfigTests
         public double Width => 0;
         public double Height => 0;
         public double DevicePixelRatio => 1;
-        public PropertyValue Value => PropertyValue.Null;
         public void Invalidate() { }
         public void BeginEdit() => Begins++;
         public void EndEdit() => Ends++;
@@ -71,9 +70,9 @@ public class CanvasConfigTests
     public void WithSummary_ReturnsACopy()
     {
         var plain = CanvasConfig.Create(Curve, 80, _ => new NullControl());
-        var summarized = plain.WithSummary(_ => "Linear");
+        var summarized = plain.WithSummary("Linear");
         Assert.Null(plain.Summary);
-        Assert.Equal("Linear", summarized.Summary!(Curve));
+        Assert.Equal("Linear", summarized.Summary);
         Assert.Equal(plain.Height, summarized.Height);
         Assert.Same(plain.CreateControl, summarized.CreateControl);
     }
