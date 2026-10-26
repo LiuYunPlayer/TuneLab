@@ -2,6 +2,8 @@ using System;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls.Primitives;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Media;
 using AvaloniaEdit;
 using AvaloniaEdit.Rendering;
@@ -58,6 +60,15 @@ internal class MultilineTextInput : TextEditor, IDataValueController<string>
         // 焦点落在内部 TextArea 上：进入=开始编辑（ValueWillChange），退出=提交（ValueCommitted）。
         TextArea.GotFocus += (s, e) => mEnterInput.Invoke();
         TextArea.LostFocus += (s, e) => mEndInput.Invoke();
+        // Enter 确认（失焦 → 提交，同单行 TextInput）、Shift+Enter 换行。走隧道阶段：要赶在 TextArea 自己处理 Enter（插入换行）之前。
+        AddHandler(KeyDownEvent, (s, e) =>
+        {
+            if (EnterCommits && e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None)
+            {
+                e.Handled = true;
+                this.Unfocus();
+            }
+        }, RoutingStrategies.Tunnel);
 
         // 统一浮层滚动条（仅纵向，WordWrap 无横向）+ 平滑滚轮：经 AdornerLayer 叠 ScrollBar、由本控件代管输入。
         // 常驻显示（可滚才画手柄），不做"靠近才显"。cursorElement=TextArea：悬停手柄时把 i-beam 切成箭头。
@@ -67,6 +78,10 @@ internal class MultilineTextInput : TextEditor, IDataValueController<string>
     // 子类须借 TextEditor 的 ControlTheme（模板按 key=typeof(TextEditor) 注册）：Avalonia 默认按控件自身类型找模板，
     // 不 override 则 MultilineTextInput 匹配不到模板、整个控件不渲染（无 Border/ScrollViewer/TextArea，全空不可见）。
     protected override Type StyleKeyOverride => typeof(TextEditor);
+
+    // 按键约定：Enter 确认、Shift+Enter 换行（默认，与单行框一致）。设 false 则 Enter 照常换行、本控件不管 Enter——
+    // 歌词板（逐行录入，Enter 换行最顺手）与自己接管 Enter 的场合（Agent 输入框：Enter 发送）用。
+    public bool EnterCommits { get; set; } = true;
 
     // 占位符文本（空文档时显示）。用 new 隐藏 TextEditor 内置 Watermark：调用方设本属性即走自绘、不触发内置 TextBlock。
     public new string? Watermark

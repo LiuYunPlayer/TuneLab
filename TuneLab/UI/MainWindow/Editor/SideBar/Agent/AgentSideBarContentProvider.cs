@@ -2225,6 +2225,7 @@ internal sealed class AgentSideBarContentProvider
             MaxHeight = 96,
             Padding = new(6, 6, ScrollBar.ReservedThickness, 6),
             AutoGrow = true,
+            EnterCommits = false,   // Enter 由下面的提交处理器接管
             VerticalScrollBarVisibility = ScrollBarVisibility.Hidden,
             Margin = new(0, 8, 0, 0),
             Watermark = question.Options.Count > 0
@@ -2282,6 +2283,16 @@ internal sealed class AgentSideBarContentProvider
         submitButton.PointerExited += (_, _) => SyncSubmitState();
         submitButton.PointerPressed += (_, e) => { e.Handled = true; Submit(); };
         buttons.Children.Add(submitButton);
+        // Enter 提交答案、Shift+Enter 换行（同主输入框的发送）。隧道阶段：赶在编辑器插入换行之前拦下；
+        // 还不能提交（没选也没写）时 Enter 什么都不做，不落成一个换行。
+        input.AddHandler(InputElement.KeyDownEvent, (EventHandler<KeyEventArgs>)((_, e) =>
+        {
+            if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None)
+            {
+                e.Handled = true;
+                Submit();
+            }
+        }), Avalonia.Interactivity.RoutingStrategies.Tunnel);
         // 把按钮态并入 refreshers：Refresh() 因此是"重刷全部显示"的唯一入口——选项一变（Toggle_ 里调它）
         // 按钮可用态跟着重算，不必另铺一条刷新路径。文本框改动同样触发它（只选/只写/两者都有都算有内容）。
         refreshers.Add(SyncSubmitState);
@@ -2773,7 +2784,7 @@ internal sealed class AgentSideBarContentProvider
     readonly DockPanel mSettingsView = new() { LastChildFill = true };
     // 可见会话的消息滚动区挂载点：切换会话只换其 Child 为目标会话各自的 ListView（离屏会话的视图被其 SessionContext 持有、不销毁）。
     readonly Panel mMessagesHost = new();
-    readonly MultilineTextInput mInput = new();
+    readonly MultilineTextInput mInput = new() { EnterCommits = false };   // Enter 由发送处理器接管（见构造处）
     // token 用量状态行（输入框上方）：显示当前会话的累计 + 上下文占用，随会话切换/每轮刷新（见 RefreshTokenStatus）。
     readonly TextBlock mTokenStatus = new();
     // 图片附件：待发缩略图条 + 待发图片列表（属"当前撰写"状态、与输入框共享、跨会话切换保留）+ 📎按钮。
