@@ -40,6 +40,10 @@ public sealed class CanvasConfig : IValueConfig
         ArgumentNullException.ThrowIfNull(createControl);
         if (!(height > 0))
             throw new ArgumentOutOfRangeException(nameof(height), "Canvas height must be positive.");
+        // 默认值就是"未设"状态，也定了字段的类型（存值类型不同按默认处理）：Null 作默认 = 字段永远存不进值；
+        // Multiple 只是多选读出时"各对象不一致"的标记、绝不入存储。两者都是写错了，当场报出来。
+        if (defaultValue.IsNull() || defaultValue.IsMultiple())
+            throw new ArgumentException("A canvas default value must be a real value: it is the unset state and fixes the field's type (an empty object {} is a good \"unset\"). Null means no value, and Multiple only marks differing values when reading a multi-selection.", nameof(defaultValue));
         return new() { DefaultValue = defaultValue, Height = height, CreateControl = createControl };
     }
 

@@ -24,6 +24,17 @@ public class CanvasConfigTests
         Assert.Throws<ArgumentOutOfRangeException>(() => CanvasConfig.Create(Curve, double.NaN, _ => new NullControl()));
     }
 
+    // 默认值就是未设状态、也定了字段类型：Null 作默认 = 永远存不进值，Multiple 绝不入存储——都当场报错。
+    // 标量 / 数组 / 对象都合法（顶层用对象只是建议）。
+    [Fact]
+    public void Create_RejectsNullOrMultipleDefault()
+    {
+        Assert.Throws<ArgumentException>(() => CanvasConfig.Create(PropertyValue.Null, 80, _ => new NullControl()));
+        Assert.Throws<ArgumentException>(() => CanvasConfig.Create(PropertyValue.Multiple, 80, _ => new NullControl()));
+        CanvasConfig.Create(PropertyValue.Create(0.5), 80, _ => new NullControl());
+        CanvasConfig.Create(PropertyObject.Empty, 80, _ => new NullControl());
+    }
+
     [Fact]
     public void Create_DoesNotCallTheFactory()
     {

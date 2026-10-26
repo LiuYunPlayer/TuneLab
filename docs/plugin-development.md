@@ -1133,7 +1133,7 @@ Reference implementations: `tests/plugins/V1.CustomWindow` + `tests/plugins/V1.C
 For edits the built-in controls can't express (say, a stretch curve inside a phoneme), declare a **canvas**: you draw it, you handle the mouse, and when the edit is done you commit the result to the field.
 
 ```csharp
-props.Add(("stretch", "Stretch Curve"), CanvasConfig.Create(defaultCurve, 96, host => new StretchCurveCanvas(host))
+props.Add(("stretch", "Stretch Curve"), CanvasConfig.Create(PropertyObject.Empty, 96, host => new StretchCurveCanvas(host))   // value = { "points": [...] }, {} = unset
     .WithSummary(value => IsLinear(value) ? "Linear" : "Custom"));
 
 sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
@@ -1171,6 +1171,8 @@ sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
 ### 10.1 It is a value field
 
 - **You define the value's shape** (any `PropertyValue`, objects and arrays included); the host doesn't interpret it. Reset to default, presets, undo and multi-selection all work as usual — so **always validate what you read**: undo, presets and paste can bring in a value of any shape; treat whatever doesn't fit as the default.
+- **Default value**: it is the "unset" state and also fixes the field's type — a stored value of a different type reads as the default, so **keep the value's type fixed** (its shape may vary). The default can't be `PropertyValue.Null` / `PropertyValue.Multiple`; `Create` throws an argument error.
+- **Prefer an object at the top level** (default `{}`, like `{ "points": [...] }` above): adding a feature later is just one more member, old values are still objects and keep reading fine, and missing members fall back to your defaults. With an array or a scalar at the top, extending means changing the shape (which needs a new key — see §5.2, "Closures in declarations and evolving a field's shape"). For something that will only ever be a single number, a scalar is perfectly fine.
 - **Multi-selection**: when all targets hold the same value you get that value; if any differ, the **whole value** is the multiple-value marker (`IsMultiple()`) — the host doesn't merge element by element, since only you know the shape. How to draw it is up to you. A commit writes the same value to every target.
 - **Collapsed summary**: `WithSummary(format)` — when the field is collapsed the host calls it with the current value and shows the result on the title row; when the whole value differs across targets the host shows the multiple-value marker without calling it. Without it the host shows "Default / Modified".
 - **CLI / agent** can read and write the value as is (any JSON shape). The host doesn't know the shape, so it doesn't validate it — values the agent writes go through your read-time validation like any other. The host tells the agent to read your introduction first and, failing that, to infer the shape from the current or default value, so **describe this field's value shape and meaning in your introduction**: what each member is, its range, and how the shape varies with state (say, the element count depends on another setting). The declaration can't carry this; only your description can be exact.

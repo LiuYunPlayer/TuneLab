@@ -1131,7 +1131,7 @@ props.Add(("editor", "编辑器"), ButtonConfig.Create("打开...", async _ =>
 官方控件表达不了的编辑（比如音素内部的拉伸曲线），可以声明一块**画布**：你自己画、自己处理鼠标，编辑完把结果提交给这个字段。
 
 ```csharp
-props.Add(("stretch", "拉伸曲线"), CanvasConfig.Create(defaultCurve, 96, host => new StretchCurveCanvas(host))
+props.Add(("stretch", "拉伸曲线"), CanvasConfig.Create(PropertyObject.Empty, 96, host => new StretchCurveCanvas(host))   // 值 = { "points": [...] }，{} = 未设
     .WithSummary(value => IsLinear(value) ? "线性" : "自定义"));
 
 sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
@@ -1169,6 +1169,8 @@ sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
 ### 10.1 它是一个值字段
 
 - **值的形状由你定**（任意 `PropertyValue`，可以是对象或数组），宿主不解读。恢复默认、preset、撤销、多选都照常参与，所以**读值时一律校验**——撤销、preset、粘贴都可能带来任意形状的值，形状不对的地方按默认处理。
+- **默认值**：就是"未设"状态，同时定了字段的类型——存值类型与默认值不同时按默认值处理，所以**值的类型要固定**（形状可以变）。默认值不能是 `PropertyValue.Null` / `PropertyValue.Multiple`，`Create` 会直接报参数错误。
+- **建议顶层用对象**（默认 `{}`，如上例的 `{ "points": [...] }`）：以后要加功能只是多一个成员，旧值仍是对象、照样读得出，缺的成员按你的默认处理；顶层是数组或标量的话，想扩展就只能换形状（得换新键，见 §5.2「声明里的闭包与字段演进」）。确定只存一个数之类的简单值时，用标量也完全正确。
 - **多选**：各目标的值完全相同时就是那个值；只要有不同，**整个值**就是多值标记（`IsMultiple()`）——宿主不逐元素合并，值的形状只有你懂。怎么画由你决定；提交时把同一个值写到全部目标。
 - **收起摘要**：`WithSummary(format)`——字段收起时宿主用当前值调用它，显示在标题行；值整体不一致时宿主直接显示多值标记、不调用。不给则显示"默认 / 已修改"。
 - **CLI / agent** 能原样读写这个值（任意 JSON 形状）。宿主不知道形状，也就不校验——agent 写入的值同样要经过你读值时的校验。宿主会提示 agent 先读你的 introduction、读不到再照当前值或默认值推断，所以**强烈建议在 introduction 里写清这个字段的值形状与含义**：每个成员是什么、取值范围、随状态变化的形状（如元素个数随别的设置变）。声明里给不出这些，只有你的说明能讲准确。

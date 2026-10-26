@@ -5,7 +5,8 @@ using Point = TuneLab.Foundation.Point;
 
 namespace TuneLab.TestPlugins.V1Voice;
 
-// 画布（CanvasConfig）演示：音素内部的拉伸曲线——横向等距的若干控制点，纵向拖动改值（0..1），值 = 这几个数组成的数组。
+// 画布（CanvasConfig）演示：音素内部的拉伸曲线——横向等距的若干控制点，纵向拖动改值（0..1）。
+// 值 = { "points": [y0, …] }，默认 {}（未设 = 线性）。顶层用对象：以后要加成员（如曲线类型）只是多一个键，不必换形状。
 // 覆盖：绘制（网格 / 折线 / 控制点 / 文字）、悬停（Enter / Move / Leave）、拖动写草稿 + 松手提交（一个撤销步骤；按下即写草稿锁住画布）、
 // 双击控制点复位为线性、滚轮微调指针所在竖列的控制点（只在列上置 Handled，列间照常滚面板；停顿后才提交）、
 // 键盘（画布有焦点时）：↑ / ↓ 微调指针所在竖列的控制点（按住连发，松开才提交）、拖动中按 Esc 取消（丢弃草稿）、
@@ -17,7 +18,7 @@ sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
     const double Pad = 10;
     const double HandleRadius = 4.5;
 
-    public static CanvasConfig Config { get; } = CanvasConfig.Create(Linear(), 96, host => new StretchCurveCanvas(host))
+    public static CanvasConfig Config { get; } = CanvasConfig.Create(PropertyObject.Empty, 96, host => new StretchCurveCanvas(host))
         .WithSummary(value => IsLinear(value) ? "Linear" : "Custom");
 
     static readonly Color Grid = Color.FromArgb(40, 255, 255, 255);
@@ -28,31 +29,44 @@ sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
 
     static double LinearAt(int i) => i / (double)(Count - 1);
 
-    static PropertyValue Linear() => new PropertyArray(Enumerable.Range(0, Count).Select(i => PropertyValue.Create(LinearAt(i))).ToList());
-
     static bool IsLinear(PropertyValue value)
     {
         var points = Read(value);
         return points.All(p => p.Known) && points.Select((p, i) => Math.Abs(p.Y - LinearAt(i)) < 1e-9).All(b => b);
     }
 
-    // 读值：每个控制点的 y（0..1）及其是否确定（不确定的按线性默认画成空心）。多选不一致时宿主给的是整体
-    // Multiple（不是数组），于是全部点都不确定；形状不对（长度不足、元素不是数）时只有对不上的点不确定。
+    // 读值：每个控制点的 y（0..1）及其是否确定（不确定的按线性默认画成空心）。
+    // · 未设（对象里没有 points）= 线性，是确定的；
+    // · 多选不一致时宿主给的是整体 Multiple（不是对象），全部点都不确定；
+    // · 形状不对（points 不是数组、长度不足、元素不是数）时只有对不上的点不确定。
     static (double Y, bool Known)[] Read(PropertyValue value)
     {
         var result = new (double, bool)[Count];
-        value.ToArray(out var array);
+        PropertyArray? array = null;
+        bool unset = false;
+        if (value.ToObject(out var obj))
+        {
+            if (obj.Map.TryGetValue("points", out var points))
+                points.ToArray(out array);
+            else
+                unset = true;
+        }
         for (int i = 0; i < Count; i++)
         {
             if (array != null && i < array.Count && array[i].ToDouble(out var y) && double.IsFinite(y))
                 result[i] = (Math.Clamp(y, 0, 1), true);
             else
-                result[i] = (LinearAt(i), false);
+                result[i] = (LinearAt(i), unset);
         }
         return result;
     }
 
-    static PropertyValue Write((double Y, bool Known)[] points) => new PropertyArray(points.Select(p => PropertyValue.Create(p.Y)).ToList());
+    static PropertyValue Write((double Y, bool Known)[] points)
+    {
+        var map = new Map<string, PropertyValue>();
+        map.Add("points", new PropertyArray(points.Select(p => PropertyValue.Create(p.Y)).ToList()));
+        return new PropertyObject(map);
+    }
 
     double X(int i) => Pad + (host.Width - 2 * Pad) * LinearAt(i);
     double YOf(double y) => Pad + (host.Height - 2 * Pad) * (1 - y);
