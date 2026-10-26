@@ -20,7 +20,7 @@ namespace TuneLab.SDK;
 //   只在主线程访问的资源无需加锁。await 是交错点：期间宿主可能调用插件的其他方法（合成调度、声明、会话事件），
 //   插件须保证状态跨 await 一致。别阻塞主线程（宿主拦不住）：瞬间操作同步做即可，耗时的 await 或放进 RunWithProgress。
 // · 执行期间宿主照常可操作（非模态）：只有该按钮置灰、不可重入；用户可能编辑 / 删除工程内容，闭包捕获的 id 可能已失效。
-// · 抛出的异常由宿主记日志并提示用户（标明来源插件）。需要弹窗用 click.Dialogs（见 IButtonClickContext）。
+// · 抛出的异常由宿主记日志并提示用户（标明来源插件）。需要弹窗用 click.DialogService（见 IButtonClickContext）。
 public sealed class ButtonConfig : IControllerConfig
 {
     // 按钮上的文字（插件自译）。行标题仍由 PropertyKey.DisplayText 提供。

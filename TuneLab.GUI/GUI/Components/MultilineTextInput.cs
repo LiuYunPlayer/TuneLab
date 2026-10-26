@@ -25,7 +25,9 @@ internal class MultilineTextInput : TextEditor, IDataValueController<string>
     public IActionEvent EndInput => mEndInput;
 
     public IActionEvent ValueWillChange => EnterInput;
-    public IActionEvent ValueChanged => TextChanged;
+    // 绑定只在确认时写入（同单行 SingleLineTextController）：失焦时文字与开始编辑时不同才发一次 ValueChanged。
+    // 逐键的 TextChanged 照常对外（Agent 输入框靠它刷新按钮态），只是不再接进绑定。
+    public IActionEvent ValueChanged => mValueChanged;
     public IActionEvent ValueCommitted => EndInput;
     public string Value => Text ?? string.Empty;
 
@@ -52,20 +54,33 @@ internal class MultilineTextInput : TextEditor, IDataValueController<string>
         // 那是 TextArea 模板里的独立 TextBlock，行高/基线与正文 TextView 略不同（实测差约 0.5px），空框时与真实文字不同高。
         TextArea.TextView.BackgroundRenderers.Add(new PlaceholderRenderer(this));
 
-        // 只有【用户输入】才对外发 ValueChanged。AvaloniaEdit 的 TextChanged 对程序化赋值同样触发，
-        // 而绑定管线把 ValueChanged 当成"用户在改"（DiscardTo + Set）——于是 Refresh() 回灌值时会在
-        // 提交流程中途重入绑定并抛异常（失焦提交 → 通知 → Refresh → set_Text → TextChanged → DiscardTo）。
-        // 单行的 TextInput 早就分开了这两件事（Display 走 base.Text，事件只在 OnKeyDown/OnTextInput 发），这里对齐它。
+        // 只有【用户输入】才对外发 TextChanged。AvaloniaEdit 的 TextChanged 对程序化赋值同样触发，而外部把它当成
+        //"用户在改"——Refresh() 回灌值时触发它就会被误当成一次输入。单行的 TextInput 早就分开了这两件事
+        //（Display 走 base.Text，事件只在 OnKeyDown/OnTextInput 发），这里对齐它。
         base.TextChanged += (s, e) => { if (!mProgrammaticWrite) mTextChanged.Invoke(); };
         // 焦点落在内部 TextArea 上：进入=开始编辑（ValueWillChange），退出=提交（ValueCommitted）。
-        TextArea.GotFocus += (s, e) => mEnterInput.Invoke();
-        TextArea.LostFocus += (s, e) => mEndInput.Invoke();
+        TextArea.GotFocus += (s, e) => { mFocusText = Text ?? string.Empty; mFocusHint = mMultipleHint; mEnterInput.Invoke(); };
+        TextArea.LostFocus += (s, e) =>
+        {
+            if (Value != mFocusText)
+                mValueChanged.Invoke();
+            mEndInput.Invoke();
+        };
         // Enter 确认（失焦 → 提交，同单行 TextInput）、Shift+Enter 换行。走隧道阶段：要赶在 TextArea 自己处理 Enter（插入换行）之前。
         AddHandler(KeyDownEvent, (s, e) =>
         {
             if (EnterCommits && e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None)
             {
                 e.Handled = true;
+                this.Unfocus();
+            }
+            else if (DiscardOnEscape && e.Key == Key.Escape && TextArea.IsFocused)
+            {
+                e.Handled = true;
+                // 复原成开始编辑时的样子（含多值提示）：聚焦中的控件不接外部刷新，只能自己复原。编辑中从没写过数据
+                //（确认时才写），复原后失焦比对无差异，什么都不写。
+                SetTextSilently(mFocusText);
+                SetMultipleHint(mFocusHint);
                 this.Unfocus();
             }
         }, RoutingStrategies.Tunnel);
@@ -82,6 +97,10 @@ internal class MultilineTextInput : TextEditor, IDataValueController<string>
     // 按键约定：Enter 确认、Shift+Enter 换行（默认，与单行框一致）。设 false 则 Enter 照常换行、本控件不管 Enter——
     // 歌词板（逐行录入，Enter 换行最顺手）与自己接管 Enter 的场合（Agent 输入框：Enter 发送）用。
     public bool EnterCommits { get; set; } = true;
+
+    // Esc 放弃本次编辑：显示复原成开始编辑时的样子、失焦，不写入。默认关，由属性面板的文本字段显式打开
+    //（同单行 TextInput.DiscardOnEscape）。
+    public bool DiscardOnEscape { get; set; }
 
     // 占位符文本（空文档时显示）。用 new 隐藏 TextEditor 内置 Watermark：调用方设本属性即走自绘、不触发内置 TextBlock。
     public new string? Watermark
@@ -202,7 +221,7 @@ internal class MultilineTextInput : TextEditor, IDataValueController<string>
         SetTextSilently(string.Empty);
     }
 
-    // 程序化写入：期间不对外发 ValueChanged（见构造函数里 TextChanged 那段注释）。
+    // 程序化写入：期间不对外发 TextChanged（见构造函数里 TextChanged 那段注释）。
     void SetTextSilently(string text)
     {
         if (Text == text)
@@ -231,6 +250,9 @@ internal class MultilineTextInput : TextEditor, IDataValueController<string>
     readonly ActionEvent mEnterInput = new();
     readonly ActionEvent mTextChanged = new();
     readonly ActionEvent mEndInput = new();
+    readonly ActionEvent mValueChanged = new();
+    string mFocusText = string.Empty;   // 开始编辑（聚焦）时的文字：确认时比对、Esc 放弃时复原
+    string? mFocusHint;
 
     // 空文档占位符：直接在 TextView 背景层绘制，坐标/字体/基线与正文同一套（正文基线在行顶下 DefaultBaseline 处），
     // 故占位符与真实输入文字逐像素同位——避免内置 Watermark(独立 TextBlock)与正文两套文本引擎的基线错位。

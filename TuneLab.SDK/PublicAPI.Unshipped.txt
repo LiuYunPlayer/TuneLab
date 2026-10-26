@@ -132,7 +132,7 @@ TuneLab.SDK.CanvasMouseEvent.Position.get -> TuneLab.Foundation.Point
 TuneLab.SDK.CanvasWheelEvent
 TuneLab.SDK.CanvasWheelEvent.Delta.get -> TuneLab.Foundation.Point
 TuneLab.SDK.IButtonClickContext
-TuneLab.SDK.IButtonClickContext.Dialogs.get -> TuneLab.SDK.IDialogService!
+TuneLab.SDK.IButtonClickContext.DialogService.get -> TuneLab.SDK.IDialogService!
 TuneLab.SDK.ICanvasControl
 TuneLab.SDK.ICanvasControl.OnKeyDown(TuneLab.SDK.CanvasKeyEvent! e) -> void
 TuneLab.SDK.ICanvasControl.OnKeyUp(TuneLab.SDK.CanvasKeyEvent! e) -> void

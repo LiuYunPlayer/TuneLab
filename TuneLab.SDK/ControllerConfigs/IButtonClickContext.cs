@@ -5,5 +5,5 @@ namespace TuneLab.SDK;
 public interface IButtonClickContext
 {
     // 弹窗服务：插件**只能**在按钮点击期间弹窗，入口只有这里（见 IDialogService）。
-    IDialogService Dialogs { get; }
+    IDialogService DialogService { get; }
 }

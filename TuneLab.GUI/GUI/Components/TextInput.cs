@@ -27,6 +27,10 @@ internal class TextInput : TextBox, IDataValueController<string>
     public IActionEvent ValueCommitted => EndInput;
     public string Value => Text;
 
+    // Esc 放弃本次编辑：显示复原成开始编辑时的样子、失焦。只对"确认时才写入"的用法成立（SingleLineTextController）：
+    // 编辑中从没写过数据，复原显示就等于什么都没发生。默认关——对话框里的输入框按 Esc 多半是想关窗。
+    public bool DiscardOnEscape { get; set; }
+
     public TextInput()
     {
         MinWidth = 0;
@@ -47,9 +51,19 @@ internal class TextInput : TextBox, IDataValueController<string>
         mStyles = new(this);
         Styles.Add(mStyles);
 
-        GotFocus += (s, e) => { mEnterInput.Invoke(); };
+        GotFocus += (s, e) => { mFocusText = base.Text ?? string.Empty; mFocusWatermark = Watermark; mEnterInput.Invoke(); };
         LostFocus += (s, e) => { mEndInput.Invoke(); };
         KeyDown += (s, e) => { if (!AcceptsReturn && e.Key == Key.Enter) this.Unfocus(); };
+        AddHandler(KeyDownEvent, (s, e) =>
+        {
+            if (!DiscardOnEscape || e.Key != Key.Escape || !IsFocused)
+                return;
+            e.Handled = true;
+            // 复原成开始编辑时的样子（含多值的占位提示）：聚焦中的控件不接外部刷新，只能自己复原。
+            base.Text = mFocusText;
+            Watermark = mFocusWatermark;
+            this.Unfocus();
+        }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
     }
 
     protected override Type StyleKeyOverride => typeof(TextBox);
@@ -100,6 +114,8 @@ internal class TextInput : TextBox, IDataValueController<string>
     readonly ActionEvent mEnterInput = new();
     readonly ActionEvent mTextChanged = new();
     readonly ActionEvent mEndInput = new();
+    string mFocusText = string.Empty;   // 开始编辑（聚焦）时的显示，Esc 放弃时复原
+    string? mFocusWatermark;
 
     class TextInputStyles : Styles
     {

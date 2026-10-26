@@ -107,10 +107,10 @@ public class ButtonConfigTests
         PropertyObject? inputs = PropertyObject.Empty;
         await PluginButtonInvoker.Invoke(ButtonConfig.Create("x", async click =>
         {
-            await click.Dialogs.ShowMessage("t", "m");
-            confirmed = await click.Dialogs.Confirm("t", "m");
-            inputs = await click.Dialogs.PromptInputs("t", ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig> { { "n", SliderConfig.Integer(3, 0, 9) } }));
-            await click.Dialogs.RunWithProgress("t", (progress, token) => { progress.Report(0.5); progress.Report(null); ran = true; return Task.CompletedTask; });
+            await click.DialogService.ShowMessage("t", "m");
+            confirmed = await click.DialogService.Confirm("t", "m");
+            inputs = await click.DialogService.PromptInputs("t", ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig> { { "n", SliderConfig.Integer(3, 0, 9) } }));
+            await click.DialogService.RunWithProgress("t", (progress, token) => { progress.Report(0.5); progress.Report(null); ran = true; return Task.CompletedTask; });
         }), null);
 
         Assert.False(confirmed);   // 确认：无窗口即"没同意"
@@ -152,7 +152,7 @@ public class ButtonConfigTests
     public async Task Dialogs_AreUnusableAfterTheClickFinishes()
     {
         IDialogService? kept = null;
-        await PluginButtonInvoker.Invoke(ButtonConfig.Create("x", click => { kept = click.Dialogs; return Task.CompletedTask; }), null);
+        await PluginButtonInvoker.Invoke(ButtonConfig.Create("x", click => { kept = click.DialogService; return Task.CompletedTask; }), null);
 
         // 插件把服务存起来、点击结束后再用：直接抛，让它在开发期就炸响而不是静默失效。
         Assert.NotNull(kept);
@@ -167,7 +167,7 @@ public class ButtonConfigTests
         Exception? seen = null;
         await PluginButtonInvoker.Invoke(ButtonConfig.Create("x", async click =>
         {
-            try { await click.Dialogs.RunWithProgress("t", (_, _) => throw new InvalidOperationException("boom")); }
+            try { await click.DialogService.RunWithProgress("t", (_, _) => throw new InvalidOperationException("boom")); }
             catch (InvalidOperationException ex) { seen = ex; }
         }), null);
         Assert.NotNull(seen);

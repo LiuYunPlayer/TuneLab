@@ -46,6 +46,6 @@ internal static class PluginButtonInvoker
 
     sealed class ClickContext(IDialogService dialogs) : IButtonClickContext
     {
-        public IDialogService Dialogs => dialogs;
+        public IDialogService DialogService => dialogs;
     }
 }
