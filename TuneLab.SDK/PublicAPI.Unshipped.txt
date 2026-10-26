@@ -162,10 +162,13 @@ TuneLab.SDK.ICanvasHost
 TuneLab.SDK.ICanvasHost.BeginEdit() -> void
 TuneLab.SDK.ICanvasHost.CommitValue() -> void
 TuneLab.SDK.ICanvasHost.DevicePixelRatio.get -> double
+TuneLab.SDK.ICanvasHost.DialogService.get -> TuneLab.SDK.IDialogService!
 TuneLab.SDK.ICanvasHost.DiscardValue() -> void
 TuneLab.SDK.ICanvasHost.EndEdit() -> void
 TuneLab.SDK.ICanvasHost.Height.get -> double
 TuneLab.SDK.ICanvasHost.Invalidate() -> void
+TuneLab.SDK.ICanvasHost.PopupMenu(double x, double y, double width, double height, System.Collections.Generic.IReadOnlyList<TuneLab.SDK.ComboBoxItem>! items) -> System.Threading.Tasks.Task<TuneLab.Foundation.PropertyValue?>!
+TuneLab.SDK.ICanvasHost.PopupTextBox(string! text, double x, double y, double width, double height, double fontSize, TuneLab.SDK.CanvasAlignment alignment = TuneLab.SDK.CanvasAlignment.Center, bool multiline = false) -> System.Threading.Tasks.Task<string?>!
 TuneLab.SDK.ICanvasHost.SetValue(TuneLab.Foundation.PropertyValue value) -> bool
 TuneLab.SDK.ICanvasHost.Value.get -> TuneLab.Foundation.PropertyValue
 TuneLab.SDK.ICanvasHost.Width.get -> double

@@ -1095,7 +1095,7 @@ public ObjectConfig GetSettingsConfig(IExtensionSettingsContext context)
 
 ### 9.2 点击期间的弹窗服务（`click.DialogService`）
 
-**弹窗只能在按钮点击期间弹**，入口只有回调参数 `click.DialogService`：
+按钮点击期间经回调参数 `click.DialogService` 弹窗（画布经 `host.DialogService` 拿到的是同一套，有效期不同，见 §10.5）：
 
 ```csharp
 static async Task ClearCacheAsync(IButtonClickContext click)
@@ -1221,9 +1221,36 @@ sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
 - **`e.Handled`**：所有事件参数都有（基类 `CanvasEvent`）。处理了这次事件就置 `true`，宿主不再做该事件的默认动作；不置（默认）= 交还宿主。有默认动作的是滚轮与键盘：滚轮的默认动作是滚动所在面板，键盘的是冒泡给外层（快捷键、面板自己的按键处理）。**只在真正用到时置位**（如指针在可调的元素上、按的是你处理的键），别整块吞掉——吞了滚轮，用户滚面板时指针一扫过画布就卡住；吞了键盘，画布有焦点时空格播放、撤销这些快捷键全都失灵。鼠标按键、移动等事件置不置都一样。
 - **线程**：全部回调在主线程上，`host` 也只能在主线程用；别在回调里阻塞。
 - **异常**：由宿主记日志（标明你的插件），该实例此后不再被调用，直到下次重建；它的草稿随之丢弃。
-- **画布里不能弹窗**：确认 / 进度 / 输入这类弹窗目前只有按钮点击期间可用（§9.2）。
 
-参考实现：`tests/plugins/V1.Voice/StretchCurveCanvas.cs`（note 面板与核音素面板上的拉伸曲线：按下即写草稿、拖动、双击复位、点上滚轮微调并推迟提交 / 空白处照常滚面板、多选合并值；画布有焦点时 ↑ / ↓ 微调指针所在的点、按住连调、松开提交，拖动中按 Esc 取消）与 `tests/plugins/V1.Voice/ImageDemoCanvas.cs`（note 面板上的"Canvas Images"：编码位图与 SVG 的插件级缓存、按设备像素比自生成像素、圆角裁剪、透明度、旋转变换，← / → 旋转）。
+### 10.5 弹出与弹窗
+
+要用户输入一段文字、或从几项里挑一项，用**弹出**——在画布上就地出现、不模态，比弹窗轻：
+
+```csharp
+// 右键菜单：值写成命令名，拿到后自己分派
+var picked = await host.PopupMenu(e.Position.X, e.Position.Y, 0, 0, [
+    new ComboBoxItem(PropertyValue.Create("set"), "输入数值…"),
+    new ComboBoxItem(PropertyValue.Create("reset"), "全部复位…"),
+]);
+if (picked is { } v && v.ToString(out var command) && command == "set")
+{
+    // 在画数值的位置弹文本框：参数与画这段字的 DrawText 相同，框正好盖在字上
+    string? text = await host.PopupTextBox(label, host.Width - 10, 10, 0, 0, 11, CanvasAlignment.RightTop);
+    if (text != null && double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var y))
+    {
+        host.SetValue(WithPoint(host.Value, index, y));   // 弹出只返回结果，改值照常 SetValue + CommitValue
+        host.CommitValue();
+    }
+}
+```
+
+- **`PopupTextBox(text, x, y, width, height, fontSize, alignment, multiline)`**：几何与 `DrawText` 同一套——文字区就是给定的矩形（画布坐标），文字按 `alignment` 排在里面，字号由你给、字体随界面，所以把画这段字的参数原样传过去，框就正好盖在字上。矩形要给"这段文字可用的地方"（如整个格子），别给当前文字的宽度：框**不随内容变大**，装不下就在框内滚动（不自动折行）。矩形太小时宿主按 `alignment` 指的锚点把它扩到一行高与最小宽度，宽高给 0 即"以该点为锚"。按键同宿主的文本框：Enter 或点别处 = 确认，返回文字；Esc = 取消，返回 `null`；`multiline` 时 Shift+Enter 换行（文字里是 `\n`）。
+- **`PopupMenu(x, y, width, height, items)`**：在矩形下方弹出（下方放不下就翻到上方；宽高给 0 即在该点弹出，如右键菜单）。选项就是下拉框用的 `ComboBoxItem`——分组成子菜单、分隔线、叶子多时自动加搜索框。选中返回该项的值，点别处或按 Esc 返回 `null`。既能当下拉选项，也能当操作菜单：值写成命令名，拿到后自己分派。
+- **只返回结果，宿主不写值**：要改值照常 `SetValue` + `CommitValue`。结果在弹出关掉之后才交回，`await` 之后可以直接写。
+- **弹出期间画布算"在用"**：与 `BeginEdit`、草稿是三个独立的状态，任一存在就锁住画布（面板不刷新、实例不被换掉），弹出不占 `BeginEdit` 的计数。同一时刻至多一个——再弹一个会先关掉前一个（前一个返回 `null`）。实例作废时（见 §10.2）弹出随之关闭、返回 `null`；`await` 回来时实例若已作废，`SetValue` 返回 `false`、什么都不写。
+- **弹窗**：`host.DialogService` 与按钮点击拿到的是同一套（提示 / 确认 / 进度 / 输入表单，§9.2），以画布所在的窗口为父窗口、标明来源插件。区别只在有效期：画布没有"一次点击"的边界，**本实例有效期内都能用**，实例作废后再调抛 `InvalidOperationException`。弹窗开着时同弹出一样算"在用"。
+
+参考实现：`tests/plugins/V1.Voice/StretchCurveCanvas.cs`（note 面板与核音素面板上的拉伸曲线：按下即写草稿、拖动、双击复位、点上滚轮微调并推迟提交 / 空白处照常滚面板、多选合并值；画布有焦点时 ↑ / ↓ 微调指针所在的点、按住连调、松开提交，拖动中按 Esc 取消；右键菜单——在数值标签处弹文本框改值、多行备注、确认后全部复位）与 `tests/plugins/V1.Voice/ImageDemoCanvas.cs`（note 面板上的"Canvas Images"：编码位图与 SVG 的插件级缓存、按设备像素比自生成像素、圆角裁剪、透明度、旋转变换，← / → 旋转）。
 
 ## 11. 打包、安装、卸载
 

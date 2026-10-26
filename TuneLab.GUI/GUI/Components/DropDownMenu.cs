@@ -64,13 +64,15 @@ internal sealed class DropDownMenu : Panel
     }
 
     // width > 0：根菜单固定宽度（如与下拉触发面对齐）；<= 0：随内容。
-    public void Open(IReadOnlyList<DropDownItem> items, double width)
+    // anchor：在锚点控件内的哪块矩形下方弹出（锚点控件坐标；如画布上的某段文字）；null = 整个锚点控件。
+    public void Open(IReadOnlyList<DropDownItem> items, double width, Rect? anchor = null)
     {
         CloseFrom(0);   // 清空可能残留的链（防御：正常已在 Closed 里清过）
         mTopItems = items;
         mMatches.Clear();
         mHighlight = -1;
         mPopup.Child = BuildRoot(width);
+        mPopup.PlacementRect = anchor;
         // 菜单打开期间算所在窗口"编辑中"（见 EditGate）：面板这时若按新声明刷新，锚点控件（下拉框、+ 按钮）可能被换掉，
         // 弹层就挂在一个已经不在的控件上，选了也落不到数据里。选定或关闭（含点别处收起）即结束。
         mHold ??= EditGate.Of(this)?.BeginEdit();

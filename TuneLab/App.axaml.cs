@@ -48,6 +48,8 @@ public partial class App : Application
                 };
                 // 插件按钮（ButtonConfig）点击的宿主侧执行：来源归属、异常提示、退出时取消（见 PluginButtonInvoker）。
                 TuneLab.GUI.Controllers.ButtonActions.Invoke = PluginButtonInvoker.Invoke;
+                // 画布（CanvasConfig）的弹窗服务：与按钮同一个实现，有效期由画布实例管（见 PluginCanvas）。
+                TuneLab.GUI.Components.PluginCanvas.CreateDialogService = (source, owner) => new HostDialogService(source, owner);
                 desktop.Exit += (s, e) =>
                 {
                     HostLifetime.Shutdown();   // 先取消插件侧长任务（按钮、进度弹窗），再拆引擎

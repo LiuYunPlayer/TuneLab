@@ -1,12 +1,16 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.Loader;
+using System.Threading;
+using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
 using TuneLab.Foundation;
+using TuneLab.GUI.Controllers;
 using TuneLab.GUI.Input;
 using TuneLab.SDK;
 using TuneLab.Utils;
@@ -20,7 +24,8 @@ namespace TuneLab.GUI.Components;
 // 下一次需要它时（渲染 / 鼠标事件）——收起的字段不建实例，同一轮里的多次作废也只建一次。
 // 草稿：插件的 SetValue 只写进本实例的草稿（不进工程——工程里未提交的写入是整个文档共享的，会被别处任何一次提交顺手带走、
 // 也会让撤销失效）；CommitValue 才把草稿一次写入工程并提交成一个撤销步。编辑状态由插件宣告（BeginEdit / EndEdit，宿主不猜）。
-// 插件宣告了编辑、或有草稿 = 面板仍在使用：登记为所在窗口的"编辑中"（见 EditGate），期间面板不按新声明刷新、本实例不会被换掉。
+// 插件宣告了编辑、或有草稿、或有弹出 / 弹窗开着 = 面板仍在使用：登记为所在窗口的"编辑中"（见 EditGate），期间面板不按新声明刷新、
+// 本实例不会被换掉。
 // 宿主从不替插件提交、也不替它结束编辑：实例作废时（外部改了本字段的值、面板被拆、画布离开界面）草稿与编辑状态一律作废。
 // 外部改值的判定：本字段的值变了、且不是本画布自己提交的（提交时记下写后的值，通知来时与它比对）。
 // 插件回调一律包在 try 里：抛出即记录（经 ErrorAttributed 标明来源插件）并让该实例失效，直到下次重建。
@@ -55,11 +60,44 @@ internal sealed class PluginCanvas : Component
 
     // 没有异常堆栈可归因时（如插件误用 API），按工厂所在程序集的加载上下文名标明来源插件——与 Log.ErrorAttributed
     // 按堆栈找到的是同一个名字（插件包目录名）。宿主自己的程序集返回空串。
-    string PluginPrefix()
+    string PluginPrefix() => SourceName() is { } name ? "[" + name + "] " : "";
+
+    // 来源插件名（插件包目录名，插件改不了）；宿主自己的程序集为 null。
+    string? SourceName()
     {
         var context = mFactory == null ? null : AssemblyLoadContext.GetLoadContext(mFactory.Method.Module.Assembly);
-        return context == null || context == AssemblyLoadContext.Default || string.IsNullOrEmpty(context.Name) ? "" : "[" + context.Name + "] ";
+        return context == null || context == AssemblyLoadContext.Default || string.IsNullOrEmpty(context.Name) ? null : context.Name;
     }
+
+    // 宿主启动时注入（同 ButtonActions.Invoke）：按来源插件名（宿主为 "host"）与父窗口造一个弹窗服务。
+    // 默认（测试 / 无宿主环境）给无窗口口径。
+    public static Func<string, Window?, IDialogService> CreateDialogService { get; set; } = (_, _) => ButtonActions.NoWindowDialogs;
+
+    // 弹出菜单的弹层：挂在画布自己的子树上（Popup 要在视觉树里才弹得出来），锚定画布、按画布坐标定位。用到时才建。
+    DropDownMenu Menu()
+    {
+        if (mMenu == null)
+        {
+            mMenu = new DropDownMenu(this);
+            AttachPopup(mMenu);
+        }
+        return mMenu;
+    }
+
+    // 弹层挂进 / 摘出画布的子树（Popup 要在视觉树里才弹得出来）。
+    public void AttachPopup(Control popup)
+    {
+        VisualChildren.Add(popup);
+        LogicalChildren.Add(popup);
+    }
+
+    public void DetachPopup(Control popup)
+    {
+        VisualChildren.Remove(popup);
+        LogicalChildren.Remove(popup);
+    }
+
+    DropDownMenu? mMenu;
 
     void OnFieldModified()
     {
@@ -476,6 +514,7 @@ internal sealed class PluginCanvas : Component
         public void Fault()
         {
             IsFaulted = true;
+            ClosePopup();
             ClearDraft();
             view.InvalidateVisual();
         }
@@ -483,7 +522,132 @@ internal sealed class PluginCanvas : Component
         public void Close()
         {
             mClosed = true;
+            ClosePopup();
             ClearDraft();
+        }
+
+        // —— 弹出：同一时刻至多一个（mPopup），关闭 = 结果为 null。结果经 RunContinuationsAsynchronously 交回插件：
+        // 插件的续体总在弹出状态清掉之后才跑，那时再 SetValue / CommitValue 不会撞上"弹出仍开着"。
+
+        public Task<string?> PopupTextBox(string text, double x, double y, double width, double height, double fontSize,
+            CanvasAlignment alignment = CanvasAlignment.Center, bool multiline = false)
+        {
+            VerifyThread();
+            ArgumentNullException.ThrowIfNull(text);
+            if (!IsAlive)
+                return Task.FromResult<string?>(null);
+            ClosePopup();
+
+            var result = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var token = new PopupToken();
+            var popup = new CanvasTextPopup(view, text, x, y, width, height, fontSize, alignment, multiline, value =>
+            {
+                if (mPopup == token)
+                {
+                    mPopup = null;
+                    UpdateLock();
+                }
+                result.TrySetResult(value);
+            });
+            token.Close = popup.Cancel;
+            mPopup = token;
+            UpdateLock();
+            popup.Open();
+            return result.Task;
+        }
+
+        public Task<PropertyValue?> PopupMenu(double x, double y, double width, double height, IReadOnlyList<TuneLab.SDK.ComboBoxItem> items)
+        {
+            VerifyThread();
+            ArgumentNullException.ThrowIfNull(items);
+            if (!IsAlive)
+                return Task.FromResult<PropertyValue?>(null);
+            ClosePopup();
+
+            var result = new TaskCompletionSource<PropertyValue?>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var menu = view.Menu();
+            var token = new PopupToken();
+            void Finish(PropertyValue? value)
+            {
+                if (result.Task.IsCompleted)
+                    return;
+                menu.ItemPicked -= OnPicked;
+                menu.Closed -= OnClosed;
+                if (mPopup == token)
+                {
+                    mPopup = null;
+                    UpdateLock();
+                }
+                result.TrySetResult(value);
+            }
+            void OnPicked(DropDownItem item) => Finish(item.Tag is PropertyValue value ? value : (PropertyValue?)null);
+            // 选中时菜单先关（Closed）再报选中（ItemPicked）：关闭的结果推迟一拍，让选中先到。
+            void OnClosed() => Dispatcher.UIThread.Post(() => Finish(null));
+            menu.ItemPicked += OnPicked;
+            menu.Closed += OnClosed;
+            token.Close = () =>
+            {
+                Finish(null);
+                menu.Close();
+            };
+            mPopup = token;
+            UpdateLock();
+            menu.Open(ComboBoxController.BuildItems(items), 0, AnchorRect(x, y, width, height));
+            return result.Task;
+        }
+
+        // 菜单的锚点矩形：收进画布范围、宽高至少 1。Avalonia 定位时把锚点矩形与画布范围求交，零尺寸（"在这一点弹出"）
+        // 或落在画布外的矩形交出来是空的，菜单就跑到画布左上角。
+        Rect AnchorRect(double x, double y, double width, double height)
+        {
+            double maxX = Math.Max(0, view.Bounds.Width - 1), maxY = Math.Max(0, view.Bounds.Height - 1);
+            double left = double.IsFinite(x) ? Math.Clamp(x, 0, maxX) : 0;
+            double top = double.IsFinite(y) ? Math.Clamp(y, 0, maxY) : 0;
+            double right = double.IsFinite(x) && double.IsFinite(width) ? Math.Clamp(x + width, left + 1, maxX + 1) : left + 1;
+            double bottom = double.IsFinite(y) && double.IsFinite(height) ? Math.Clamp(y + height, top + 1, maxY + 1) : top + 1;
+            return new Rect(left, top, right - left, bottom - top);
+        }
+
+        void ClosePopup() => mPopup?.Close();
+
+        sealed class PopupToken
+        {
+            public Action Close = () => { };
+        }
+
+        // —— 弹窗服务：画布有效期内都能用；每次弹窗打开期间算"在用"（mDialogCount）。真正的弹窗由宿主注入的实现画。
+
+        public IDialogService DialogService => mDialogService ??= new CanvasDialogService(this);
+
+        async Task<T> RunDialog<T>(Func<IDialogService, Task<T>> call)
+        {
+            if (!IsAlive)
+                throw new InvalidOperationException("ICanvasHost.DialogService is no longer valid: the canvas control instance was replaced or closed.");
+            var dialogs = mDialogs ??= CreateDialogService(view.SourceName() ?? "host", TopLevel.GetTopLevel(view) as Window);
+            mDialogCount++;
+            UpdateLock();
+            try
+            {
+                return await call(dialogs);
+            }
+            finally
+            {
+                mDialogCount--;
+                UpdateLock();
+            }
+        }
+
+        // IDialogService 任意线程可调：切到 UI 线程再进 RunDialog（计数与 EditGate 只在 UI 线程上动）。
+        sealed class CanvasDialogService(Session session) : IDialogService
+        {
+            public Task ShowMessage(string title, string message) => Run(async d => { await d.ShowMessage(title, message); return true; });
+            public Task<bool> Confirm(string title, string message) => Run(d => d.Confirm(title, message));
+            public Task RunWithProgress(string title, Func<IProgressReporter, CancellationToken, Task> work)
+                => Run(async d => { await d.RunWithProgress(title, work); return true; });
+            public Task<PropertyObject?> PromptInputs(string title, ObjectConfig config) => Run(d => d.PromptInputs(title, config));
+
+            Task<T> Run<T>(Func<IDialogService, Task<T>> call)
+                => Dispatcher.UIThread.CheckAccess() ? session.RunDialog(call) : Dispatcher.UIThread.InvokeAsync(() => session.RunDialog(call));
         }
 
         void ClearDraft()
@@ -492,13 +656,14 @@ internal sealed class PluginCanvas : Component
             UpdateLock();
         }
 
-        // 面板是否在用 = 插件声明了编辑（BeginEdit 未配平）或有草稿，两者同时起作用、互不替代；实例作废后一律不算。
-        // 在用即在所在窗口的 EditGate 上登记一次（所在窗口的属性面板推迟刷新、本实例不被换掉），不在用即撤销登记。
+        // 面板是否在用 = 插件声明了编辑（BeginEdit 未配平）、有草稿、有弹出或弹窗开着，几者同时起作用、互不替代；
+        // 实例作废后一律不算。在用即在所在窗口的 EditGate 上登记一次（所在窗口的属性面板推迟刷新、本实例不被换掉），
+        // 不在用即撤销登记。
         void UpdateLock()
         {
             if (!IsAlive)
                 mEditCount = 0;
-            if (IsAlive && (mEditCount > 0 || mDraft != null))
+            if (IsAlive && (mEditCount > 0 || mDraft != null || mPopup != null || mDialogCount > 0))
             {
                 mEditing ??= EditGate.Of(view)?.BeginEdit();
             }
@@ -518,6 +683,10 @@ internal sealed class PluginCanvas : Component
         bool mClosed;
         PropertyValue? mDraft;
         int mEditCount;          // 插件 BeginEdit 未配平的次数
+        PopupToken? mPopup;      // 开着的弹出（文本框 / 菜单），至多一个
+        int mDialogCount;        // 开着的弹窗数（弹窗可嵌套：进度窗里再弹确认）
+        IDialogService? mDialogService;   // 交给插件的那一个（包一层：有效期检查 + 在用计数）
+        IDialogService? mDialogs;         // 宿主注入的真正实现，用到时才建
         IDisposable? mEditing;   // 面板在用期间在所在窗口 EditGate 上的登记（见 UpdateLock）
     }
 

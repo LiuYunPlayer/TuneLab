@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Text.Json;
+using System.Threading.Tasks;
 using TuneLab.Commands;
 using TuneLab.Foundation;
 using TuneLab.GUI.Controllers;
@@ -28,6 +30,11 @@ public class CanvasConfigTests
         public bool SetValue(PropertyValue value) => true;
         public void CommitValue() { }
         public void DiscardValue() { }
+        public Task<string?> PopupTextBox(string text, double x, double y, double width, double height, double fontSize,
+            CanvasAlignment alignment = CanvasAlignment.Center, bool multiline = false) => Task.FromResult<string?>(null);
+        public Task<PropertyValue?> PopupMenu(double x, double y, double width, double height, IReadOnlyList<ComboBoxItem> items)
+            => Task.FromResult<PropertyValue?>(null);
+        public IDialogService DialogService => throw new NotSupportedException();
     }
 
     static PropertyValue Curve => new PropertyArray([PropertyValue.Create(0.0), PropertyValue.Create(1.0)]);

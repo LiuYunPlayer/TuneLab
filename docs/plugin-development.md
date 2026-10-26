@@ -1097,7 +1097,7 @@ public ObjectConfig GetSettingsConfig(IExtensionSettingsContext context)
 
 ### 9.2 The dialog service during a click (`click.DialogService`)
 
-**Dialogs can only be shown while a button click is running**, and the only entry point is the callback argument `click.DialogService`:
+During a button click, show dialogs through the callback argument `click.DialogService` (a canvas gets the same service as `host.DialogService`, with a different lifetime — see §10.5):
 
 ```csharp
 static async Task ClearCacheAsync(IButtonClickContext click)
@@ -1223,9 +1223,36 @@ Two things are kept apart: the **editing state** (is the canvas being edited) an
 - **`e.Handled`**: every event argument has it (base class `CanvasEvent`). Set it to `true` when you handled the event and the host skips that event's default action; leave it (the default) to hand the event back to the host. The wheel and the keyboard have default actions: the wheel scrolls the panel the canvas sits in, and a key bubbles to the outer layers (shortcuts, the panel's own key handling). **Set it only when you actually use the event** (say, the pointer is over something adjustable, or it's a key you handle), never swallow wholesale — swallow the wheel and the panel gets stuck whenever the pointer sweeps across the canvas while the user scrolls; swallow keys and shortcuts like Space to play or undo stop working while the canvas has focus. For mouse buttons, moves and the like it makes no difference.
 - **Threading**: every callback runs on the main thread, and `host` may only be used there; don't block in callbacks.
 - **Exceptions**: the host logs them (naming your plugin) and stops calling that instance until it is rebuilt; its draft is dropped.
-- **No dialogs from a canvas**: confirmation / progress / input dialogs are currently available only during a button click (§9.2).
 
-Reference implementation: `tests/plugins/V1.Voice/StretchCurveCanvas.cs` (a stretch curve on the note panel and the core-phoneme panel: a draft on press, drag, double-click to reset, wheel over a point to nudge with a deferred commit / over empty space to scroll the panel, merged multi-selection values; with the canvas focused, ↑ / ↓ nudge the point under the pointer — hold to repeat, commit on release — and Esc cancels a drag) and `tests/plugins/V1.Voice/ImageDemoCanvas.cs` ("Canvas Images" on the note panel: plugin-level caching of an encoded bitmap and an SVG, pixels generated at the device pixel ratio, a rounded clip, opacity, a rotation transform, ← / → to rotate).
+### 10.5 Popups and dialogs
+
+To have the user type some text or pick one of a few items, use a **popup** — it appears in place on the canvas and is not modal, lighter than a dialog:
+
+```csharp
+// A context menu: values are command names you dispatch on
+var picked = await host.PopupMenu(e.Position.X, e.Position.Y, 0, 0, [
+    new ComboBoxItem(PropertyValue.Create("set"), "Set value…"),
+    new ComboBoxItem(PropertyValue.Create("reset"), "Reset all…"),
+]);
+if (picked is { } v && v.ToString(out var command) && command == "set")
+{
+    // Pop a text box where the value is drawn: the same arguments as the DrawText that draws it, so the box sits right on the text
+    string? text = await host.PopupTextBox(label, host.Width - 10, 10, 0, 0, 11, CanvasAlignment.RightTop);
+    if (text != null && double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var y))
+    {
+        host.SetValue(WithPoint(host.Value, index, y));   // a popup only returns a result; change the value with SetValue + CommitValue as usual
+        host.CommitValue();
+    }
+}
+```
+
+- **`PopupTextBox(text, x, y, width, height, fontSize, alignment, multiline)`**: the same geometry as `DrawText` — the text area is the given rectangle (canvas coordinates), the text is laid out in it by `alignment`, the font size is yours and the font is the UI's, so passing the arguments you draw the text with puts the box right on top of it. Give the rectangle the text **may use** (the whole cell, say), not the current text's width: the box **does not grow** with its content and scrolls inside when the text doesn't fit (no automatic wrapping). A rectangle that is too small is grown around the anchor `alignment` names to one line's height and a minimum width; a zero-size rectangle means "anchor at this point". Keys work as in the host's text boxes: Enter or clicking elsewhere confirms and returns the text; Esc cancels and returns `null`; with `multiline`, Shift+Enter starts a new line (`\n` in the text).
+- **`PopupMenu(x, y, width, height, items)`**: opens below the rectangle (above it when there's no room below; a zero-size rectangle opens at that point, as for a context menu). The items are the `ComboBoxItem`s a combo box uses — groups become submenus, separators, a search box once there are many leaves. Picking an item returns its value; clicking elsewhere or Esc returns `null`. It works as a drop-down choice and as an action menu alike: make the values command names and dispatch on them.
+- **Results only — the host writes nothing**: change the value with `SetValue` + `CommitValue` as usual. The result arrives after the popup has closed, so you can write right after the `await`.
+- **An open popup counts as "in use"**: it is the third independent state next to `BeginEdit` and the draft — any one of them holds the canvas (the panel doesn't refresh, the instance isn't replaced) — and it does not count toward `BeginEdit`. At most one at a time: opening another closes the previous one (which returns `null`). When the instance is invalidated (see §10.2) the popup closes and returns `null`; if the instance is gone by the time the `await` returns, `SetValue` returns `false` and writes nothing.
+- **Dialogs**: `host.DialogService` is the same service a button click gets (message / confirm / progress / input form, §9.2), parented to the canvas's window and naming your plugin. Only the lifetime differs: a canvas has no "one click" boundary, so it **works for as long as the instance is valid** and throws `InvalidOperationException` once the instance is invalidated. An open dialog counts as "in use" just like a popup.
+
+Reference implementation: `tests/plugins/V1.Voice/StretchCurveCanvas.cs` (a stretch curve on the note panel and the core-phoneme panel: a draft on press, drag, double-click to reset, wheel over a point to nudge with a deferred commit / over empty space to scroll the panel, merged multi-selection values; with the canvas focused, ↑ / ↓ nudge the point under the pointer — hold to repeat, commit on release — and Esc cancels a drag; a context menu — a text box popped over the value label to set a point, a multi-line note, reset-all after a confirmation) and `tests/plugins/V1.Voice/ImageDemoCanvas.cs` ("Canvas Images" on the note panel: plugin-level caching of an encoded bitmap and an SVG, pixels generated at the device pixel ratio, a rounded clip, opacity, a rotation transform, ← / → to rotate).
 
 ## 11. Packaging, Installation, Uninstallation
 

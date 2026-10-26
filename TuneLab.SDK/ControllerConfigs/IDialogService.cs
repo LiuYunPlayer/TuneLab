@@ -6,8 +6,8 @@ using TuneLab.Foundation;
 namespace TuneLab.SDK;
 
 // 宿主弹窗服务（宿主实现）：插件只描述弹什么，宿主按自身风格画出来——主题一致、确定 / 取消等按钮文字由宿主翻译，
-// 标题与正文由插件自译。**只在按钮点击期间可用**，经 IButtonClickContext.DialogService 取得；以按钮所在的窗口为父窗口
-// 模态显示，弹窗上标明来源插件。
+// 标题与正文由插件自译。只在两处可用：按钮点击期间（经 IButtonClickContext.DialogService）、画布控件实例有效期内
+//（经 ICanvasHost.DialogService）；以按钮 / 画布所在的窗口为父窗口模态显示，弹窗上标明来源插件。
 //
 // · 任意线程可调：宿主切到 UI 线程执行。
 // · **不要同步阻塞等待**返回的 Task（.Result / .Wait()）：弹窗要用 UI 线程，在 UI 线程上阻塞即死锁。

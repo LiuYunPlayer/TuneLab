@@ -105,7 +105,8 @@ internal class ComboBoxController : DropDown, IDataValueController<PropertyValue
         mAcceptSelectionChanged = true;
     }
 
-    static List<DropDownItem> BuildItems(IReadOnlyList<ComboBoxItem> options)
+    // 选项 → 菜单树（分组、分隔线照搬，值为 Multiple 的叶子不列）。画布的弹出菜单（ICanvasHost.PopupMenu）也用它，两处观感一致。
+    internal static List<DropDownItem> BuildItems(IReadOnlyList<ComboBoxItem> options)
     {
         var items = new List<DropDownItem>(options.Count);
         foreach (var option in options)

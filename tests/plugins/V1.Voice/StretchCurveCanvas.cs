@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Globalization;
 using TuneLab.Foundation;
 using TuneLab.SDK;
 using Point = TuneLab.Foundation.Point;
@@ -6,11 +7,14 @@ using Point = TuneLab.Foundation.Point;
 namespace TuneLab.TestPlugins.V1Voice;
 
 // 画布（CanvasConfig）演示：音素内部的拉伸曲线——横向等距的若干控制点，纵向拖动改值（0..1）。
-// 值 = { "points": [y0, …] }，默认 {}（未设 = 线性）。顶层用对象：以后要加成员（如曲线类型）只是多一个键，不必换形状。
+// 值 = { "points": [y0, …], "note": "…" }，默认 {}（未设 = 线性、无备注）。顶层用对象：加成员只是多一个键，不必换形状。
 // 覆盖：绘制（网格 / 折线 / 控制点 / 文字）、悬停（Enter / Move / Leave）、按下 EditScope 宣告编辑、拖动写草稿、松手提交（一个撤销步骤）、
 // 双击控制点复位为线性、滚轮微调指针所在竖列的控制点（只在列上置 Handled，列间照常滚面板；停顿后才提交）、
 // 键盘（画布有焦点时）：↑ / ↓ 微调指针所在竖列的控制点（按住连发，松开才提交）、拖动中按 Esc 取消（丢弃草稿）、
 // 多选不一致（宿主给整体 Multiple，控制点全画成空心）。
+// 弹出（右键）：PopupMenu 当操作菜单——点上右键有"复位这个点 / 输入数值"，任意处有"编辑备注 / 全部复位"；
+// "输入数值"在右上角数值标签处弹 PopupTextBox（传画字的参数，框正好盖在字上）；"编辑备注"弹多行文本框盖在居中画的备注上；
+// "全部复位"先经 DialogService.Confirm 确认。
 // 值由插件自定形状，读取时一律校验（撤销 / preset / 粘贴都可能带来任意形状）：形状不对的位置按线性默认处理。
 sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
 {
@@ -26,6 +30,8 @@ sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
     static readonly Color Handle = Color.FromArgb(255, 230, 230, 230);
     static readonly Color Hot = Color.FromArgb(255, 255, 196, 64);
     static readonly Color Label = Color.FromArgb(160, 255, 255, 255);
+    static readonly Color Note = Color.FromArgb(90, 255, 255, 255);
+    const double LabelSize = 11;
 
     static double LinearAt(int i) => i / (double)(Count - 1);
 
@@ -61,12 +67,28 @@ sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
         return result;
     }
 
-    static PropertyValue Write((double Y, bool Known)[] points)
+    static string ReadNote(PropertyValue value)
+        => value.ToObject(out var obj) && obj.Map.TryGetValue("note", out var note) && note.ToString(out var text) ? text : "";
+
+    // 换掉（member 为 null 则删掉）一个成员，其余成员原样保留。多选不一致时当前值是 Multiple、不是对象，只剩这一个成员。
+    static PropertyValue WithMember(PropertyValue current, string key, PropertyValue? member)
     {
         var map = new Map<string, PropertyValue>();
-        map.Add("points", new PropertyArray(points.Select(p => PropertyValue.Create(p.Y)).ToList()));
+        if (current.ToObject(out var obj))
+        {
+            foreach (var pair in obj.Map)
+            {
+                if (pair.Key != key)
+                    map.Add(pair.Key, pair.Value);
+            }
+        }
+        if (member is { } value)
+            map.Add(key, value);
         return new PropertyObject(map);
     }
+
+    PropertyValue Write((double Y, bool Known)[] points)
+        => WithMember(host.Value, "points", new PropertyArray(points.Select(p => PropertyValue.Create(p.Y)).ToList()));
 
     double X(int i) => Pad + (host.Width - 2 * Pad) * LinearAt(i);
     double YOf(double y) => Pad + (host.Height - 2 * Pad) * (1 - y);
@@ -101,6 +123,7 @@ sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
         for (int i = 0; i < Count; i++)
             d.DrawLine(new Point(X(i), Pad), new Point(X(i), h - Pad), Grid);
         d.DrawLine(new Point(Pad, YOf(0.5)), new Point(w - Pad, YOf(0.5)), Grid);
+        d.DrawText(ReadNote(host.Value), Pad, Pad, w - 2 * Pad, h - 2 * Pad, Note, LabelSize, CanvasAlignment.Center);
 
         var points = Read(host.Value);
         d.DrawPolyline(points.Select((p, i) => new Point(X(i), YOf(p.Y))).ToList(), Curve, 2);
@@ -118,12 +141,17 @@ sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
         if (focus >= 0)
         {
             string text = points[focus].Known ? points[focus].Y.ToString("0.00") : "(Multiple)";
-            d.DrawText(text, w - Pad, Pad, 0, 0, Label, 11, CanvasAlignment.RightTop);
+            d.DrawText(text, w - Pad, Pad, 0, 0, Label, LabelSize, CanvasAlignment.RightTop);
         }
     }
 
     public void OnMouseDown(CanvasMouseButtonEvent e)
     {
+        if (e.Button == CanvasMouseButton.Secondary && mDragging < 0)
+        {
+            ShowMenu(e.Position);
+            return;
+        }
         if (e.Button != CanvasMouseButton.Primary)
             return;
         int hit = HitTest(e.Position);
@@ -252,6 +280,76 @@ sealed class StretchCurveCanvas(ICanvasHost host) : ICanvasControl
     }
 
     Point? mPointer;   // 指针在画布内的位置（Enter / Move 记下，Leave 清掉）；新实例由宿主补发的 Enter 带来
+
+    // 右键菜单：值写成命令名，拿到后自己分派。每一步 await 之后都重新读 host.Value——弹出期间值可能被别处改了
+    //（那时本实例已作废，SetValue 返回 false、什么都不写）。
+    async void ShowMenu(Point at)
+    {
+        int hit = HitTest(at);
+        var items = new List<ComboBoxItem>();
+        if (hit >= 0)
+        {
+            items.Add(new ComboBoxItem(PropertyValue.Create("reset-point"), "Reset This Point"));
+            items.Add(new ComboBoxItem(PropertyValue.Create("set-point"), "Set Value..."));
+            items.Add(ComboBoxItem.Separator());
+        }
+        items.Add(new ComboBoxItem(PropertyValue.Create("edit-note"), "Edit Note..."));
+        items.Add(new ComboBoxItem(PropertyValue.Create("reset-all"), "Reset All..."));
+
+        var picked = await host.PopupMenu(at.X, at.Y, 0, 0, items);
+        if (picked is not { } value || !value.ToString(out var command))
+            return;
+        switch (command)
+        {
+            case "reset-point":
+                SetPoint(hit, LinearAt(hit));
+                break;
+            case "set-point":
+                await EditPoint(hit);
+                break;
+            case "edit-note":
+                await EditNote();
+                break;
+            case "reset-all":
+                if (await host.DialogService.Confirm("Reset Curve", "Reset every point to linear? The note is kept."))
+                {
+                    host.SetValue(WithMember(host.Value, "points", null));
+                    host.CommitValue();
+                }
+                break;
+        }
+    }
+
+    void SetPoint(int index, double y)
+    {
+        var points = Read(host.Value);
+        points[index] = (Math.Clamp(y, 0, 1), true);
+        host.SetValue(Write(points));
+        host.CommitValue();
+    }
+
+    // 在右上角数值标签处弹文本框：参数与 Render 里画标签的 DrawText 相同（零尺寸矩形 + RightTop = 以右上角为锚），框正好盖在字上。
+    async Task EditPoint(int index)
+    {
+        var point = Read(host.Value)[index];
+        mHover = index;   // 弹出期间标签照常显示这个点
+        host.Invalidate();
+        string? text = await host.PopupTextBox(point.Known ? point.Y.ToString("0.00", CultureInfo.InvariantCulture) : "",
+            host.Width - Pad, Pad, 0, 0, LabelSize, CanvasAlignment.RightTop);
+        if (text != null && double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var y) && double.IsFinite(y))
+            SetPoint(index, y);
+    }
+
+    // 备注：多行文本框盖在居中画的备注上（同一个矩形、同样居中），Shift+Enter 换行。清空即删掉成员。
+    async Task EditNote()
+    {
+        string? text = await host.PopupTextBox(ReadNote(host.Value), Pad, Pad, host.Width - 2 * Pad, host.Height - 2 * Pad,
+            LabelSize, CanvasAlignment.Center, multiline: true);
+        if (text == null)
+            return;
+        host.SetValue(WithMember(host.Value, "note", text.Length == 0 ? (PropertyValue?)null : PropertyValue.Create(text)));
+        host.CommitValue();
+    }
 
     void EndDrag()
     {

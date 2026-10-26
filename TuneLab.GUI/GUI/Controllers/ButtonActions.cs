@@ -58,6 +58,9 @@ internal static class ButtonActions
 
     static readonly HashSet<string> sRunning = new();
 
+    // 无窗口口径的弹窗服务（宿主未注入时的默认，测试 / 无宿主环境用）。
+    internal static IDialogService NoWindowDialogs => NoWindowClick.Instance;
+
     // 无窗口口径：提示无声、确认 = false、进度直接执行 work、输入 = null。
     sealed class NoWindowClick : IButtonClickContext, IDialogService, IProgressReporter
     {

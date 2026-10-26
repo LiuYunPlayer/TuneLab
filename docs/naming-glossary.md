@@ -28,8 +28,9 @@
 | 引擎在合成时发布的只读参数曲线（及其声明） | `SynthesizedParameter` / `GetSynthesizedParameterConfigs` / `hasSynthesizedParameter` | 合成参数（轨） | `readback`（符号面已清空） |
 | 引擎发布的只读音高曲线 | `SynthesizedPitch` | 合成音高 | — |
 | 引擎发布的只读音素 | `SynthesizedPhoneme` / `SynthesizedSyllable` | 合成音素 | — |
-| 宿主替插件弹出的提示 / 确认 / 进度 / 输入窗（只在按钮点击期间） | `IDialogService`（经 `IButtonClickContext.DialogService`；宿主侧 `HostDialogService`） | 弹窗服务 | `GetDialogs` / `IHostDialogs` / 属性名 `Dialogs`（读起来像"取一组对话框窗口"，已改名）；不挂在全局 `ITuneLabContext` 上（只在点击期间可用） |
+| 宿主替插件弹出的提示 / 确认 / 进度 / 输入窗（按钮点击期间、画布实例有效期内） | `IDialogService`（经 `IButtonClickContext.DialogService` / `ICanvasHost.DialogService`；宿主侧 `HostDialogService`） | 弹窗服务 | `GetDialogs` / `IHostDialogs` / 属性名 `Dialogs`（读起来像"取一组对话框窗口"，已改名）；不挂在全局 `ITuneLabContext` 上（只在点击期间 / 画布实例有效期内可用） |
 | 向用户索取几个参数的表单（脚本工具与插件按钮共用一个表单窗） | `inputs`（脚本 `getInputConfig` / 插件 `IDialogService.PromptInputs`；窗口 `PropertyFormWindow`） | 输入 | `ShowForm`（描述的是界面形态不是意图）；`RequestInputs` / `AskInputs` |
+| 画布上就地出现、不模态的轻量输入（一段文字 / 从几项里挑一项） | `Popup*`（`ICanvasHost.PopupTextBox` / `PopupMenu`） | 弹出 | `Prompt*`（Prompt 留给模态表单 `PromptInputs`；两者的区别正在形态——就地轻量 vs 模态表单，故此处按形态命名，与上一行"别按形态命名"不矛盾） |
 | 插件宣告它此前给出的声明（`Get*Config` 族）已过期、请宿主重新询问 | `Invalidate*`（`InvalidatePart` / `InvalidateNotes`；宿主侧 `DeclarationsInvalidated` / `DeclarationInvalidation`） | 声明失效 | `Notify*Changed`（读成「数据变了」，而数据归宿主、插件改不了）；`*Configs` 后缀（作废范围按对象划，不按 config 划） |
 | **上位概念**：引擎产物被显示出来这件事（涵盖音素 / 音高 / 参数三种） | —（无符号，勿造） | 回显 | 不得用"回显"指代 `SynthesizedParameter` 这一具体族 |
 | 合成机器类（会话 / 上下文 / 引擎 / 快照） | `VoiceSynthesis*` / `InstrumentSynthesis*` 中缀 | — | 见 `sdk-api-evolution.md` 的命名约定 |
