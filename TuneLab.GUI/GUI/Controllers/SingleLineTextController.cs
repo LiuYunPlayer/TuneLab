@@ -22,8 +22,10 @@ namespace TuneLab.GUI.Controllers;
 internal class SingleLineTextController : LayerPanel, IDataValueController<string>
 {
     public IActionEvent ValueWillChange => mTextInput.EnterInput;
-    public IActionEvent ValueChanged => mTextInput.TextChanged;
-    public IActionEvent ValueCommitted => mTextInput.EndInput;
+    // 确认时才写入（不逐键写预览）：失焦 / Enter 时文字与开始编辑时不同才发一次 ValueChanged，随即 ValueCommitted。
+    // 逐键写会在第一次写入时就通知到合成引擎（即使随后改回原样或按 Esc），白白重合成；确认时写一次则改回原样 = 什么都没发生。
+    public IActionEvent ValueChanged => mValueChanged;
+    public IActionEvent ValueCommitted => mValueCommitted;
     public string Value { get => mTextInput.Text; set => mTextInput.Text = value; }
 
     // 掩码开关：'\0' 为 TextBox 默认（不掩码），非零字符即逐字符掩码显示。
@@ -34,10 +36,18 @@ internal class SingleLineTextController : LayerPanel, IDataValueController<strin
         mTextInput = new TextInput()
         {
             Height = 28,
-            AcceptsReturn = false
+            AcceptsReturn = false,
+            DiscardOnEscape = true,
         };
 
         Children.Add(mTextInput);
+        mTextInput.EnterInput.Subscribe(() => mStartText = mTextInput.Text);
+        mTextInput.EndInput.Subscribe(() =>
+        {
+            if (mTextInput.Text != mStartText)
+                mValueChanged.Invoke();
+            mValueCommitted.Invoke();
+        });
     }
 
     public void Display(string text)
@@ -56,4 +66,7 @@ internal class SingleLineTextController : LayerPanel, IDataValueController<strin
     }
 
     readonly TextInput mTextInput;
+    readonly ActionEvent mValueChanged = new();
+    readonly ActionEvent mValueCommitted = new();
+    string mStartText = string.Empty;   // 开始编辑时的文字（多值时为空），确认时与它比对
 }

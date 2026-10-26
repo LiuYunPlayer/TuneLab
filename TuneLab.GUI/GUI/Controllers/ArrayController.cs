@@ -982,7 +982,7 @@ internal abstract class ElementWidget : IDisposable
             if (mIsMultiline)
             {
                 mSingleLine = null;
-                mMultiline = new MultilineTextInput { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
+                mMultiline = new MultilineTextInput { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch, DiscardOnEscape = true };
                 mMultiline.SetMaxVisibleLines(config.MaxVisibleLines);
                 mMultiline.BindDataProperty(field, mFieldScope);
                 EditGate.Track(mMultiline, mFieldScope);

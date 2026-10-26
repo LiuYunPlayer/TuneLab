@@ -570,7 +570,7 @@ internal class PropertyObjectController : StackPanel
             if (mIsMultiline)
             {
                 // 不池化：AvaloniaEdit 控件自带文档与渲染层、状态面比单行大得多，复用要清的东西比省下的多。
-                mMultiline = new MultilineTextInput() { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
+                mMultiline = new MultilineTextInput() { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch, DiscardOnEscape = true };
                 mMultiline.SetMaxVisibleLines(config.MaxVisibleLines);
                 mMultiline.BindDataProperty(field, mFieldScope);
                 EditGate.Track(mMultiline, mFieldScope);
