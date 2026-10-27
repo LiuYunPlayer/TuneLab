@@ -232,6 +232,14 @@ public sealed class SuiteVoiceEngine : IVoiceSynthesisEngine, IExtensionSettings
                 SliderConfig.Linear(0.8, 0, 1),
             ]));
 
+        // ④-F 定长数组 layers，元素是对象（ArrayConfig[ObjectConfig]）：absent → 2 行虚拟行、各显示默认值，
+        //   编辑任一行里的任一字段即物化整段（复合 seed 元素的懒视图，见宿主 SeedPositionView / SeedObjectView）。
+        map.Add(("layers", "Layers"), ArrayConfig.Create(
+            [
+                ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig> { { ("gain", "Gain"), SliderConfig.Linear(0.5, 0, 1) }, { ("name", "Name"), TextBoxConfig.Create("A") } }),
+                ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig> { { ("gain", "Gain"), SliderConfig.Linear(0.3, 0, 1) }, { ("name", "Name"), TextBoxConfig.Create("B") } }),
+            ]));
+
         // ④-E note 级 tag 组 moods（TagConfig）：12 个候选（≥ 10 → + 菜单出搜索框）、默认已选 calm；
         //   含数值型的值（1/2/3 显示为 Level N），供多选下「部分有」的半透明态与按值增删的真机测试。
         map.Add(("moods", "Moods"), TagConfig.Create(
