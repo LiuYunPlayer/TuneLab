@@ -52,12 +52,12 @@ internal static class ScriptWriteExecutor
         try
         {
             if (policy.Mode == AuthorizationMode.Auto)
-                return CommandResult.Ok(Outcome(await Run(preview: false), null));
+                return Result(Outcome(await Run(preview: false), null));
 
             // 只读建议 / 需确认：先预览（跑一遍、干净回退、报会改动数）。
             var preview = await Run(preview: true);
             if (!preview.Ok)
-                return CommandResult.Ok(Outcome(preview, null));   // 出错 / 仍被拦：如实回报（已回退）
+                return Result(Outcome(preview, null));   // 出错 / 仍被拦：如实回报（已回退）
             if (preview.Changes == 0)
                 return CommandResult.Ok(new JsonObject
                 {
@@ -84,7 +84,7 @@ internal static class ScriptWriteExecutor
 
             // 两种同意都要如实点明"用户被问过并同意了"——否则 ApplyOnce 的回报与 Auto 档一字不差，调用方无从
             // 知道确认发生过、也判不出当前档位（实测表现为模型反复追问"是不是弹了卡片"）。
-            return CommandResult.Ok(Outcome(await Run(preview: false), decision == AuthorizationDecision.ApplyAlways
+            return Result(Outcome(await Run(preview: false), decision == AuthorizationDecision.ApplyAlways
                 ? "(The user was asked to confirm, approved it, and switched authorization to auto-apply; your later edits will apply without asking.)\n"
                 : "(The user was asked to confirm and approved these edits; authorization stays at Confirm, so your next edit will ask again.)\n"));
         }
@@ -110,6 +110,17 @@ internal static class ScriptWriteExecutor
             ["note"] = note,
         };
         return data;
+    }
+
+    // 脚本出错（已整体回滚）或一直被拦没跑成 = 这条命令失败：CLI 据此退出码非 0、--commands 批处理在这一行停下
+    //（否则后面的命令照常跑，比如把一个没改成的工程导出覆盖掉）。消息即平时的回报文字，结构化结果随失败一并带上。
+    // 只打印、没改动的脚本，以及确认流程里的拒绝 / 只读建议等，都是如实回报的正常结局，仍算成功。
+    internal static CommandResult Result(JsonNode data)
+    {
+        var outcome = data["outcome"]?.GetValue<string>();
+        return outcome is "error" or "blocked"
+            ? CommandResult.Fail(outcome == "error" ? "script_error" : "script_blocked", Render(data), data)
+            : CommandResult.Ok(data);
     }
 
     static JsonNode? Text(string? s) => string.IsNullOrEmpty(s) ? null : s.TrimEnd('\n');
