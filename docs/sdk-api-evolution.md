@@ -121,3 +121,9 @@ SDK 公开枚举（`PropertyType` / `SynthesisSegmentStatus` / `DragAxis` 等）
 4. 封闭族：基类与它的几种具体情况（如 `VoiceSourceLayoutItem` / `Voice` / `Group`）。
 
 一旦附属类型被第二个类型用到，就该拆出去。族的总说明留在族的主文件里，拆出去的成员文件头一行指回去。
+
+## 6. 下一个大版本（3.0）才能做的事
+
+已发布的签名里认定形状不对、但改了就是二进制破坏的，记在这里，开 3.0 时逐条对照（届时连同 `*REMOVED*` 留痕一起做）：
+
+- **`Foundation.Point` 改成只读形状**：现在是带公开可写字段 `X` / `Y` 的 struct。字段进了调用方的 IL（`ldfld` / `stfld`），改成属性即 `MissingFieldException`，而公开字段把内部表示永久交了出去、也让"改了副本、原值没变"这类 bug 成为可能。后来新增的值类型一律是只读 record struct（属性、`with` 改值），3.0 时 `Point` 与它们对齐。
