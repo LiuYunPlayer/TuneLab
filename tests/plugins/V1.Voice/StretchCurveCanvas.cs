@@ -1,8 +1,6 @@
-using System.Drawing;
 using System.Globalization;
 using TuneLab.Foundation;
 using TuneLab.SDK;
-using Point = TuneLab.Foundation.Point;
 
 namespace TuneLab.TestPlugins.V1Voice;
 
@@ -33,9 +31,9 @@ sealed class StretchCurveCanvas(ICanvasHost host, IReadOnlyList<PropertyValue> v
 
     // 画笔、画刷、文字样式都不可变：建好存进静态字段，每帧直接用（宿主据此缓存原生对象）。
     static readonly CanvasPen Grid = CanvasPen.Create(Color.FromArgb(40, 255, 255, 255));
-    static readonly CanvasPen Curve = CanvasPen.Create(Color.FromArgb(255, 115, 194, 229), 2);
-    static readonly Color Handle = Color.FromArgb(255, 230, 230, 230);
-    static readonly Color Hot = Color.FromArgb(255, 255, 196, 64);
+    static readonly CanvasPen Curve = CanvasPen.Create(Color.FromHex("#73C2E5"), 2);
+    static readonly Color Handle = Color.FromRgb(230, 230, 230);
+    static readonly Color Hot = Color.FromRgb(255, 196, 64);
     static readonly CanvasBrush HandleFill = CanvasBrush.Solid(Handle), HotFill = CanvasBrush.Solid(Hot);
     static readonly CanvasPen HandleRing = CanvasPen.Create(Handle, 1.5), HotRing = CanvasPen.Create(Hot, 1.5);
     static readonly CanvasBrush Label = CanvasBrush.Solid(Color.FromArgb(160, 255, 255, 255));
@@ -159,8 +157,8 @@ sealed class StretchCurveCanvas(ICanvasHost host, IReadOnlyList<PropertyValue> v
     }
 
     // 两处文字的位置：Render 画字与弹出文本框用同一个矩形。数值标签是零尺寸矩形 = 以右上角为锚。
-    CanvasRect LabelAt => new(host.Width - Pad, Pad, 0, 0);
-    CanvasRect NoteBounds => new(Pad, Pad, host.Width - 2 * Pad, host.Height - 2 * Pad);
+    Rect LabelAt => new(host.Width - Pad, Pad, 0, 0);
+    Rect NoteBounds => new(Pad, Pad, host.Width - 2 * Pad, host.Height - 2 * Pad);
 
     public void Render(ICanvasDrawing d)
     {
@@ -335,7 +333,7 @@ sealed class StretchCurveCanvas(ICanvasHost host, IReadOnlyList<PropertyValue> v
         items.Add(new ComboBoxItem(PropertyValue.Create("edit-note"), "Edit Note..."));
         items.Add(new ComboBoxItem(PropertyValue.Create("reset-all"), "Reset All..."));
 
-        var picked = await host.PopupMenu(new CanvasRect(at.X, at.Y, 0, 0), items);
+        var picked = await host.PopupMenu(new Rect(at.X, at.Y, 0, 0), items);
         if (picked is not { } value || !value.ToString(out var command))
             return;
         switch (command)

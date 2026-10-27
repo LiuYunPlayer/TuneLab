@@ -17,7 +17,7 @@ public sealed class CanvasImage : IDisposable
         return new(RequireFactory().Decode(data));
     }
 
-    // 从像素创建：每像素 4 字节，依次为 R、G、B、A（非预乘），逐行从上到下、行间无填充，长度须恰为 width × height × 4。
+    // 从像素创建：每像素 4 字节，依次为 R、G、B、A（非预乘；这是像素在内存里的排布，与 Color 工厂的参数顺序是两回事），逐行从上到下、行间无填充，长度须恰为 width × height × 4。
     public static CanvasImage FromPixelData(int width, int height, ReadOnlySpan<byte> rgba)
     {
         if (width <= 0)

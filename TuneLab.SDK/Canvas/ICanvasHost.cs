@@ -54,8 +54,8 @@ public interface ICanvasHost
     // · PopupMenu：在给定矩形下方弹出菜单（下方放不下则翻到上方；宽高给 0 即在该点弹出，如右键菜单）。选项同下拉框
     //  （ComboBoxItem：分组为子菜单、分隔线、叶子多时自动加搜索框）。选中返回该项的值，点别处或 Esc 关掉返回 null。
     //   既能当下拉选项，也能当操作菜单（值写成命令名，拿到后自己分派）。
-    Task<string?> PopupTextBox(string text, CanvasRect bounds, CanvasTextStyle? style = null, bool multiline = false);
-    Task<PropertyValue?> PopupMenu(CanvasRect anchor, IReadOnlyList<ComboBoxItem> items);
+    Task<string?> PopupTextBox(string text, Rect bounds, CanvasTextStyle? style = null, bool multiline = false);
+    Task<PropertyValue?> PopupMenu(Rect anchor, IReadOnlyList<ComboBoxItem> items);
 
     // 弹窗服务（提示 / 确认 / 进度 / 输入表单）：与按钮点击拿到的是同一套（见 IButtonClickContext.DialogService），以画布
     // 所在的窗口为父窗口，弹窗上标明来源插件。本实例有效期内都能用（画布没有"一次点击"的边界），实例作废后再调抛

@@ -19,6 +19,7 @@ using Slider = TuneLab.GUI.Components.Slider;
 using TuneLab.I18N;
 
 using TuneLab.GUI.Controllers;
+using Color = Avalonia.Media.Color;
 
 namespace TuneLab.UI;
 

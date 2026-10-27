@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using TuneLab.Foundation;
 using TuneLab.GUI;
+using Size = Avalonia.Size;
 
 namespace TuneLab.UI;
 

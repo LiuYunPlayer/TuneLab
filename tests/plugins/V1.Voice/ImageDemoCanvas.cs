@@ -1,9 +1,7 @@
-using System.Drawing;
 using System.Numerics;
 using System.Text;
 using TuneLab.Foundation;
 using TuneLab.SDK;
-using Point = TuneLab.Foundation.Point;
 
 namespace TuneLab.TestPlugins.V1Voice;
 
@@ -68,7 +66,7 @@ sealed class ImageDemoCanvas(ICanvasHost host, IReadOnlyList<PropertyValue> valu
         if (Portrait.Value is { } portrait)
         {
             double pw = size * portrait.Width / portrait.Height;
-            var bounds = new CanvasRect(Pad, Pad, pw, size);
+            var bounds = new Rect(Pad, Pad, pw, size);
             using (d.PushClip(bounds, 8))
             using (d.PushOpacity(mInside ? 1 : 0.5))
                 d.DrawImage(portrait, bounds);
@@ -77,12 +75,12 @@ sealed class ImageDemoCanvas(ICanvasHost host, IReadOnlyList<PropertyValue> valu
         // 星形：绕自身中心旋转。
         double cx = w / 2, cy = h / 2;
         using (d.PushTransform(Matrix3x2.CreateRotation((float)(CurrentAngle * Math.PI / 180), new Vector2((float)cx, (float)cy))))
-            d.DrawImage(Star.Value, new CanvasRect(cx - size / 2, cy - size / 2, size, size));
-        d.DrawText(Mixed ? "Mixed" : $"{CurrentAngle:0}°", new CanvasRect(cx + size / 2 + 4, h - Pad, 0, 0), LabelBrush, LabelStyle);
+            d.DrawImage(Star.Value, new Rect(cx - size / 2, cy - size / 2, size, size));
+        d.DrawText(Mixed ? "Mixed" : $"{CurrentAngle:0}°", new Rect(cx + size / 2 + 4, h - Pad, 0, 0), LabelBrush, LabelStyle);
 
         // 色带：按物理像素生成。
         double gw = Math.Min(120, w / 4), gx = w - Pad - gw;
-        var band = new CanvasRect(gx, Pad, gw, size);
+        var band = new Rect(gx, Pad, gw, size);
         d.DrawImage(Gradient(gw, size), band);
         d.StrokeRectangle(band, Frame);
     }

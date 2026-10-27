@@ -23,6 +23,9 @@ using TuneLab.I18N;
 
 using TuneLab.Extensions.Formats;
 using Point = Avalonia.Point;
+using Color = Avalonia.Media.Color;
+using Rect = Avalonia.Rect;
+using Size = Avalonia.Size;
 
 namespace TuneLab.UI;
 

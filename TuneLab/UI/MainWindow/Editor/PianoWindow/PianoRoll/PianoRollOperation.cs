@@ -9,6 +9,7 @@ using TuneLab.Foundation;
 using TuneLab.GUI.Input;
 using TuneLab.Utils;
 using TuneLab.Audio;
+using Rect = Avalonia.Rect;
 
 namespace TuneLab.UI;
 

@@ -1,1 +1,37 @@
 #nullable enable
+static TuneLab.Foundation.Color.FromArgb(byte a, byte r, byte g, byte b) -> TuneLab.Foundation.Color
+static TuneLab.Foundation.Color.FromHex(string! hex) -> TuneLab.Foundation.Color
+static TuneLab.Foundation.Color.FromRgb(byte r, byte g, byte b) -> TuneLab.Foundation.Color
+static TuneLab.Foundation.Rect.FromLTRB(double left, double top, double right, double bottom) -> TuneLab.Foundation.Rect
+TuneLab.Foundation.Color
+TuneLab.Foundation.Color.A.get -> byte
+TuneLab.Foundation.Color.B.get -> byte
+TuneLab.Foundation.Color.Color() -> void
+TuneLab.Foundation.Color.G.get -> byte
+TuneLab.Foundation.Color.R.get -> byte
+TuneLab.Foundation.Color.WithAlpha(byte alpha) -> TuneLab.Foundation.Color
+TuneLab.Foundation.Rect
+TuneLab.Foundation.Rect.Bottom.get -> double
+TuneLab.Foundation.Rect.Center.get -> TuneLab.Foundation.Point
+TuneLab.Foundation.Rect.Contains(TuneLab.Foundation.Point point) -> bool
+TuneLab.Foundation.Rect.Height.get -> double
+TuneLab.Foundation.Rect.Height.init -> void
+TuneLab.Foundation.Rect.Inflate(double dx, double dy) -> TuneLab.Foundation.Rect
+TuneLab.Foundation.Rect.Left.get -> double
+TuneLab.Foundation.Rect.Rect() -> void
+TuneLab.Foundation.Rect.Rect(double X, double Y, double Width, double Height) -> void
+TuneLab.Foundation.Rect.Right.get -> double
+TuneLab.Foundation.Rect.Top.get -> double
+TuneLab.Foundation.Rect.Width.get -> double
+TuneLab.Foundation.Rect.Width.init -> void
+TuneLab.Foundation.Rect.X.get -> double
+TuneLab.Foundation.Rect.X.init -> void
+TuneLab.Foundation.Rect.Y.get -> double
+TuneLab.Foundation.Rect.Y.init -> void
+TuneLab.Foundation.Size
+TuneLab.Foundation.Size.Height.get -> double
+TuneLab.Foundation.Size.Height.init -> void
+TuneLab.Foundation.Size.Size() -> void
+TuneLab.Foundation.Size.Size(double Width, double Height) -> void
+TuneLab.Foundation.Size.Width.get -> double
+TuneLab.Foundation.Size.Width.init -> void

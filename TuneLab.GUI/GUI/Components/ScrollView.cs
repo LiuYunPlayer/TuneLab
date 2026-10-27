@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using System;
 using TuneLab.Foundation;
+using Size = Avalonia.Size;
 
 namespace TuneLab.GUI.Components;
 

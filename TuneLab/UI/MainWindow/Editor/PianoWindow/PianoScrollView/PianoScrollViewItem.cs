@@ -14,6 +14,7 @@ using Avalonia.Media;
 using TuneLab.GUI.Input;
 
 using Point = Avalonia.Point;
+using Rect = Avalonia.Rect;
 
 namespace TuneLab.UI;
 

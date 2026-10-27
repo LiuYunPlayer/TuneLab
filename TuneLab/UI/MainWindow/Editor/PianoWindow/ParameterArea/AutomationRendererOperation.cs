@@ -15,6 +15,7 @@ using TuneLab.I18N;
 using TuneLab.Utils;
 using TuneLab.SDK;
 using TuneLab.Configs;
+using Rect = Avalonia.Rect;
 
 namespace TuneLab.UI;
 

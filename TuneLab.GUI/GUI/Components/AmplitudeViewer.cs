@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using TuneLab.Foundation;
 using TuneLab.GUI.Input;
 using TuneLab.Utils;
+using Rect = Avalonia.Rect;
 
 namespace TuneLab.GUI.Components
 {

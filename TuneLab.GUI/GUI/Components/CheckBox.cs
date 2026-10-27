@@ -11,6 +11,7 @@ using TuneLab.GUI;
 using TuneLab.GUI.Components;
 
 using TuneLab.GUI.Controllers;
+using Color = Avalonia.Media.Color;
 
 namespace TuneLab.GUI.Components;
 

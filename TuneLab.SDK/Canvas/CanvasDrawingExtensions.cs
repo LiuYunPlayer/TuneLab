@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Point = TuneLab.Foundation.Point;
+using TuneLab.Foundation;
 
 namespace TuneLab.SDK;
 
@@ -19,11 +19,11 @@ public static class CanvasDrawingExtensions
     public static void StrokePolygon(this ICanvasDrawing drawing, IReadOnlyList<Point> points, CanvasPen pen)
         => drawing.DrawGeometry(CanvasGeometry.Polygon(points), null, pen);
 
-    public static void DrawRectangle(this ICanvasDrawing drawing, CanvasRect rect, CanvasBrush? fill, CanvasPen? stroke, double cornerRadius = 0)
+    public static void DrawRectangle(this ICanvasDrawing drawing, Rect rect, CanvasBrush? fill, CanvasPen? stroke, double cornerRadius = 0)
         => drawing.DrawGeometry(CanvasGeometry.Rectangle(rect, cornerRadius), fill, stroke);
-    public static void FillRectangle(this ICanvasDrawing drawing, CanvasRect rect, CanvasBrush brush, double cornerRadius = 0)
+    public static void FillRectangle(this ICanvasDrawing drawing, Rect rect, CanvasBrush brush, double cornerRadius = 0)
         => drawing.DrawGeometry(CanvasGeometry.Rectangle(rect, cornerRadius), brush, null);
-    public static void StrokeRectangle(this ICanvasDrawing drawing, CanvasRect rect, CanvasPen pen, double cornerRadius = 0)
+    public static void StrokeRectangle(this ICanvasDrawing drawing, Rect rect, CanvasPen pen, double cornerRadius = 0)
         => drawing.DrawGeometry(CanvasGeometry.Rectangle(rect, cornerRadius), null, pen);
 
     public static void DrawEllipse(this ICanvasDrawing drawing, Point center, double radiusX, double radiusY, CanvasBrush? fill, CanvasPen? stroke)
@@ -34,6 +34,6 @@ public static class CanvasDrawingExtensions
         => drawing.DrawGeometry(CanvasGeometry.Ellipse(center, radiusX, radiusY), null, pen);
 
     // 矩形裁剪（可圆角）。
-    public static IDisposable PushClip(this ICanvasDrawing drawing, CanvasRect rect, double cornerRadius = 0)
+    public static IDisposable PushClip(this ICanvasDrawing drawing, Rect rect, double cornerRadius = 0)
         => drawing.PushClip(CanvasGeometry.Rectangle(rect, cornerRadius));
 }

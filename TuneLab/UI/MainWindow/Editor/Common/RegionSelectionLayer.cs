@@ -4,6 +4,8 @@ using TuneLab.Foundation;
 using TuneLab.GUI;
 using TuneLab.GUI.Components;
 using TuneLab.Utils;
+using Color = Avalonia.Media.Color;
+using Rect = Avalonia.Rect;
 
 namespace TuneLab.UI;
 

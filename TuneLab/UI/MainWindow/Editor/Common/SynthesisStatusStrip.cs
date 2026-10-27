@@ -7,6 +7,7 @@ using TuneLab.GUI;
 using TuneLab.Data;
 using TuneLab.Data.Synthesis;
 using TuneLab.Utils;
+using Rect = Avalonia.Rect;
 
 namespace TuneLab.UI;
 

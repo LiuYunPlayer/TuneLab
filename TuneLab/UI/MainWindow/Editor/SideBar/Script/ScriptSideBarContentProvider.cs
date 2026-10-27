@@ -21,6 +21,7 @@ using TuneLab.I18N;
 using TuneLab.SDK;
 using TuneLab.Scripting;
 using TuneLab.Utils;
+using Color = Avalonia.Media.Color;
 
 namespace TuneLab.UI;
 

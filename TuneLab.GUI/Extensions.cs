@@ -18,6 +18,7 @@ using Avalonia.Platform.Storage;
 using System.Linq;
 using System.IO;
 using System.Text;
+using Color = Avalonia.Media.Color;
 
 namespace TuneLab.Utils;
 

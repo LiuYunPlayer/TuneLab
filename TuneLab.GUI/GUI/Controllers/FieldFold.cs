@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using TuneLab.Foundation;
 using TuneLab.Utils;
 using IDataObject = TuneLab.Foundation.IDataObject;
+using Color = Avalonia.Media.Color;
 
 namespace TuneLab.GUI.Controllers;
 

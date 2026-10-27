@@ -16,6 +16,7 @@ using TuneLab.Utils;
 using TuneLab.I18N;
 
 using Point = Avalonia.Point;
+using Rect = Avalonia.Rect;
 
 namespace TuneLab.UI;
 

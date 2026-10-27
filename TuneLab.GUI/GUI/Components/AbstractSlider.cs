@@ -8,6 +8,7 @@ using TuneLab.Utils;
 using TuneLab.SDK;
 
 using TuneLab.GUI.Controllers;
+using Size = Avalonia.Size;
 
 namespace TuneLab.GUI.Components;
 

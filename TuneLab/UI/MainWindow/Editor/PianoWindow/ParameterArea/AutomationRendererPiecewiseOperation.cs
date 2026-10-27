@@ -10,6 +10,7 @@ using TuneLab.GUI.Input;
 using TuneLab.SDK;
 using TuneLab.Utils;
 using TuneLab.Configs;
+using Color = Avalonia.Media.Color;
 
 namespace TuneLab.UI;
 

@@ -26,6 +26,7 @@ using TuneLab.Utils;
 using ScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility;
 using PlacementMode = Avalonia.Controls.PlacementMode;
 using ComboBoxItem = TuneLab.SDK.ComboBoxItem;   // 消歧：避开 Avalonia.Controls.ComboBoxItem
+using Color = Avalonia.Media.Color;
 
 namespace TuneLab.UI;
 

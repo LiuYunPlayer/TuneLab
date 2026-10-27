@@ -16,6 +16,7 @@ using TuneLab.GUI.Input;
 using TuneLab.SDK;
 using TuneLab.Utils;
 using Point = TuneLab.Foundation.Point;
+using Rect = Avalonia.Rect;
 
 namespace TuneLab.GUI.Components;
 
@@ -567,7 +568,7 @@ internal sealed class PluginCanvas : Component
         // —— 弹出：同一时刻至多一个（mPopup），关闭 = 结果为 null。结果经 RunContinuationsAsynchronously 交回插件：
         // 插件的续体总在弹出状态清掉之后才跑，那时再 SetValue / CommitValue 不会撞上"弹出仍开着"。
 
-        public Task<string?> PopupTextBox(string text, CanvasRect bounds, CanvasTextStyle? style = null, bool multiline = false)
+        public Task<string?> PopupTextBox(string text, TuneLab.Foundation.Rect bounds, CanvasTextStyle? style = null, bool multiline = false)
         {
             VerifyThread();
             ArgumentNullException.ThrowIfNull(text);
@@ -594,7 +595,7 @@ internal sealed class PluginCanvas : Component
             return result.Task;
         }
 
-        public Task<PropertyValue?> PopupMenu(CanvasRect anchor, IReadOnlyList<TuneLab.SDK.ComboBoxItem> items)
+        public Task<PropertyValue?> PopupMenu(TuneLab.Foundation.Rect anchor, IReadOnlyList<TuneLab.SDK.ComboBoxItem> items)
         {
             VerifyThread();
             ArgumentNullException.ThrowIfNull(items);
@@ -745,7 +746,7 @@ internal sealed class PluginCanvas : Component
             mExpired = true;
         }
 
-        public void DrawImage(CanvasImage image, CanvasRect bounds)
+        public void DrawImage(CanvasImage image, TuneLab.Foundation.Rect bounds)
         {
             Verify();
             ArgumentNullException.ThrowIfNull(image);
@@ -843,7 +844,7 @@ internal sealed class PluginCanvas : Component
             }
         }
 
-        public void DrawText(string text, CanvasRect bounds, CanvasBrush brush, CanvasTextStyle? style = null)
+        public void DrawText(string text, TuneLab.Foundation.Rect bounds, CanvasBrush brush, CanvasTextStyle? style = null)
         {
             Verify();
             ArgumentNullException.ThrowIfNull(text);
@@ -855,7 +856,7 @@ internal sealed class PluginCanvas : Component
             context.DrawString(text, ToRect(bounds), BrushOf(brush), FontSizeOf(style), align, align, alignLines: true);
         }
 
-        public CanvasSize MeasureText(string text, CanvasTextStyle? style = null)
+        public TuneLab.Foundation.Size MeasureText(string text, CanvasTextStyle? style = null)
         {
             Verify();
             ArgumentNullException.ThrowIfNull(text);
@@ -872,7 +873,7 @@ internal sealed class PluginCanvas : Component
                 throw new InvalidOperationException("ICanvasDrawing is only valid during ICanvasControl.Render.");
         }
 
-        static Rect ToRect(CanvasRect rect) => new(rect.X, rect.Y, Math.Max(0, rect.Width), Math.Max(0, rect.Height));
+        static Rect ToRect(TuneLab.Foundation.Rect rect) => new(rect.X, rect.Y, Math.Max(0, rect.Width), Math.Max(0, rect.Height));
 
         // 样式与形状对象不可变：转成的原生对象缓存在它们身上，插件存进静态字段反复用时每帧不必重建。
         static IBrush BrushOf(CanvasBrush brush)
@@ -883,7 +884,7 @@ internal sealed class PluginCanvas : Component
                 pen.LineCap switch { CanvasLineCap.Flat => PenLineCap.Flat, CanvasLineCap.Square => PenLineCap.Square, _ => PenLineCap.Round },
                 pen.LineJoin switch { CanvasLineJoin.Miter => PenLineJoin.Miter, CanvasLineJoin.Bevel => PenLineJoin.Bevel, _ => PenLineJoin.Round }));
 
-        static Avalonia.Media.Color ToAvalonia(System.Drawing.Color color) => Avalonia.Media.Color.FromArgb(color.A, color.R, color.G, color.B);
+        static Avalonia.Media.Color ToAvalonia(TuneLab.Foundation.Color color) => Avalonia.Media.Color.FromArgb(color.A, color.R, color.G, color.B);
 
         // 折线 / 多边形（与按形状裁剪的椭圆）转成的 Avalonia 几何；退化的（点不够、半径为负）为 null。
         static Geometry? GeometryOf(CanvasGeometry geometry)

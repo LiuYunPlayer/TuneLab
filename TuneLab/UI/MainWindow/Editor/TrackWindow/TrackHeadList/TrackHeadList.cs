@@ -14,6 +14,8 @@ using TuneLab.GUI.Input;
 using TuneLab.Data;
 using TuneLab.Utils;
 using Avalonia.Threading;
+using Size = Avalonia.Size;
+using Rect = Avalonia.Rect;
 
 namespace TuneLab.UI;
 

@@ -14,6 +14,7 @@ using TuneLab.SDK;
 using TuneLab.Utils;
 
 using Point = Avalonia.Point;
+using Color = Avalonia.Media.Color;
 
 namespace TuneLab.UI;
 
