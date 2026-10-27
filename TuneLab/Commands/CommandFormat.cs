@@ -36,7 +36,12 @@ internal static class ConfigText
         AutomationConfig a => a.IsPiecewise
             ? string.Format("automation track, range [{0}, {1}], piecewise (no baseline)", FormatNum(a.MinValue), FormatNum(a.MaxValue))
             : string.Format("automation track, range [{0}, {1}], default {2}", FormatNum(a.MinValue), FormatNum(a.MaxValue), FormatNum(a.DefaultValue)),
-        ObjectConfig => "object (grouped fields)",
+        // 复合字段整体写入（同 ConfigValues.Check）：把每个成员的形状递归写出来，调用方据此拼出完整的值。
+        ObjectConfig o => "object {" + Fields(o.Properties) + "}",
+        ArrayConfig a => string.Format("array of {0} element(s) [{1}]", a.Elements.Count, string.Join(", ", a.Elements.Select(Describe))),
+        ListConfig l => "list (any length; write the whole array)" + ListElements(l),
+        ExtensibleObjectConfig e => "object whose keys can be added or removed {" + Fields(e.Properties)
+            + (AddableKeyIds(e.AddableElements) is { Length: > 0 } addable ? (e.Properties.Count > 0 ? "; " : "") + "may add: " + addable : "") + "}",
         // 按钮没有值：点明它不是可设的字段，免得模型去 set 它。
         ButtonConfig b => string.Format("button \"{0}\" (an action in the panel, holds no value; can't be set)", b.Text),
         // 画布的值形状只有插件知道（宿主不解读、也不校验）：指给模型去读插件的说明；说明里没写就只能照当前值 / 默认值推断。
@@ -50,6 +55,54 @@ internal static class ConfigText
     {
         var patterns = f.FileTypes.SelectMany(t => t.Patterns).ToList();
         return patterns.Count == 0 ? string.Empty : string.Format(" ({0})", string.Join(", ", patterns));
+    }
+
+    static string Fields(IReadOnlyOrderedMap<PropertyKey, IControllerConfig> properties)
+        => string.Join("; ", properties.Select(p => p.Key.Id + ": " + Describe(p.Value)));
+
+    // 列表的元素：插件按当前数据逐个声明元素 config；能追加的类型来自 + 候选。两者都列，调用方据此写整组。
+    static string ListElements(ListConfig l)
+    {
+        var parts = new List<string>();
+        if (l.Elements.Count > 0)
+            parts.Add("current elements [" + string.Join(", ", l.Elements.Select(Describe)) + "]");
+        var addable = AddableTemplates(l.AddableElements).ToList();
+        if (addable.Count > 0)
+            parts.Add("each new element: " + string.Join(" or ", addable.Select(a => a.Label is { Length: > 0 } label ? label + " = " + Describe(a.Template) : Describe(a.Template))));
+        return parts.Count == 0 ? "" : ": " + string.Join("; ", parts);
+    }
+
+    static IEnumerable<(string? Label, IControllerConfig Template)> AddableTemplates(IEnumerable<AddableElement> items)
+    {
+        foreach (var item in items)
+        {
+            if (item.SubItems is { } sub)
+            {
+                foreach (var leaf in AddableTemplates(sub))
+                    yield return leaf;
+            }
+            else if (item.Template != null)
+            {
+                yield return (item.Label, item.Template);
+            }
+        }
+    }
+
+    static string AddableKeyIds(IEnumerable<AddableKey> items)
+    {
+        var parts = new List<string>();
+        void Walk(IEnumerable<AddableKey> list)
+        {
+            foreach (var item in list)
+            {
+                if (item.SubItems is { } sub)
+                    Walk(sub);
+                else if (item.Template != null && item.Key.Id != null)
+                    parts.Add(item.Key.Id + ": " + Describe(item.Template));
+            }
+        }
+        Walk(items);
+        return string.Join("; ", parts);
     }
 
     static string RangeHint(DraggableNumberBoxConfig d)
@@ -286,6 +339,8 @@ internal static class SchemaText
             sb.Append(": ").Append(ConfigText.Describe(kvp.Value));
             if (kvp.Value is IValueConfig leaf)
                 sb.Append(". default ").Append(ConfigText.FormatValue(leaf.DefaultValue));
+            else if (kvp.Value is ObjectConfig or ArrayConfig or ListConfig or ExtensibleObjectConfig)
+                sb.Append(". default ").Append(ConfigText.FormatValue(kvp.Value.GetDefaultValue()));
         }
     }
 

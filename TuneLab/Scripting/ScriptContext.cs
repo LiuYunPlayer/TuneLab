@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Jint;
+using TuneLab.Commands;
 using TuneLab.Data;
 using TuneLab.Extensions.Formats.TLP;
 using TuneLab.Foundation;
+using TuneLab.SDK;
 
 namespace TuneLab.Scripting;
 
@@ -219,6 +222,64 @@ internal sealed class ScriptContext
     }
 
     internal int ChangeCount => mChanges;
+
+    // —— setProperty 的校验：写入时只登记（对象 + 键 + 怎么求它的声明），脚本跑完、提交前统一按 config 校验（ConfigValues，
+    // 与 extension set-setting 同一份口径）。放到最后才校验：声明随值变化（某个开关决定别的字段出不出现、列表的逐元素
+    // config 由数据现算），按写完之后的值求一次声明，"先改开关、再写开关下的字段"就不会被旧声明误拒；也不必每写一次就
+    // 调一次插件的声明函数。规范化后的值（数字落 double、下拉落成候选的存储值……）写回，与原值相同则不写。
+    internal void RecordPropertyWrite(DataPropertyObject owner, string key, Func<string> describeOwner, Func<ObjectConfig> declare)
+        => mPropertyWrites[(owner, key)] = new PropertyWrite(owner, key, describeOwner, declare);
+
+    // 有不合法的写入则返回报错（逐条点名到对象与键），调用方据此整体回滚；全部合法返回 null。
+    internal string? ValidatePropertyWrites()
+    {
+        var errors = new List<string>();
+        var schemas = new Dictionary<DataPropertyObject, (ObjectConfig? Config, string? Error)>();
+        foreach (var write in mPropertyWrites.Values)
+        {
+            if (!schemas.TryGetValue(write.Owner, out var schema))
+            {
+                try { schema = (write.Declare(), null); }
+                catch (Exception ex) { schema = (null, ex.Message); }
+                schemas[write.Owner] = schema;
+            }
+            string owner = write.DescribeOwner();
+            if (schema.Error != null)
+            {
+                errors.Add(string.Format("{0}: its sound source / effect failed to declare its properties — {1}", owner, schema.Error));
+                continue;
+            }
+            var stored = write.Owner.GetRawValue(write.Key);
+            if (stored.IsNull())
+                continue;   // 之后又被删掉了：没有要校验的值
+            var config = schema.Config!.Properties.FirstOrDefault(p => p.Key.Id == write.Key)?.Value;
+            if (config == null)
+            {
+                var keys = schema.Config.Properties.Select(p => p.Key.Id).ToList();
+                errors.Add(string.Format("{0} has no property \"{1}\". Its properties are: {2}.", owner, write.Key,
+                    keys.Count == 0 ? "(none)" : string.Join(", ", keys)));
+                continue;
+            }
+            var (normalized, error) = ConfigValues.Check(config, stored, write.Key);
+            if (error != null)
+            {
+                errors.Add(owner + ": " + error);
+                continue;
+            }
+            if (!normalized.Equals(stored))
+                write.Owner.SetValue(write.Key, normalized);
+        }
+        mPropertyWrites.Clear();
+        if (errors.Count == 0)
+            return null;
+        const int shown = 10;
+        // 校验在回滚之前（要按写入后的数据求声明、读存值），对象的描述因而是脚本结束时的样子——说明一句，免得对不上回滚后的工程。
+        var text = "invalid property value(s) — nothing was applied (objects are described as the script left them):\n" + string.Join("\n", errors.Take(shown));
+        return errors.Count > shown ? text + string.Format("\n… and {0} more.", errors.Count - shown) : text;
+    }
+
+    sealed record PropertyWrite(DataPropertyObject Owner, string Key, Func<string> DescribeOwner, Func<ObjectConfig> Declare);
+    readonly Dictionary<(DataPropertyObject, string), PropertyWrite> mPropertyWrites = new();
 
     // 【探测沙箱专用】把目前累积的写刷给合成管线：关闭所有已开的 merge 括号，让延迟的音符/曲线通知
     // 同步扇出、IsSynthesisBatching 归假，合成管线据此看到最新音符并开始 prep。与 Finish 不同——它不

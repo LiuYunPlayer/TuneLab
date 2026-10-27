@@ -118,6 +118,7 @@ internal static class ScriptApiReference
         "  part.addEffect(info, index?) -> effect    info.type = an effect engine id from list_effects (required, must exist); index omitted = append to the chain end\n" +
         "  part.insertEffect(effect, index?)               part.removeEffect(effect) -> effect\n" +
         "  part.moveEffect(effect, index)           move an effect to a 0-based position in the chain\n" +
+        "  // setProperty (part / note / phoneme / effect) is checked against the declared type, range and options when the script ends: an invalid value or an undeclared key fails the run and rolls everything back (the error names each object and key). Grouped and list fields take their whole value (an object / an array).\n" +
         "  // PART PROPERTIES (voice/instrument-declared per-part params; keys/ranges from list_sound_sources):\n" +
         "  part.isSelected                          selected in the arrangement (read/write; editor state, see the note under tl)\n" +
         "  part.getProperty(key)                    current value (number/boolean/string/array/object), or null if unset\n" +
