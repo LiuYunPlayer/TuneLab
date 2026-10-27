@@ -191,4 +191,25 @@ public class ScriptRunCommandsTests
         Assert.True(result.IsError);
         Assert.Equal("not_found", result.Error!.Value.Code);
     }
+
+    // 脚本出错（已回滚）/ 一直被拦 = 命令失败：CLI 退出码非 0、--commands 批处理在这一行停下（否则后面的命令照常跑，
+    // 比如把没改成的工程导出覆盖掉）。其余如实回报的结局（只打印没改动、用户拒绝、只读建议……）仍算成功。
+    [Theory]
+    [InlineData("error", "script_error")]
+    [InlineData("blocked", "script_blocked")]
+    public void ErroredOrBlockedRunsFailTheCommand(string outcome, string code)
+    {
+        var result = ScriptWriteExecutor.Result(new JsonObject { ["outcome"] = outcome, ["changes"] = 0, ["error"] = "boom" });
+        Assert.True(result.IsError);
+        Assert.Equal(code, result.Error!.Value.Code);
+        Assert.NotNull(result.Error.Value.Details);   // 结构化结果随失败带上
+    }
+
+    [Theory]
+    [InlineData("applied")]
+    [InlineData("no_changes")]
+    [InlineData("rejected")]
+    [InlineData("advice")]
+    public void OtherOutcomesStaySuccessful(string outcome)
+        => Assert.False(ScriptWriteExecutor.Result(new JsonObject { ["outcome"] = outcome, ["changes"] = 0, ["previewed"] = false }).IsError);
 }
