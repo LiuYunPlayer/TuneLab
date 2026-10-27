@@ -55,6 +55,7 @@ public class ConfigValuesTests
         yield return [TagConfig.Create(["x", "y"])];
         yield return [TextBoxConfig.Create("t")];
         yield return [PathPickerConfig.CreateFile("")];
+        yield return [CanvasConfig.Create(PropertyObject.Empty, 80, _ => throw new NotSupportedException())];
         yield return [Fields(("n", SliderConfig.Linear(0, 0, 1)))];
         yield return [ArrayConfig.Create([SliderConfig.Linear(0, 0, 1), TextBoxConfig.Create("")])];
         yield return [ListConfig.Create([TextBoxConfig.Create("a")], [new AddableElement(TextBoxConfig.Create(""))])];

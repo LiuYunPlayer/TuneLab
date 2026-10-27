@@ -13,7 +13,7 @@ namespace TuneLab.Commands;
 // 类型的分支，口径不一、漏写的类型就拒（或不校验），修一处漏一处。这里收成一处，并有覆盖测试逐个 config 类型核对。
 //
 // 口径：能校验就校验。宿主看得懂的控件按它的约束校验（数值范围、下拉候选、tag 候选……），复合控件（对象 / 数组 / 列表 /
-// 变长键控）递归到每个成员。不是值的 config（按钮、自动化轨）一律拒。
+// 变长键控）递归到每个成员；宿主不懂形状的（画布）原样收下，只拒"不是值"的标记。不是值的 config（按钮、自动化轨）一律拒。
 // 输入一律是中性的 PropertyValue：各入口先把自己的输入（JsValue / JsonElement）转成它，报错措辞、自身政策（如扩展设置的
 // 密钥字段拒写）也归入口。
 //
@@ -26,7 +26,7 @@ internal static class ConfigValues
     internal static readonly IReadOnlyList<Type> Values =
     [
         typeof(CheckBoxConfig), typeof(SliderConfig), typeof(DraggableNumberBoxConfig), typeof(ComboBoxConfig), typeof(TagConfig),
-        typeof(TextBoxConfig), typeof(PathPickerConfig),
+        typeof(TextBoxConfig), typeof(PathPickerConfig), typeof(CanvasConfig),
         typeof(ObjectConfig), typeof(ArrayConfig), typeof(ListConfig), typeof(ExtensibleObjectConfig),
     ];
     internal static readonly IReadOnlyList<Type> NotValues = [typeof(ButtonConfig), typeof(AutomationConfig)];
@@ -102,6 +102,18 @@ internal static class ConfigValues
                 if (value.ToDouble(out var n))
                     return (PropertyValue.Create(ConfigText.FormatNum(n)), null);
                 return (default, string.Format("\"{0}\" is text; got {1}.", path, Show(value)));
+
+            // 画布的值形状由插件自定、宿主不解读：任何真实的值都收（插件读值时自己校验），只拒内部含 Multiple 的。
+            case CanvasConfig:
+                try
+                {
+                    PropertySlot.EnsureStorable(value);
+                }
+                catch (ArgumentException)
+                {
+                    return (default, string.Format("\"{0}\" contains Multiple, which is not a value.", path));
+                }
+                return (value, null);
 
             case ObjectConfig obj:
                 return CheckObject(value, path, obj.Properties, extra: null);
