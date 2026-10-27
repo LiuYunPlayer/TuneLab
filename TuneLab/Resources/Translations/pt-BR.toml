@@ -263,6 +263,9 @@
 [Menu]
 "Full Screen" = "Tela cheia"
 "Toggle Parameter Panel" = "Mostrar/ocultar painel de parâmetros"
+"Add Parameter Panel" = "Adicionar painel de parâmetros"
+"Close Panel" = "Fechar painel"
+"Hide Parameter Panel" = "Ocultar painel de parâmetros"
 "Select All" = "Selecionar Tudo"
 "Note Tool" = "Nota"
 "Pitch Pen" = "Pitch (Desenho)"

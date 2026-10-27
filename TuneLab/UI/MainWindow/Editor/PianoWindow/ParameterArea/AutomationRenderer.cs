@@ -175,7 +175,11 @@ internal partial class AutomationRenderer : View
         mDependency.PianoScrollView.RegionSelectionChanged += InvalidateVisual;   // 范围选区变化（任一区拖/清）→ 参数区重绘同一条 tick 带
     }
 
-    ~AutomationRenderer()
+    ~AutomationRenderer() => Detach();
+
+    // 退订全部共享事件源。刻度轴、钢琴窗视图、part 都比一块参数面板活得久，它们持有的订阅会让关掉的面板
+    // 一直活着、继续收事件——故关掉面板时显式调这里，不能只等终结器（订阅在就轮不到它）。重复调用无害。
+    public void Detach()
     {
         s.DisposeAll();
         mDependency.PianoScrollView.RegionSelectionChanged -= InvalidateVisual;

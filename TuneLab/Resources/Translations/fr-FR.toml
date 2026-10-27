@@ -263,6 +263,9 @@
 [Menu]
 "Full Screen" = "Plein écran"
 "Toggle Parameter Panel" = "Afficher/masquer le panneau des paramètres"
+"Add Parameter Panel" = "Ajouter un panneau de paramètres"
+"Close Panel" = "Fermer le panneau"
+"Hide Parameter Panel" = "Masquer le panneau de paramètres"
 "Select All" = "Tout sélectionner"
 "Note Tool" = "Outil de Notes"
 "Pitch Pen" = "Tonalité (crayon)"

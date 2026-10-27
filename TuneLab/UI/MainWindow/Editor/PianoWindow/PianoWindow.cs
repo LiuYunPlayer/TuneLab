@@ -22,14 +22,15 @@ namespace TuneLab.UI;
 
 internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.IDependency, TimelineView.IDependency, ParameterTabBar.IDependency, ParameterPanel.IHost, PlayheadLayer.IDependency
 {
-    // 底部标签栏与外部读到的「激活 / 可见」都是焦点面板的（第一期只有一个面板，它即焦点）。
+    // 底部标签栏与外部读到的「激活 / 可见」都是焦点面板的。
     public event Action? ActiveAutomationChanged;
     public event Action? VisibleAutomationChanged;
     public IActionEvent WaveformBottomChanged => mWaveformBottomChanged;
     public IActionEvent WaveformVisibleChanged => mWaveformVisibleChanged;
     public IActionEvent ParameterPanelVisibilityChanged => mParameterPanelVisibilityChanged;
     public bool IsWaveformVisible => EditorState.WaveformVisible.Value;
-    public bool IsParameterPanelVisible => mParameterHeight > 0.5;
+    // 参数区是否显示着（Ctrl+P 藏起来的就是不显示；各面板自己收起与否不算）。
+    public bool IsParameterPanelVisible => !mAreaHidden;
     public TickAxis TickAxis => mTickAxis;
     public PitchAxis PitchAxis => mPitchAxis;
     public IHolder<IMidiPart> PartHolder => mPartHolder;
@@ -41,7 +42,6 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     }
     public ParameterButton PitchButton => mParameterTabBar.PitchButton;
     public PianoScrollView PianoScrollView => mPianoScrollView;
-    public AutomationRenderer AutomationRenderer => FocusedPanel.AutomationRenderer;
     public IQuantization Quantization => mQuantization;
     public IPlayhead Playhead => mDependency.Playhead;
     public INotifiableProperty<PianoTool> PianoTool => mDependency.PianoTool;
@@ -52,7 +52,8 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         set => FocusedPanel.ActiveAutomation = value;
     }
     public IReadOnlyList<AutomationKey> VisibleAutomations => FocusedPanel.VisibleAutomations;
-    public double WaveformBottom => mPianoScrollView.Bounds.Height - mParameterTitleBar.Height - mParameterContainer.Height;
+    // 波形带贴在面板堆顶上：= 视图高 − 整个面板堆的高度。
+    public double WaveformBottom => mPianoScrollView.Bounds.Height - StackHeight;
     public interface IDependency
     {
         IPlayhead Playhead { get; }
@@ -63,7 +64,6 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     public PianoWindow(IDependency dependency)
     {
         mDependency = dependency;
-        mParameterHeight = GetStoredParameterHeight();
 
         mTickAxis = new TickAxis();
         mPitchAxis = new PitchAxis();
@@ -96,15 +96,10 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
 
                     mParameterLayer = new DockPanel() { LastChildFill = false, MinHeight = PARAMETER_TITLE_BAR_HEIGHT };
                     {
-                        mPanel = new ParameterPanel(this, PARAMETER_TITLE_BAR_HEIGHT);
-                        mPanel.ActiveAutomationChanged += () => ActiveAutomationChanged?.Invoke();
-                        mPanel.VisibleAutomationChanged += () => VisibleAutomationChanged?.Invoke();
-                        mParameterContainer = mPanel.Container;
-                        mParameterContainer.Height = mParameterHeight;
-                        mParameterLayer.AddDock(mParameterContainer, Dock.Bottom);
-
-                        mParameterTitleBar = mPanel.TitleBar;
-                        mParameterLayer.AddDock(mParameterTitleBar, Dock.Bottom);
+                        var first = CreatePanel(GetStoredParameterHeight());
+                        first.IsFocused = true;
+                        mPanels.Add(first);
+                        RebuildParameterLayer();
                     }
                     pianoScrollViewPanel.Children.Add(mParameterLayer);
 
@@ -140,13 +135,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         this.AddDock(layerPanel);
 
         mParameterTabBar.StateChangeAsked += OnParameterTabBarStateChangeAsked;
-        mParameterTitleBar.Moved += top =>
-        {
-            mParameterHeight = mParameterLayer.Bounds.Height - top - mParameterTitleBar.Bounds.Height;
-            CorrectParameterHeight(true);
-        };
-        mParameterLayer.SizeChanged += (s, e) => { CorrectParameterHeight(false); };
-        AttachedToVisualTree += (s, e) => BindWindowState();
+        mParameterLayer.SizeChanged += (s, e) => { ApplyLayout(); };
 
         ClipToBounds = true;
 
@@ -196,7 +185,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         if (e.IsHandledByTextBox())
             return;
 
-        if (FocusedPanel.AutomationRenderer.IsOperating)
+        if (AnyPanelOperating)
             return;
 
         // 命令级快捷键仅在无进行中操作（拖动/缩放等）时分发；进行中的操作态修饰键由各 Operation 自行处理、不经此。
@@ -466,7 +455,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     // 剪贴板类命令仅在无进行中操作（拖动/缩放等）时生效——原本由 OnKeyDown 前置守卫，改由 Editor 路由后在此自守。
     // 公开是给 Editor 的动作可用性判据用（EditSurfaceUnavailable）：外部触发时"正拖着东西所以不收命令"
     // 必须能说出来，不能静默吞掉。
-    public bool CanRunEditCommand => !FocusedPanel.AutomationRenderer.IsOperating && PianoScrollView.OperationState == PianoScrollView.State.None;
+    public bool CanRunEditCommand => !AnyPanelOperating && PianoScrollView.OperationState == PianoScrollView.State.None;
 
     public void CopySelection() { if (CanRunEditCommand) PianoScrollView.Copy(); }
     public void CutSelection() { if (CanRunEditCommand) PianoScrollView.Cut(); }
@@ -476,7 +465,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     {
         if (!CanRunEditCommand)
             return;
-        var automationRenderer = FocusedPanel.AutomationRenderer;
+        var automationRenderer = HoveredOrFocusedPanel.AutomationRenderer;
         // Anchor 工具且悬停 automation 时删锚点，否则删所选对象。
         if (PianoTool.Value == UI.PianoTool.Anchor && automationRenderer.IsHover)
             automationRenderer.DeleteSelectedAnchors();
@@ -488,7 +477,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     {
         if (!CanRunEditCommand)
             return;
-        var automationRenderer = FocusedPanel.AutomationRenderer;
+        var automationRenderer = HoveredOrFocusedPanel.AutomationRenderer;
         switch (PianoTool.Value)
         {
             case UI.PianoTool.Note:
@@ -503,8 +492,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
                 else
                 {
                     Part?.DeselectAllAutomationPoints();
-                    automationRenderer.InvalidateVisual();
-                    automationRenderer.RefreshAnchorValueInput();
+                    RefreshParameterPanels();
                     Part?.Pitch.SelectAllAnchors();
                 }
                 break;
@@ -513,65 +501,178 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         }
     }
 
-    // 一键折叠/恢复参数面板内容高度（标题栏仍保留，与拖到最低等价）。
-    // 收起前把当前非零高度写入 EditorState，恢复时再读回；折叠态本身不落盘为 0，避免覆盖原高度。
-    public void ToggleParameterPanel()
+    // Ctrl+P：把**整个参数区**藏起来 / 显示出来（藏起来时连标题栏也不占地方）。各面板的高度与收起状态不动，显示即原样。
+    public void ToggleParameterPanel() => SetParameterAreaHidden(!mAreaHidden);
+
+    // 标题栏右键的「隐藏参数面板」。
+    public void HideParameterArea() => SetParameterAreaHidden(true);
+
+    // 藏着时的唤醒入口除了 Ctrl+P，还有底部标签栏的参数按钮与「+」（藏着时它们都不点亮，看着就是"没开"）。
+    // 显示出来时区里没有展开着的内容（全收起了、或都拖到了底），就展开焦点面板，免得显示了也看不到东西。
+    void SetParameterAreaHidden(bool hidden)
     {
-        if (mParameterHeight > 0.5)
-        {
-            StoreParameterHeight(mParameterHeight);
-            mParameterHeight = 0;
-            CorrectParameterHeight(false);
+        if (mAreaHidden == hidden)
             return;
-        }
 
-        var restore = GetStoredParameterHeight();
-        if (restore < 1)
-            restore = EditorState.Defaults.ParameterPanelHeight;
-        mParameterHeight = restore;
-        CorrectParameterHeight(false);
-    }
-
-    void CorrectParameterHeight(bool saveHeight = false)
-    {
-        var displayHeight = mParameterHeight.Limit(0, mParameterLayer.Bounds.Height - mParameterTitleBar.Bounds.Height);
-        mParameterContainer.Height = displayHeight;
-        if (saveHeight)
+        mAreaHidden = hidden;
+        if (!hidden && !mPanels.Any(p => !p.IsCollapsed && p.DesiredHeight > 0.5))
         {
-            mParameterHeight = displayHeight;
-            StoreParameterHeight(mParameterHeight);
+            var focused = FocusedPanel;
+            focused.IsCollapsed = false;
+            if (focused.DesiredHeight < 1)
+                focused.DesiredHeight = GetStoredParameterHeight();
         }
-        mWaveformBottomChanged.Invoke();
+        mParameterLayer.IsVisible = !hidden;
+        ApplyLayout();
         mParameterPanelVisibilityChanged.Invoke();
     }
 
-    void BindWindowState()
+    // —— 参数面板堆 ——
+
+    public bool CanClosePanel => mPanels.Count > 1;
+
+    // 标签栏的「+」：在焦点面板下方插一块照着它设置的新面板，新面板获得焦点。参数区藏着时只是把它显示出来。
+    public void AddParameterPanel()
     {
-        if (mWindowStateBound)
-            return;
-
-        mWindow = this.Window();
-        mWindowStateBound = true;
-        s.Add(mWindow.GetObservable(Window.WindowStateProperty).Subscribe(state =>
+        if (mAreaHidden)
         {
-            var height = state == WindowState.Maximized ? EditorState.ParameterPanelHeightMaximized.Value : EditorState.ParameterPanelHeightNormal.Value;
-            if (Math.Abs(mParameterHeight - height) < 0.1)
-                return;
+            SetParameterAreaHidden(false);
+            return;
+        }
 
-            mParameterHeight = height;
-            Dispatcher.UIThread.Post(() => CorrectParameterHeight(false), DispatcherPriority.Background);
-        }));
+        var focused = FocusedPanel;
+        var panel = CreatePanel(focused.DesiredHeight);
+        panel.CopyFrom(focused);
+        mPanels.Insert(mFocusedIndex + 1, panel);
+        RebuildParameterLayer();
+        SetFocusedPanel(panel);
     }
 
+    // 标签栏右键「+」。
+    public void CloseFocusedParameterPanel() => ClosePanel(FocusedPanel);
+
+    // 只剩一块时不关。关掉的是焦点面板就把焦点交给它上面那块（没有上面的就是新的第一块）。
+    void ClosePanel(ParameterPanel panel)
+    {
+        int index = mPanels.IndexOf(panel);
+        if (index < 0 || mPanels.Count <= 1)
+            return;
+
+        var focused = FocusedPanel;
+        mPanels.RemoveAt(index);
+        panel.Detach();
+        RebuildParameterLayer();
+        SetFocusedPanel(panel == focused ? mPanels[Math.Max(0, index - 1)] : focused, force: panel == focused);
+    }
+
+    ParameterPanel CreatePanel(double desiredHeight)
+    {
+        var panel = new ParameterPanel(this, PARAMETER_TITLE_BAR_HEIGHT, desiredHeight);
+        // 底部标签栏只跟焦点面板：别的面板的激活 / 可见变化不转发。
+        panel.ActiveAutomationChanged += () => { if (panel == FocusedPanel) ActiveAutomationChanged?.Invoke(); };
+        panel.VisibleAutomationChanged += () => { if (panel == FocusedPanel) VisibleAutomationChanged?.Invoke(); };
+        panel.FocusRequested += () => SetFocusedPanel(panel);
+        panel.CloseAsked += () => ClosePanel(panel);
+        panel.CollapseToggleAsked += () =>
+        {
+            SetFocusedPanel(panel);
+            panel.IsCollapsed = !panel.IsCollapsed;
+            ApplyLayout();
+        };
+        panel.TitleBar.Moved += top => OnPanelDragged(panel, top);
+        return panel;
+    }
+
+    void SetFocusedPanel(ParameterPanel panel, bool force = false)
+    {
+        int index = mPanels.IndexOf(panel);
+        if (index < 0 || (index == mFocusedIndex && !force))
+            return;
+
+        mFocusedIndex = index;
+        foreach (var p in mPanels)
+            p.IsFocused = p == panel;
+        // 标签栏改跟新的焦点面板：按它的激活 / 可见重新同步。
+        ActiveAutomationChanged?.Invoke();
+        VisibleAutomationChanged?.Invoke();
+    }
+
+    // 拖某块面板的标题栏：只改这一块的高度，其余面板不变，差额由钢琴窗吸收。
+    // 先把当前各面板显示的高度记成想要的高度——压缩状态下拖动，松手后不会有别的面板跳回原高（所见即所得）。
+    void OnPanelDragged(ParameterPanel panel, double top)
+    {
+        foreach (var p in mPanels)
+        {
+            if (!p.IsCollapsed)
+                p.DesiredHeight = p.Container.Height;
+        }
+
+        double delta = panel.TitleBar.Bounds.Y - top;   // 往上拖为正
+        if (panel.IsCollapsed)
+        {
+            if (delta <= 0)
+                return;
+            panel.IsCollapsed = false;
+            panel.DesiredHeight = 0;
+        }
+
+        double others = mPanels.Where(p => p != panel).Sum(p => p.Container.Height);
+        panel.DesiredHeight = (panel.DesiredHeight + delta).Limit(0, Math.Max(0, ContentAvailable - others));
+        StoreParameterHeight(panel.DesiredHeight);
+        ApplyLayout();
+    }
+
+    // 面板堆自上而下排进参数层（DockPanel 自底向上贴，故倒序加）。
+    void RebuildParameterLayer()
+    {
+        mParameterLayer.Children.Clear();
+        for (int i = mPanels.Count - 1; i >= 0; i--)
+        {
+            mParameterLayer.AddDock(mPanels[i].Container, Dock.Bottom);
+            mParameterLayer.AddDock(mPanels[i].TitleBar, Dock.Bottom);
+            // 只剩一块时不能关，「×」也不出。
+            mPanels[i].TitleBar.IsCloseButtonVisible = mPanels.Count > 1;
+        }
+        mParameterLayer.MinHeight = mPanels.Count * PARAMETER_TITLE_BAR_HEIGHT;
+        ApplyLayout();
+    }
+
+    double ContentAvailable => Math.Max(0, mParameterLayer.Bounds.Height - mPanels.Count * PARAMETER_TITLE_BAR_HEIGHT);
+
+    // 各面板的显示高度 = 按可用空间分配想要的高度（ParameterPanelLayout）；只设显示，不回写想要的高度。
+    void ApplyLayout()
+    {
+        var heights = ParameterPanelLayout.Solve(ContentAvailable,
+            mPanels.Select(p => new ParameterPanelLayout.Panel(p.DesiredHeight, p.IsCollapsed)).ToList(), MIN_PANEL_HEIGHT);
+        for (int i = 0; i < mPanels.Count; i++)
+            mPanels[i].Container.Height = heights[i];
+        mWaveformBottomChanged.Invoke();
+    }
+
+    // 参数区藏着时不占地方：波形带贴到钢琴窗底。
+    double StackHeight => mAreaHidden ? 0 : mPanels.Sum(p => p.TitleBar.Height + p.Container.Height);
+
+    // 钢琴窗里取消了自动化点选中之类：每块面板都要重画、刷新锚点数值框。
+    public void RefreshParameterPanels()
+    {
+        foreach (var panel in mPanels)
+        {
+            panel.AutomationRenderer.InvalidateVisual();
+            panel.AutomationRenderer.RefreshAnchorValueInput();
+        }
+    }
+
+    // 本机记的参数栏高度：只作新面板堆（新工程、不带布局的工程）里第一块面板的默认高度。
     double GetStoredParameterHeight()
     {
-        return EditorState.MainWindowMaximized ? EditorState.ParameterPanelHeightMaximized : EditorState.ParameterPanelHeightNormal;
+        double height = EditorState.MainWindowMaximized ? EditorState.ParameterPanelHeightMaximized : EditorState.ParameterPanelHeightNormal;
+        return height < 1 ? EditorState.Defaults.ParameterPanelHeight : height;
     }
 
     void StoreParameterHeight(double height)
     {
         EditorState.ParameterPanelHeight.Value = height;
-        if (mWindow != null && mWindow.WindowState == WindowState.Maximized)
+        if (TopLevel.GetTopLevel(this) is Window { WindowState: WindowState.Maximized })
         {
             EditorState.ParameterPanelHeightMaximized.Value = height;
         }
@@ -584,7 +685,11 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     void OnParameterTabBarStateChangeAsked(AutomationKey automation, ParameterButton.ButtonState state)
     {
         if (state == ParameterButton.ButtonState.Edit)
+        {
+            // 参数区藏着时点参数按钮 = 想看它：先显示出来。
+            SetParameterAreaHidden(false);
             FocusedPanel.ActiveAutomation = automation;
+        }
         else
             FocusedPanel.SetAutomationVisible(automation, state == ParameterButton.ButtonState.Visible);
     }
@@ -595,10 +700,17 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     // 抬高以容纳回显轨显隐 chip（色块 + 文本）；空白区仍可拖拽改高。
     const double PARAMETER_TITLE_BAR_HEIGHT = 24;
 
-    double mParameterHeight = 200;
+    // 压缩时每块展开着的面板至少保留的内容高度：再矮，刻度轴上下两端的数值标签就叠在一起了。
+    const double MIN_PANEL_HEIGHT = 60;
 
-    // 底部标签栏、动作面、编辑命令作用的那块面板。
-    ParameterPanel FocusedPanel => mPanel;
+    // 面板堆（自上而下）与焦点：底部标签栏、动作面、编辑命令作用于焦点面板。
+    readonly List<ParameterPanel> mPanels = new();
+    int mFocusedIndex;
+    bool mAreaHidden;
+    ParameterPanel FocusedPanel => mPanels[mFocusedIndex];
+    // 删除 / 全选锚点作用于指针悬停的那块，没有悬停的就是焦点面板。
+    ParameterPanel HoveredOrFocusedPanel => mPanels.FirstOrDefault(p => p.AutomationRenderer.IsHover) ?? FocusedPanel;
+    bool AnyPanelOperating => mPanels.Any(p => p.AutomationRenderer.IsOperating);
 
     static readonly OrderedMap<AutomationKey, AutomationConfigEntry> sEmptySynthesizedParameterConfigs = new();
 
@@ -625,7 +737,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     // 横向条落在"波形上方"（note 区下沿）：底边留白 = 参数区高 + 波形高（波形可见时），用 Margin 定位。
     void UpdateHorizontalBarMargin()
     {
-        double inset = mParameterTitleBar.Height + mParameterContainer.Height;
+        double inset = StackHeight;
         if (IsWaveformVisible)
             inset += PianoScrollView.WAVEFORM_HEIGHT;
         mHorizontalScrollBar.Margin = new Thickness(0, 0, 0, inset);
@@ -638,9 +750,6 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     readonly ScrollBar mHorizontalScrollBar;
     readonly EdgeProximityReveal mVerticalReveal;
     readonly EdgeProximityReveal mHorizontalReveal;
-    readonly ParameterPanel mPanel;
-    readonly ParameterContainer mParameterContainer;
-    readonly ParameterTitleBar mParameterTitleBar;
     readonly PianoRoll mPianoRoll;
     readonly ParameterTabBar mParameterTabBar;
     readonly DockPanel mParameterLayer;
@@ -648,6 +757,4 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     readonly Holder<IMidiPart> mPartHolder = new();
 
     readonly IDependency mDependency;
-    bool mWindowStateBound = false;
-    Window? mWindow;
 }

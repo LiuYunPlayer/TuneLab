@@ -263,6 +263,9 @@
 [Menu]
 "Full Screen" = "Полноэкранный режим"
 "Toggle Parameter Panel" = "Показать/скрыть панель параметров"
+"Add Parameter Panel" = "Добавить панель параметров"
+"Close Panel" = "Закрыть панель"
+"Hide Parameter Panel" = "Скрыть панель параметров"
 "Select All" = "Выбрать все"
 "Note Tool" = "Нота"
 "Pitch Pen" = "Нарисовать питч"

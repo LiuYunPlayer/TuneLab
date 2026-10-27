@@ -263,6 +263,9 @@
 [Menu]
 "Full Screen" = "Πλήρης οθόνη"
 "Toggle Parameter Panel" = "Εμφάνιση/απόκρυψη πίνακα παραμέτρων"
+"Add Parameter Panel" = "Προσθήκη πίνακα παραμέτρων"
+"Close Panel" = "Κλείσιμο πίνακα"
+"Hide Parameter Panel" = "Απόκρυψη πίνακα παραμέτρων"
 "Select All" = "Επιλογή Όλων"
 "Note Tool" = "Εργαλείο Νότας"
 "Pitch Pen" = "Ύψος Φωνής (σε Εργαλείο Στυλού)"

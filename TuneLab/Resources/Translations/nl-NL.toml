@@ -263,6 +263,9 @@
 [Menu]
 "Full Screen" = "Volledig scherm"
 "Toggle Parameter Panel" = "Parameterpaneel tonen/verbergen"
+"Add Parameter Panel" = "Parameterpaneel toevoegen"
+"Close Panel" = "Paneel sluiten"
+"Hide Parameter Panel" = "Parameterpaneel verbergen"
 "Select All" = "Alles selecteren"
 "Note Tool" = "Notengereedschap"
 "Pitch Pen" = "Toonhoogtepen"
