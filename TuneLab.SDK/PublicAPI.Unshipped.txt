@@ -4,17 +4,21 @@ override TuneLab.SDK.TagItem.GetHashCode() -> int
 static TuneLab.SDK.ButtonConfig.Create(string! text, System.Func<TuneLab.SDK.IButtonClickContext!, System.Threading.Tasks.Task!>! onClick) -> TuneLab.SDK.ButtonConfig!
 static TuneLab.SDK.CanvasBrush.Solid(TuneLab.Foundation.Color color) -> TuneLab.SDK.CanvasBrush!
 static TuneLab.SDK.CanvasConfig.Create(TuneLab.Foundation.PropertyValue defaultValue, double preferredWidth, double preferredHeight, System.Func<TuneLab.SDK.ICanvasHost!, TuneLab.SDK.ICanvasControl!>! createControl) -> TuneLab.SDK.CanvasConfig!
+static TuneLab.SDK.CanvasDrawingExtensions.DrawCircle(this TuneLab.SDK.ICanvasDrawing! drawing, TuneLab.Foundation.Point center, double radius, TuneLab.SDK.CanvasBrush? fill, TuneLab.SDK.CanvasPen? stroke) -> void
 static TuneLab.SDK.CanvasDrawingExtensions.DrawEllipse(this TuneLab.SDK.ICanvasDrawing! drawing, TuneLab.Foundation.Point center, double radiusX, double radiusY, TuneLab.SDK.CanvasBrush? fill, TuneLab.SDK.CanvasPen? stroke) -> void
 static TuneLab.SDK.CanvasDrawingExtensions.DrawPolygon(this TuneLab.SDK.ICanvasDrawing! drawing, System.Collections.Generic.IReadOnlyList<TuneLab.Foundation.Point>! points, TuneLab.SDK.CanvasBrush? fill, TuneLab.SDK.CanvasPen? stroke) -> void
 static TuneLab.SDK.CanvasDrawingExtensions.DrawPolyline(this TuneLab.SDK.ICanvasDrawing! drawing, System.Collections.Generic.IReadOnlyList<TuneLab.Foundation.Point>! points, TuneLab.SDK.CanvasPen! pen) -> void
 static TuneLab.SDK.CanvasDrawingExtensions.DrawRectangle(this TuneLab.SDK.ICanvasDrawing! drawing, TuneLab.Foundation.Rect rect, TuneLab.SDK.CanvasBrush? fill, TuneLab.SDK.CanvasPen? stroke, double cornerRadius = 0) -> void
+static TuneLab.SDK.CanvasDrawingExtensions.FillCircle(this TuneLab.SDK.ICanvasDrawing! drawing, TuneLab.Foundation.Point center, double radius, TuneLab.SDK.CanvasBrush! brush) -> void
 static TuneLab.SDK.CanvasDrawingExtensions.FillEllipse(this TuneLab.SDK.ICanvasDrawing! drawing, TuneLab.Foundation.Point center, double radiusX, double radiusY, TuneLab.SDK.CanvasBrush! brush) -> void
 static TuneLab.SDK.CanvasDrawingExtensions.FillPolygon(this TuneLab.SDK.ICanvasDrawing! drawing, System.Collections.Generic.IReadOnlyList<TuneLab.Foundation.Point>! points, TuneLab.SDK.CanvasBrush! brush) -> void
 static TuneLab.SDK.CanvasDrawingExtensions.FillRectangle(this TuneLab.SDK.ICanvasDrawing! drawing, TuneLab.Foundation.Rect rect, TuneLab.SDK.CanvasBrush! brush, double cornerRadius = 0) -> void
 static TuneLab.SDK.CanvasDrawingExtensions.PushClip(this TuneLab.SDK.ICanvasDrawing! drawing, TuneLab.Foundation.Rect rect, double cornerRadius = 0) -> System.IDisposable!
+static TuneLab.SDK.CanvasDrawingExtensions.StrokeCircle(this TuneLab.SDK.ICanvasDrawing! drawing, TuneLab.Foundation.Point center, double radius, TuneLab.SDK.CanvasPen! pen) -> void
 static TuneLab.SDK.CanvasDrawingExtensions.StrokeEllipse(this TuneLab.SDK.ICanvasDrawing! drawing, TuneLab.Foundation.Point center, double radiusX, double radiusY, TuneLab.SDK.CanvasPen! pen) -> void
 static TuneLab.SDK.CanvasDrawingExtensions.StrokePolygon(this TuneLab.SDK.ICanvasDrawing! drawing, System.Collections.Generic.IReadOnlyList<TuneLab.Foundation.Point>! points, TuneLab.SDK.CanvasPen! pen) -> void
 static TuneLab.SDK.CanvasDrawingExtensions.StrokeRectangle(this TuneLab.SDK.ICanvasDrawing! drawing, TuneLab.Foundation.Rect rect, TuneLab.SDK.CanvasPen! pen, double cornerRadius = 0) -> void
+static TuneLab.SDK.CanvasGeometry.Circle(TuneLab.Foundation.Point center, double radius) -> TuneLab.SDK.CanvasGeometry!
 static TuneLab.SDK.CanvasGeometry.Ellipse(TuneLab.Foundation.Point center, double radiusX, double radiusY) -> TuneLab.SDK.CanvasGeometry!
 static TuneLab.SDK.CanvasGeometry.Polygon(System.Collections.Generic.IReadOnlyList<TuneLab.Foundation.Point>! points) -> TuneLab.SDK.CanvasGeometry!
 static TuneLab.SDK.CanvasGeometry.Polyline(System.Collections.Generic.IReadOnlyList<TuneLab.Foundation.Point>! points) -> TuneLab.SDK.CanvasGeometry!

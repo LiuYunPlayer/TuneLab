@@ -175,9 +175,9 @@ sealed class StretchCurveCanvas(ICanvasHost host, IReadOnlyList<PropertyValue> v
             var center = new Point(X(i), YOf(points[i].Y));
             bool hot = i == (mDragging >= 0 ? mDragging : mHover);
             if (points[i].Known)
-                d.FillEllipse(center, HandleRadius, HandleRadius, hot ? HotFill : HandleFill);
+                d.FillCircle(center, HandleRadius, hot ? HotFill : HandleFill);
             else
-                d.StrokeEllipse(center, HandleRadius, HandleRadius, hot ? HotRing : HandleRing);
+                d.StrokeCircle(center, HandleRadius, hot ? HotRing : HandleRing);
         }
 
         int focus = mDragging >= 0 ? mDragging : mHover;

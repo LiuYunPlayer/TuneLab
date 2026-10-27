@@ -25,6 +25,9 @@ public sealed class CanvasGeometry
     public static CanvasGeometry Ellipse(Point center, double radiusX, double radiusY)
         => new() { Kind = ShapeKind.Ellipse, Center = center, RadiusX = radiusX, RadiusY = radiusY };
 
+    // 圆 = 两个半径相等的椭圆（画控制点、把手最常用）。
+    public static CanvasGeometry Circle(Point center, double radius) => Ellipse(center, radius, radius);
+
     static CanvasGeometry FromPoints(IReadOnlyList<Point> points, ShapeKind kind)
     {
         ArgumentNullException.ThrowIfNull(points);

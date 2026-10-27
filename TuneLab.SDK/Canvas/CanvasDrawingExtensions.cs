@@ -33,6 +33,13 @@ public static class CanvasDrawingExtensions
     public static void StrokeEllipse(this ICanvasDrawing drawing, Point center, double radiusX, double radiusY, CanvasPen pen)
         => drawing.DrawGeometry(CanvasGeometry.Ellipse(center, radiusX, radiusY), null, pen);
 
+    public static void DrawCircle(this ICanvasDrawing drawing, Point center, double radius, CanvasBrush? fill, CanvasPen? stroke)
+        => drawing.DrawGeometry(CanvasGeometry.Circle(center, radius), fill, stroke);
+    public static void FillCircle(this ICanvasDrawing drawing, Point center, double radius, CanvasBrush brush)
+        => drawing.DrawGeometry(CanvasGeometry.Circle(center, radius), brush, null);
+    public static void StrokeCircle(this ICanvasDrawing drawing, Point center, double radius, CanvasPen pen)
+        => drawing.DrawGeometry(CanvasGeometry.Circle(center, radius), null, pen);
+
     // 矩形裁剪（可圆角）。
     public static IDisposable PushClip(this ICanvasDrawing drawing, Rect rect, double cornerRadius = 0)
         => drawing.PushClip(CanvasGeometry.Rectangle(rect, cornerRadius));
