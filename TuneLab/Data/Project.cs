@@ -14,6 +14,9 @@ namespace TuneLab.Data;
 
 internal class Project : DataObject, IProject
 {
+    // 所在的撤销根（打开中的工程挂在 ProjectDocument 下；游离 / 测试构造的工程为 null）。
+    internal DataDocument? Document => Parent as DataDocument;
+
     public ITempoManager TempoManager => mTempoManager;
     public ITimeSignatureManager TimeSignatureManager => mTimeSignatureManager;
     public IReadOnlyDataObjectList<ITrack> Tracks => mTracks;

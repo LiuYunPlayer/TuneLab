@@ -33,9 +33,8 @@ internal class MidiPart : Part, IMidiPart
     // 参数面板属性 lane 集合（物化缓存，note / phoneme 两 scope）：钉选 ∩ 当前属性 config 的有界数值条目，按声明序。
     // 重建时机与 voice 轨集合同步（管线重建/换源/part 参数 commit）+ 钉选变更（RefreshPinnedLaneConfigs）
     // + 音素回填补算（phoneme lane 声明面依赖合成产物，见 OnPipelinePhonemesChanged）。
-    // + 插件宣告声明失效（InvalidateDeclarations）。
-    // 刻意不订阅 note/音素增删/值变：schema 随内容漂移是罕见边角（值本体渲染时活读、无滞后），
-    // 避免批量粘贴/拖拽时反复全量求值；漂移在下一次 part 参数 commit / 管线重建时自愈。
+    // + 插件宣告声明失效（InvalidateDeclarations）+ part 数据提交（见 OnDocumentStatusChanged：声明 context 带着
+    // part 的全部数据，提交后宿主重新询问声明）。只跟提交、不跟每次改动：批量粘贴 / 拖拽时不反复全量求值。
     public IReadOnlyOrderedMap<PropertyKey, LaneEntry> NoteLaneConfigs => mNoteLaneConfigs;
     public IReadOnlyOrderedMap<PropertyKey, LaneEntry> PhonemeLaneConfigs => mPhonemeLaneConfigs;
     public override DataString Name { get; }
@@ -102,6 +101,8 @@ internal class MidiPart : Part, IMidiPart
         // 时基入口（见下 Pos 订阅）。合成产物是运行时字段、不在任何失效源内，天然不触发——顺带机械
         // 强制"判定禁依赖产物"。
         Modified.AsEverytime().Subscribe(_ => mContinuationDirty = true);
+        // 声明输入变了（见 OnDocumentStatusChanged）：只记一笔，提交时才重新询问声明。
+        Modified.AsEverytime().Subscribe(_ => OnDeclarationInputsModified());
         // part 平移 → 时基重建（兑现 VoiceSynthesisContext 既定设计的另一半）：平移跨 bpm 段会改
         // 各 note 秒时长、非纯偏移；note 边界代理刻意不订阅 part.Pos，其变化由 session 重建覆盖。
         // 拖动的每步是 DiscardTo+重放（皆 settled），重建靠 OnTimebaseModified 的调度轮折叠去抖。
@@ -207,6 +208,28 @@ internal class MidiPart : Part, IMidiPart
         RebuildPinnedLaneConfigs();   // note/phoneme 属性 config 依赖 part 值，lane 集合/量程可能随之变
         if (RefreshAutomationConfigsSignatureChanged())
             mAutomationConfigsModified.Invoke();
+    }
+
+    // 声明 context 带着 part 的全部数据（音高 / 歌词、note 集合、自动化曲线、part 属性……），SDK 也写明插件可据此条件化
+    // 声明——这些数据一提交，宿主就重新询问 part 级声明（note 声明随之级联），与插件 InvalidatePart 走同一条合拍路径，
+    // 插件不必自己订阅再 Invalidate。只在撤销根落定时（提交 / 放弃 / 撤销 / 重做）触发、且本 part 的数据确实改过：
+    // 钢琴窗拖动的每一步都是 settled 的改动（DiscardTo + 重放），跟每次改动就会每帧重新声明。
+    void OnDeclarationInputsModified()
+    {
+        mDeclarationInputsDirty = true;
+        if (mDocument == null && mHostInvalidator != null && (Track?.Project as Project)?.Document is { } document)
+        {
+            mDocument = document;
+            document.StatusChanged += OnDocumentStatusChanged;
+        }
+    }
+
+    void OnDocumentStatusChanged()
+    {
+        if (!mDeclarationInputsDirty || mDocument is not { HasUncommittedChanges: false })
+            return;   // 本 part 没改过，或还在编辑中（StatusChanged 在每压进一条命令时也会发）
+        mDeclarationInputsDirty = false;
+        mHostInvalidator?.InvalidatePart();
     }
 
     // 插件宣告声明失效（会话 context 的 InvalidatePart / InvalidateNotes，经 DeclarationInvalidator 合拍、已在数据线程）。
@@ -627,6 +650,9 @@ internal class MidiPart : Part, IMidiPart
         // 并顺带失效延音判定缓存（秒轴是判定的契约合法输入域）。tempo 属工程级对象、寿命长于 part，
         // 订阅挂激活生命周期。
         TempoManager.Modified.Subscribe(mOnTimebaseModified);
+        // 声明 context 里的 part 数据提交 → 重新询问声明（见 OnDocumentStatusChanged）。撤销根的订阅在第一次改动时才挂
+        //（激活时工程可能还没挂到撤销根下：先建工程、再交给文档），随激活生命周期解除。
+        mHostInvalidator = new DeclarationInvalidator(this);
         // 编辑器 G2P 开关同理：它是喂引擎那个 lyric 的一部分（空发音时的兜底，见 INote.FinalPronunciation），
         // 改它等于全部 note 的歌词同时变了——与换声源同量级，故整体重建而非逐 note 标脏。设置对象是
         // 进程级、寿命远长于 part，订阅同挂激活生命周期。
@@ -637,6 +663,11 @@ internal class MidiPart : Part, IMidiPart
     {
         Settings.AutoGeneratePronunciation.Modified.Unsubscribe(mOnPronunciationPolicyModified);
         TempoManager.Modified.Unsubscribe(mOnTimebaseModified);
+        if (mDocument != null)
+            mDocument.StatusChanged -= OnDocumentStatusChanged;
+        mDocument = null;
+        mHostInvalidator?.Dispose();
+        mHostInvalidator = null;
         DisposeSynthesisPipeline();
     }
 
@@ -977,6 +1008,9 @@ internal class MidiPart : Part, IMidiPart
     ISynthesisPipeline? mPipeline;
     VoiceSynthesisPipeline? mVoicePipeline;
     bool mContinuationDirty = true;
+    bool mDeclarationInputsDirty;              // 自上次提交以来本 part 的数据改过（声明输入变了）
+    DeclarationInvalidator? mHostInvalidator;   // 宿主侧的声明失效合拍（数据提交触发），随激活生命周期
+    DataDocument? mDocument;                    // 所在撤销根，订阅其提交（StatusChanged）
     readonly Dictionary<INote, bool> mContinuation = new();
     // 时基变更钩的稳定句柄（tempo 订阅/退订须同一实例，见 Activate/Deactivate；Pos 订阅共用）。
     readonly Action mOnTimebaseModified;

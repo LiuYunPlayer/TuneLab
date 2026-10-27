@@ -195,4 +195,75 @@ public class DeclarationInvalidationTests
             Assert.False((bool)dirty.GetValue(part)!);
         });
     }
+
+    // ── 宿主侧：声明 context 带着 part 的全部数据（音高 / 歌词、note 集合、自动化曲线……），这些数据【提交】后宿主
+    //    重新询问 part 级声明，插件不必自己订阅再 Invalidate。只跟提交、不跟每次改动（拖动的每一步都是 settled 改动）。
+
+    static (ProjectDocument Document, MidiPart Part) SampleDocument()
+    {
+        var part = SamplePart();
+        var document = (ProjectDocument)((Project)part.Track.Project).Document!;
+        document.Commit();   // 装载期的改动先落定，测试从干净状态开始
+        return (document, part);
+    }
+
+    [Fact]
+    public void CommittingAPartDataChange_AsksForDeclarationsOnce()
+    {
+        OnDataThread(thread =>
+        {
+            var (document, part) = SampleDocument();
+            thread.Pump();
+            var events = Record(part);
+
+            part.Notes.First().Pitch.Set(64);
+            thread.Pump();
+            Assert.Empty(events);                  // 改了但没提交：不问
+
+            document.Commit();
+            thread.Pump();
+            Assert.Single(events);
+            Assert.True(events[0].Part);           // part 级，note 声明随之级联
+        });
+    }
+
+    [Fact]
+    public void ManyChangesBeforeOneCommit_AskOnce()
+    {
+        OnDataThread(thread =>
+        {
+            var (document, part) = SampleDocument();
+            thread.Pump();
+            var events = Record(part);
+
+            var note = part.Notes.First();
+            for (int i = 0; i < 20; i++)           // 像拖动：每一步都是 settled 改动
+                note.Pitch.Set(60 + i % 5);
+            document.Commit();
+            thread.Pump();
+            Assert.Single(events);
+        });
+    }
+
+    [Fact]
+    public void CommitWithoutAPartChange_AsksNothing_UndoDoes()
+    {
+        OnDataThread(thread =>
+        {
+            var (document, part) = SampleDocument();
+            thread.Pump();
+            part.Notes.First().Lyric.Set("li");
+            document.Commit();
+            thread.Pump();
+            var events = Record(part);
+
+            document.Commit();                     // 这次提交与本 part 无关
+            thread.Pump();
+            Assert.Empty(events);
+
+            document.Undo();                       // 撤销改回了本 part 的数据
+            thread.Pump();
+            Assert.Single(events);
+        });
+    }
 }
