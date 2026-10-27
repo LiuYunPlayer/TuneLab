@@ -69,6 +69,10 @@ internal class PropertyObjectController : StackPanel
     // 排在通用项「恢复默认值」之前。嵌套 ObjectConfig 的子控制器不继承本钩子（作用面 = 本层直属属性）。
     public Func<PropertyKey, IControllerConfig, IReadOnlyList<MenuItem>?>? ItemContextMenuProvider { get; set; }
 
+    // 宿主注入的整面板公共右键项（如音素面板的拆分 / 删除：属于整块，与点在哪个字段上无关）。与 ItemContextMenuProvider
+    // 相反，嵌套 ObjectConfig 的子控制器继承本钩子——点在子字段上也该有这些项。排在字段专属项之后、「恢复默认值」之前。
+    public Func<IReadOnlyList<MenuItem>?>? ContainerContextMenuProvider { get; set; }
+
     // 按钮（ButtonConfig）的作用域与完成通知，见 ButtonRoot。面板持有方在根控制器上设 / 订阅；嵌套控制器经
     // AttachButtonRoot 共享根的那一份（路径 = 根到本层的 key / 元素 token 串）。
     public string ButtonScope { get => mButtonRoot.Scope; set => mButtonRoot.Scope = value; }
@@ -299,9 +303,10 @@ internal class PropertyObjectController : StackPanel
                 void OnContextRequested(object? sender, ContextRequestedEventArgs e)
                 {
                     var menu = new ContextMenu();
-                    var items = Parent.ItemContextMenuProvider?.Invoke(key, currentConfig());
-                    if (items != null && items.Count > 0)
+                    foreach (var items in new[] { Parent.ItemContextMenuProvider?.Invoke(key, currentConfig()), Parent.ContainerContextMenuProvider?.Invoke() })
                     {
+                        if (items == null || items.Count == 0)
+                            continue;
                         foreach (var item in items)
                             menu.Items.Add(item);
                         menu.Items.Add(new Separator());
@@ -338,6 +343,7 @@ internal class PropertyObjectController : StackPanel
             mController = ObjectPoolManager.Get<PropertyObjectController>();
             mController.AttachButtonRoot(parent.mButtonRoot, parent.mButtonPath + "/" + key.Id);
             mController.CollapseScope = parent.FoldKey(key);
+            mController.ContainerContextMenuProvider = parent.ContainerContextMenuProvider;   // 整块公共项往下传（字段专属项不传）
             mController.SetConfig(config, parent.DataObject.Object(key.Id));
 
             // 子字段的标签左缘 = 引导线右侧再缩进 24（与顶层字段同一套边距），故整体缩进 = 引导线位置 + 1。
@@ -367,6 +373,7 @@ internal class PropertyObjectController : StackPanel
             mController.ResetConfig();
             mController.DetachButtonRoot();
             mController.CollapseScope = null;
+            mController.ContainerContextMenuProvider = null;
             ObjectPoolManager.Return(mController);
             ObjectPoolManager.Return(mTitle);
         }

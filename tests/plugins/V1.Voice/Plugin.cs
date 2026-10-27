@@ -60,6 +60,12 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
         // 无界数值框（验证 DraggableNumberBox/DraggableNumberBoxConfig）：横拖擦写、双击键入、无上下界、Shift 精调。
         var offset = DraggableNumberBoxConfig.Create(0).WithSensitivity(0.5).WithFormat(NumberFormat.Decimals(1));
         mCorePhonemeProperties.Add(("offset", "Offset (ms)"), offset);
+        // 嵌套对象（验证音素面板里嵌套字段的右键：钉选只给直属字段，拆分 / 删除这类整块公共项子字段也有）。
+        mCorePhonemeProperties.Add(("envelope", "Envelope"), ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>
+        {
+            { ("attack", "Attack"), SliderConfig.Linear(0.1, 0, 1) },
+            { ("release", "Release"), SliderConfig.Linear(0.3, 0, 1) },
+        }));
         mConsonantPhonemeProperties.Add(("offset", "Offset (ms)"), offset);
         // 画布（StretchCurveCanvas / ImageDemoCanvas）不在这里：它们的值在声明时从 context 取，见 GetNotePropertyConfig /
         // GetPhonemePropertyConfigs。

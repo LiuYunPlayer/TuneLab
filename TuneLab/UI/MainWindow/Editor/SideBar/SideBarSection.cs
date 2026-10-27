@@ -29,9 +29,9 @@ internal static class SideBarSection
         {
             HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
             VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-            Margin = new(FieldFold.GuideX - 2, 0, 0, 0),   // 与字段三角同一条中线（宽 4，中心落在 GuideX）
             IsExpanded = panel.IsExpanded,
         };
+        chevron.Margin = new(chevron.LeftForCenter(FieldFold.GuideX), 0, 0, 0);   // 与字段三角同一条中线（中心落在 GuideX）
         panel.ExpandedChanged += () => chevron.IsExpanded = panel.IsExpanded;
 
         var row = new Panel();
