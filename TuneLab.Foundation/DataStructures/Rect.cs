@@ -1,9 +1,24 @@
 namespace TuneLab.Foundation;
 
-// 矩形（坐标与 Point 同一套）。宽或高为负 = 空矩形。只读值：要改就 rect with { X = … } 得到新值。
+// 矩形（坐标与 Point 同一套）。宽或高为负 = 空矩形。只读值：要换就按名字取需要的量建一个新的（或用 Inflate 等方法）。
+// 刻意不写成位置式 record（Rect(double X, …)）：那会自动生成 Deconstruct，`var (l, t, r, b) = rect;` 能编译，拿到的却是
+// X、Y、Width、Height 而不是四条边——旁边还有 FromLTRB，这样写的人只会以为是边。现在解构直接编译不过，只能按名字读。
 // 只给眼下用得上的几个方法；求交 / 合并等等真有需求再加（加的时候先定"不相交时返回什么"）。
-public readonly record struct Rect(double X, double Y, double Width, double Height)
+public readonly record struct Rect
 {
+    public double X { get; }
+    public double Y { get; }
+    public double Width { get; }
+    public double Height { get; }
+
+    public Rect(double x, double y, double width, double height)
+    {
+        X = x;
+        Y = y;
+        Width = width;
+        Height = height;
+    }
+
     // 按四条边构造（名字即参数顺序：左、上、右、下）。
     public static Rect FromLTRB(double left, double top, double right, double bottom) => new(left, top, right - left, bottom - top);
 

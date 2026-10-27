@@ -91,6 +91,14 @@ public class CanvasDrawingStyleTests
         Assert.Equal(rect, Rect.FromLTRB(10, 20, 40, 60));
     }
 
+    // Rect 不能解构：位置式 record 生成的 Deconstruct 给的是 X / Y / Width / Height，`var (l, t, r, b) = rect;` 会悄悄拿错
+    // （插件迁移时真踩过）。改回位置式写法会让这条失败。
+    [Fact]
+    public void Rect_CannotBeDeconstructed()
+    {
+        Assert.Null(typeof(Rect).GetMethod("Deconstruct"));
+    }
+
     // 含边；向内缩用负数，缩过头即空矩形（宽高为负），不含任何点。
     [Fact]
     public void Rect_ContainsAndInflate()

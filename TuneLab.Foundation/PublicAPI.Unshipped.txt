@@ -15,19 +15,15 @@ TuneLab.Foundation.Rect.Bottom.get -> double
 TuneLab.Foundation.Rect.Center.get -> TuneLab.Foundation.Point
 TuneLab.Foundation.Rect.Contains(TuneLab.Foundation.Point point) -> bool
 TuneLab.Foundation.Rect.Height.get -> double
-TuneLab.Foundation.Rect.Height.init -> void
 TuneLab.Foundation.Rect.Inflate(double dx, double dy) -> TuneLab.Foundation.Rect
 TuneLab.Foundation.Rect.Left.get -> double
 TuneLab.Foundation.Rect.Rect() -> void
-TuneLab.Foundation.Rect.Rect(double X, double Y, double Width, double Height) -> void
+TuneLab.Foundation.Rect.Rect(double x, double y, double width, double height) -> void
 TuneLab.Foundation.Rect.Right.get -> double
 TuneLab.Foundation.Rect.Top.get -> double
 TuneLab.Foundation.Rect.Width.get -> double
-TuneLab.Foundation.Rect.Width.init -> void
 TuneLab.Foundation.Rect.X.get -> double
-TuneLab.Foundation.Rect.X.init -> void
 TuneLab.Foundation.Rect.Y.get -> double
-TuneLab.Foundation.Rect.Y.init -> void
 TuneLab.Foundation.Size
 TuneLab.Foundation.Size.Height.get -> double
 TuneLab.Foundation.Size.Height.init -> void
