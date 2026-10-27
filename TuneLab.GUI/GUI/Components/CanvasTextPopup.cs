@@ -48,6 +48,10 @@ internal sealed class CanvasTextPopup
             MinHeight = 0,
             Width = textWidth + 2 * PaddingX,
             Height = textHeight + 2 * PaddingY,
+            // 白底黑字，同卷帘上的歌词输入框：画布底色与宿主输入框同档（深色），深色框盖在上面分不清边界。
+            Background = Brushes.White,
+            Foreground = Brushes.Black,
+            CaretBrush = Brushes.Black,
             AcceptsReturn = multiline,
             NewLine = "\n",   // 换行在值里一律是 \n（同 DrawText、同多行字段的存值）
             TextWrapping = TextWrapping.NoWrap,
@@ -58,13 +62,13 @@ internal sealed class CanvasTextPopup
         mBox.AddHandler(InputElement.KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel);
         mBox.LostFocus += (_, _) => Finish(mBox.Text);
 
-        // 外框同宿主下拉菜单的弹层（底色、圆角、边线），两种弹出观感一致。
+        // 白底配深色描边：插件可能把底画成任何颜色（包括浅色），白底失去反差时还有深边勾出边界。
         var frame = new Border()
         {
-            Background = Style.BACK.ToBrush(),
+            Background = Brushes.White,
             CornerRadius = new(4),
             BorderThickness = new(BorderWidth),
-            BorderBrush = Style.INTERFACE.ToBrush(),
+            BorderBrush = Style.DARK.ToBrush(),
             Child = mBox,
         };
 

@@ -39,6 +39,10 @@ internal sealed class DropDownMenu : Panel
 
     public bool IsOpen => mPopup.IsOpen;
 
+    // 弹层的描边（含各层子菜单）；null = 默认（侧栏上弹出：深色弹层压在更亮的面板上，边线只需一点点）。
+    // 画布上弹出时底下是插件自己画的东西、什么颜色都可能，故传一条与深色底反差大的亮边，弹层的边界总看得清。
+    public IBrush? OutlineBrush { get; init; }
+
     // 刚被 light-dismiss 关掉：锚点控件据此忽略紧随其后的同一次按下，使「再点一次锚点」表现为收起而非重开。
     public bool JustClosed { get; private set; }
 
@@ -142,7 +146,7 @@ internal sealed class DropDownMenu : Panel
         return border;
     }
 
-    static Border MakeMenuBorder(Control content)
+    Border MakeMenuBorder(Control content)
     {
         var border = new Border()
         {
@@ -150,7 +154,7 @@ internal sealed class DropDownMenu : Panel
             CornerRadius = new(4),
             Padding = new(0, 4),
             BorderThickness = new(1),
-            BorderBrush = Style.INTERFACE.ToBrush(),
+            BorderBrush = OutlineBrush ?? Style.INTERFACE.ToBrush(),
             Child = content,
         };
         // 屏蔽滚轮穿透：ScrollViewer 能滚则先消费（标 Handled）；滚到尽头未处理者冒泡至此 → 吞掉，不传到后面面板。

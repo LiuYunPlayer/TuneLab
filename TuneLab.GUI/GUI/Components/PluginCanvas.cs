@@ -84,7 +84,7 @@ internal sealed class PluginCanvas : Component
     {
         if (mMenu == null)
         {
-            mMenu = new DropDownMenu(this);
+            mMenu = new DropDownMenu(this) { OutlineBrush = Style.LIGHT_WHITE.ToBrush() };   // 深底亮边：画布上画什么颜色都分得清
             AttachPopup(mMenu);
         }
         return mMenu;
