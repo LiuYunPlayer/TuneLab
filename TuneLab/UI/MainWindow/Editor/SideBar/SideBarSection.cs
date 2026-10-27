@@ -14,7 +14,8 @@ internal static class SideBarSection
 {
     // 给一个可折叠分组装上标题：标签 + 左侧三角（展开朝下、收起朝右）。三角与字段 / 对象的同在标题左侧留白里
     //（见 FieldFold），大小相同、分组的亮一档——同一位置、用亮度区分层级。
-    public static void Attach(CollapsiblePanel panel, string text)
+    // lineAbove：页面首个分组传 false——侧栏顶栏下已有一条分隔线，再画顶边两条线贴在一起，看着粗一档。
+    public static void Attach(CollapsiblePanel panel, string text, bool lineAbove = true)
     {
         var label = new Label
         {
@@ -41,7 +42,7 @@ internal static class SideBarSection
         {
             Background = Style.INTERFACE.ToBrush(),
             BorderBrush = Style.BACK.ToBrush(),
-            BorderThickness = new(0, 1, 0, 0),
+            BorderThickness = new(0, lineAbove ? 1 : 0, 0, 0),
             Child = row,
         };
     }

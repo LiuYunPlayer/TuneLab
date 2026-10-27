@@ -41,7 +41,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         mNoteScheduler.SuspendWhileEditing(mNotePanel, mLifetime);
         mPhonemeScheduler.SuspendWhileEditing(mPhonemePanel, mLifetime);
 
-        SideBarSection.Attach(mNotePanel, "Note".Tr(TC.Property));
+        SideBarSection.Attach(mNotePanel, "Note".Tr(TC.Property), lineAbove: false);
         mNoteContent.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
         mNoteContent.Children.Add(SideBarSection.CreateInset());
         mNoteContent.Children.Add(mNotePropertiesController);
