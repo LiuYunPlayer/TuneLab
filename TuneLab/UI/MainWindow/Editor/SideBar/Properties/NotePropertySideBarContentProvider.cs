@@ -325,20 +325,18 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
             {
                 var config = slotConfig!;
                 var poc = new PropertyObjectController() { ShowSeparators = false };   // 分界由行单元统一拥有（见下），控制器不再自吐尾随分隔
+                // 字段折叠记忆按音源 + slot（同音素块的折叠键作前缀，见 PhonemeFoldKey）：与音符面板的字段一样可收起。
+                poc.CollapseScope = PhonemeFoldKey(a);
                 // 按钮作用域 = part + 本行成员 note + slot；执行完重建音素面板（音素 schema 可能随插件状态变）。
                 poc.ButtonScope = "phoneme/" + mPart!.RuntimeId + "/" + string.Join(",", members.Select(m => m.Note.Note.RuntimeId)) + "/" + a;
                 poc.ButtonActionCompleted += mPhonemeScheduler.InvalidateStructure;
-                // 属性行右键 = 钉选项（phoneme scope）+ 既有 slot 动作（拆分/删除）——属性行的右键被本钩子接管后
-                // 不再冒泡到行容器的 ContextMenu，故把 slot 项并进来，避免"点在属性上就丢拆分/删除"。
+                // 属性行右键 = 钉选项（phoneme scope，只给本层直属字段：钉选按顶层键）+ slot 动作（拆分/删除，整块公共项、
+                // 嵌套对象的子字段也继承）——属性行的右键被这两个钩子接管后不再冒泡到行容器的 ContextMenu，故 slot 项并进来，
+                // 避免"点在属性上就丢拆分/删除"。
                 var menuMembers = members;
                 poc.ItemContextMenuProvider = (key, cfg) =>
-                {
-                    var items = new List<Avalonia.Controls.MenuItem>();
-                    if (TryBuildLanePinMenuItem(ParameterPinKind.PhonemeProperty, key, cfg) is { } pin)
-                        items.Add(pin);
-                    items.AddRange(BuildSlotMenuItems(menuMembers));
-                    return items;
-                };
+                    TryBuildLanePinMenuItem(ParameterPinKind.PhonemeProperty, key, cfg) is { } pin ? [pin] : null;
+                poc.ContainerContextMenuProvider = () => BuildSlotMenuItems(menuMembers);
                 controller = poc;
                 if (propMembers.All(m => m.Note.Pinned))
                 {
@@ -383,6 +381,8 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
                 ph => ph.StretchWeight, sp => sp.StretchWeight, WeightConfig));
             DockPanel.SetDock(rightGroup, Dock.Right);
             strip.Children.Add(rightGroup);
+            if (controller != null)
+                strip.Children.Add(BuildPhonemeFoldToggle(a, controller, (EditableLabel)symbolField));
             strip.Children.Add(symbolField);   // 占满左侧
 
             var panel = new StackPanel() { Orientation = Orientation.Vertical };
@@ -411,6 +411,48 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
     // 再把该成员 buffer 值写回该位音素属性，整体提交为一个撤销步。随后 Phonemes.MembershipModified 触发重建 → 该 slot 转真绑定。
     // 音素符号：透明背景的 EditableLabel，铺在顶部色条左侧、靠左显示（长符号有整行宽度容纳）。底色由色条提供。
     // 复用标准 TextInput 编辑（padding 等一致），圆角 2。双击原地改符号，提交即扇出。
+    // 音素块的折叠：只收起色条下的属性面板，色条（符号 / 时长 / 权重）常驻。三角放在色条最左、符号之前（占掉符号左边距的
+    // 那块，符号文字位置基本不动）。按音源 + slot 记进折叠存储（与属性面板字段同一套）：收起了某一位（如核），换选别的
+    // note 仍收着。只有声明了属性的音素块才有它。
+    // 音素块的折叠记忆键（按音源 + slot）；块内字段的折叠键以它为前缀（PropertyObjectController.CollapseScope）。
+    string PhonemeFoldKey(int slot)
+        => "phoneme:" + mPart!.SoundSource.Kind + ":" + mPart.SoundSource.Type + "/@slot/" + slot.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    Control BuildPhonemeFoldToggle(int slot, Control body, EditableLabel symbol)
+    {
+        string key = PhonemeFoldKey(slot);
+        bool collapsed = FieldFoldStore.Current?.IsCollapsed(key) ?? false;
+        body.IsVisible = !collapsed;
+
+        var chevron = new Chevron(8, Colors.White)
+        {
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            IsExpanded = !collapsed,
+        };
+        var toggle = new Border
+        {
+            Width = 16,
+            Margin = new(4, 0, 0, 0),
+            Background = Brushes.Transparent,   // 整块可点
+            Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand),
+            Child = chevron,
+        };
+        toggle.PointerPressed += (_, e) =>
+        {
+            if (!e.GetCurrentPoint(toggle).Properties.IsLeftButtonPressed)
+                return;
+            e.Handled = true;
+            bool collapse = body.IsVisible;
+            body.IsVisible = !collapse;
+            chevron.IsExpanded = !collapse;
+            FieldFoldStore.Current?.SetCollapsed(key, collapse);
+        };
+        DockPanel.SetDock(toggle, Dock.Left);
+        symbol.Padding = new(0, 0, 16, 0);   // 左边距让给三角（4 + 16 ≈ 原来的 16 + 一点）
+        return toggle;
+    }
+
     Control BuildSymbolCell(string displayed, IReadOnlyList<(PhonemeNoteInfo Note, int Index)> members)
     {
         var label = new EditableLabel()
