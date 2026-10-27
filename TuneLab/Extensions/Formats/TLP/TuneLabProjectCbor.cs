@@ -102,12 +102,99 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat, INativeProject
                 case "playheadPos":
                     editorInfo.PlayheadPos = reader.ReadDouble();
                     break;
+                case "parameterPanels":
+                    editorInfo.ParameterPanels = ReadParameterPanels(reader);
+                    break;
+                case "focusedParameterPanel":
+                    editorInfo.FocusedParameterPanel = reader.ReadInt32();
+                    break;
                 default:
                     reader.SkipValue();
                     break;
             }
         }
         reader.ReadEndMap();
+    }
+
+    private List<ParameterPanelInfo> ReadParameterPanels(CborReader reader)
+    {
+        var panels = new List<ParameterPanelInfo>();
+        reader.ReadStartArray();
+        while (reader.PeekState() != CborReaderState.EndArray)
+        {
+            var panel = new ParameterPanelInfo();
+            reader.ReadStartMap();
+            while (reader.PeekState() != CborReaderState.EndMap)
+            {
+                var key = reader.ReadTextString();
+                switch (key)
+                {
+                    case "height":
+                        panel.Height = reader.ReadDouble();
+                        break;
+                    case "collapsed":
+                        panel.Collapsed = reader.ReadBoolean();
+                        break;
+                    case "active":
+                        panel.Active = ReadParameterRef(reader);
+                        break;
+                    case "visible":
+                        ReadParameterRefs(reader, panel.Visible);
+                        break;
+                    case "visibleSynthesized":
+                        ReadParameterRefs(reader, panel.VisibleSynthesized);
+                        break;
+                    default:
+                        reader.SkipValue();
+                        break;
+                }
+            }
+            reader.ReadEndMap();
+            panels.Add(panel);
+        }
+        reader.ReadEndArray();
+        return panels;
+    }
+
+    private void ReadParameterRefs(CborReader reader, List<ParameterRefInfo> refs)
+    {
+        reader.ReadStartArray();
+        while (reader.PeekState() != CborReaderState.EndArray)
+            refs.Add(ReadParameterRef(reader));
+        reader.ReadEndArray();
+    }
+
+    private ParameterRefInfo ReadParameterRef(CborReader reader)
+    {
+        var info = new ParameterRefInfo();
+        reader.ReadStartMap();
+        while (reader.PeekState() != CborReaderState.EndMap)
+        {
+            var key = reader.ReadTextString();
+            switch (key)
+            {
+                case "source":
+                    info.Source = reader.ReadTextString();
+                    break;
+                case "id":
+                    info.Id = reader.ReadTextString();
+                    break;
+                case "effectId":
+                    info.EffectId = reader.ReadTextString();
+                    break;
+                case "effectIndex":
+                    info.EffectIndex = reader.ReadInt32();
+                    break;
+                case "effectType":
+                    info.EffectType = reader.ReadTextString();
+                    break;
+                default:
+                    reader.SkipValue();
+                    break;
+            }
+        }
+        reader.ReadEndMap();
+        return info;
     }
 
     private void ReadTempos(CborReader reader, List<TempoInfo> tempos)
@@ -861,6 +948,66 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat, INativeProject
         writer.WriteStartMap(null);
         writer.WriteTextString("playheadPos");
         writer.WriteDouble(editorInfo.PlayheadPos);
+        // 没有布局（headless 导出等）就不写：读回来即默认单面板，与旧工程同一条路。
+        if (editorInfo.ParameterPanels is { } panels)
+        {
+            writer.WriteTextString("parameterPanels");
+            writer.WriteStartArray(null);
+            foreach (var panel in panels)
+            {
+                writer.WriteStartMap(null);
+                writer.WriteTextString("height");
+                writer.WriteDouble(panel.Height);
+                writer.WriteTextString("collapsed");
+                writer.WriteBoolean(panel.Collapsed);
+                if (panel.Active is { } active)
+                {
+                    writer.WriteTextString("active");
+                    WriteParameterRef(writer, active);
+                }
+                writer.WriteTextString("visible");
+                WriteParameterRefs(writer, panel.Visible);
+                writer.WriteTextString("visibleSynthesized");
+                WriteParameterRefs(writer, panel.VisibleSynthesized);
+                writer.WriteEndMap();
+            }
+            writer.WriteEndArray();
+            writer.WriteTextString("focusedParameterPanel");
+            writer.WriteInt32(editorInfo.FocusedParameterPanel);
+        }
+        writer.WriteEndMap();
+    }
+
+    private void WriteParameterRefs(CborWriter writer, List<ParameterRefInfo> refs)
+    {
+        writer.WriteStartArray(null);
+        foreach (var info in refs)
+            WriteParameterRef(writer, info);
+        writer.WriteEndArray();
+    }
+
+    private void WriteParameterRef(CborWriter writer, ParameterRefInfo info)
+    {
+        writer.WriteStartMap(null);
+        writer.WriteTextString("source");
+        writer.WriteTextString(info.Source);
+        writer.WriteTextString("id");
+        writer.WriteTextString(info.Id);
+        if (info.EffectId != null)
+        {
+            writer.WriteTextString("effectId");
+            writer.WriteTextString(info.EffectId);
+        }
+        if (info.EffectIndex >= 0)
+        {
+            writer.WriteTextString("effectIndex");
+            writer.WriteInt32(info.EffectIndex);
+        }
+        if (info.EffectType != null)
+        {
+            writer.WriteTextString("effectType");
+            writer.WriteTextString(info.EffectType);
+        }
         writer.WriteEndMap();
     }
 

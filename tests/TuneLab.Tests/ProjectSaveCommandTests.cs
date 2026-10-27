@@ -27,6 +27,7 @@ public class ProjectSaveCommandTests
         public string? SavedTo;
 
         string? IProjectFileAccess.Open(string path) => OpenError;
+        TuneLab.Extensions.Formats.TLP.EditorInfo IProjectFileAccess.CaptureEditorInfo() => new();
 
         public string? Save(string? path)
         {

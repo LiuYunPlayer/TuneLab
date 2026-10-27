@@ -317,10 +317,15 @@ internal sealed class ProjectExportCommand : ICommand
 
         // 序列化【先于】授权：FormatsManager 缓冲进 MemoryStream（原子写语义——失败时目标文件尚未开写），
         // 故序列化失败可以直接报错、不必先问一次再让用户白确认一场。
+        // 有窗口时带上编辑器里的状态（播放头 + 参数面板布局），与界面另存为写出的一样；headless 没有编辑器，
+        // 只记播放头、不写布局（读回来即默认单面板）。
+        var editorInfo = ctx.ProjectFile is { } projectFile
+            ? await ctx.OnMainThread(projectFile.CaptureEditorInfo)
+            : new EditorInfo { PlayheadPos = PlayheadTick(project) };
         var file = new NativeProjectFile
         {
             Project = project.GetInfo(),
-            Editor = new EditorInfo { PlayheadPos = PlayheadTick(project) },
+            Editor = editorInfo,
             Export = project.GetExportConfig(),
         };
         // native(.tlp/.tlpx) 走 SerializeNative 带上 editor/export 元数据保真；foreign(.mid 等) 由它内部

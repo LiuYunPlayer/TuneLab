@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.IO;
 using TuneLab.SDK;
 
@@ -8,6 +9,32 @@ namespace TuneLab.Extensions.Formats.TLP;
 internal class EditorInfo
 {
     public double PlayheadPos { get; set; } = 0;
+    // 参数面板布局（自上而下）。null = 文件里没有这一项（旧工程、.tlp）→ 打开得到默认单面板。
+    public List<ParameterPanelInfo>? ParameterPanels { get; set; }
+    public int FocusedParameterPanel { get; set; } = 0;
+}
+
+// 一块参数面板的持久形态：想要的高度（逻辑像素）、收起、激活参数、可见参数、点亮的回显轨。
+internal class ParameterPanelInfo
+{
+    public double Height { get; set; }
+    public bool Collapsed { get; set; }
+    // null = 默认（Volume）。
+    public ParameterRefInfo? Active { get; set; }
+    public List<ParameterRefInfo> Visible { get; set; } = new();
+    public List<ParameterRefInfo> VisibleSynthesized { get; set; } = new();
+}
+
+// 面板里"哪一条参数"的持久形态。运行时的路由键带的是 effect 的链内下标，不能直接存：布局是整个工程共用的、
+// 跨 part 的，故 effect 参数另记实例 id 与类型，打开时先按 id、再按「位置 + 类型」认回（见 ParameterPanelLayoutStore）。
+internal class ParameterRefInfo
+{
+    public string Source { get; set; } = string.Empty;   // voice | effect | noteLane | phonemeLane
+    public string Id { get; set; } = string.Empty;
+    // 仅 effect 来源：实例 id、链内位置、类型。
+    public string? EffectId { get; set; }
+    public int EffectIndex { get; set; } = -1;
+    public string? EffectType { get; set; }
 }
 
 internal class ExportConfigInfo

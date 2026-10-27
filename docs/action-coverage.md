@@ -97,7 +97,7 @@
 一行一个入口。**入口**列是这个文件里的稳定 key（菜单项取显示名字面量、按钮/开关取变量名；同名的按出现
 次序加 `#2`），**不带行号**——行号天天变，那样这张表会因为无关改动天天红。
 
-**174 个入口**：`action` 27 · `command` 15 · `script` 73 · `pending` 0 · `dialog` 35 · `internal` 19 · `by-design` 1 · `todo` 4
+**175 个入口**：`action` 27 · `command` 15 · `script` 73 · `pending` 0 · `dialog` 35 · `internal` 19 · `by-design` 1 · `todo` 5
 
 #### TuneLab/App.axaml.cs
 
@@ -207,6 +207,7 @@
 | 入口 | 种类 | 裁决 | 说明 |
 |---|---|---|---|
 | Hide Parameter Panel | menu | `action:view.toggleParameterPanel` | 标题栏右键藏起整个参数区；与 Ctrl+P 同一件事（菜单只在显示着时够得着，故只有藏这一半） |
+| TitleBar | button | `todo` | 点标题栏聚焦这块参数面板（底部标签栏随之作用于它）。第四期进动作面：聚焦面板，面板是选择器参数 |
 | Close Panel | menu | `todo` | 关掉一块参数面板（标题栏右键）。第四期进动作面，面板是选择器参数 |
 
 #### TuneLab/UI/MainWindow/Editor/PianoWindow/ParameterTabBar/ParameterTabBar.cs

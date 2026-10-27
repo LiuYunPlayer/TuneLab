@@ -10,6 +10,7 @@ using TuneLab.Foundation;
 using TuneLab.GUI.Input;
 using TuneLab.Input;
 using TuneLab.Data;
+using TuneLab.Extensions.Formats.TLP;
 using TuneLab.Utils;
 using TuneLab.SDK;
 using TuneLab.GUI.Components;
@@ -135,6 +136,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         this.AddDock(layerPanel);
 
         mParameterTabBar.StateChangeAsked += OnParameterTabBarStateChangeAsked;
+        mPartHolder.Modified.Subscribe(ApplyPendingParameterLayout, s);
         mParameterLayer.SizeChanged += (s, e) => { ApplyLayout(); };
 
         ClipToBounds = true;
@@ -527,6 +529,64 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         mParameterPanelVisibilityChanged.Invoke();
     }
 
+    // —— 参数面板布局进出工程文件（EditorInfo）——
+
+    // 存：自上而下的各面板 + 焦点下标。effect 参数按钢琴窗此刻开着的 part 补上实例身份。
+    public (List<ParameterPanelInfo> Panels, int Focused) CaptureParameterLayout()
+    {
+        var effects = ParameterPanelLayoutStore.EffectSlotsOf(Part);
+        return (mPanels.Select(p => p.Capture(effects)).ToList(), mFocusedIndex);
+    }
+
+    // 还原（打开工程、崩溃恢复、新建）。panels 为 null 或空 = 默认单面板（旧工程、.tlp、新工程）。
+    // effect 参数要对着一个 part 认回，此刻钢琴窗还没开 part（崩溃恢复是先装数据、后开 part）就先记下，开了再还原。
+    public void RestoreParameterLayout(IReadOnlyList<ParameterPanelInfo>? panels, int focused)
+    {
+        mPendingParameterLayout = null;
+        if (panels is { Count: > 0 } && Part == null)
+        {
+            mPendingParameterLayout = (panels, focused);
+            return;
+        }
+        ApplyParameterLayout(panels, focused);
+    }
+
+    void ApplyPendingParameterLayout()
+    {
+        if (mPendingParameterLayout is not { } pending || Part == null)
+            return;
+
+        mPendingParameterLayout = null;
+        ApplyParameterLayout(pending.Panels, pending.Focused);
+    }
+
+    void ApplyParameterLayout(IReadOnlyList<ParameterPanelInfo>? panels, int focused)
+    {
+        foreach (var panel in mPanels)
+            panel.Detach();
+        mPanels.Clear();
+        // 先把焦点下标放到第一块上：Restore 会发激活 / 可见变化，转发时要读焦点面板（先加进列表再 Restore 同理）。
+        mFocusedIndex = 0;
+
+        var effects = ParameterPanelLayoutStore.EffectSlotsOf(Part);
+        if (panels is { Count: > 0 })
+        {
+            foreach (var info in panels)
+            {
+                var panel = CreatePanel(info.Height);
+                mPanels.Add(panel);
+                panel.Restore(info, effects);
+            }
+        }
+        else
+        {
+            mPanels.Add(CreatePanel(GetStoredParameterHeight()));
+        }
+
+        RebuildParameterLayer();
+        SetFocusedPanel(mPanels[Math.Clamp(focused, 0, mPanels.Count - 1)], force: true);
+    }
+
     // —— 参数面板堆 ——
 
     public bool CanClosePanel => mPanels.Count > 1;
@@ -573,9 +633,9 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         panel.VisibleAutomationChanged += () => { if (panel == FocusedPanel) VisibleAutomationChanged?.Invoke(); };
         panel.FocusRequested += () => SetFocusedPanel(panel);
         panel.CloseAsked += () => ClosePanel(panel);
+        // 收起 / 展开不切焦点（同只有点标题栏才聚焦的约定）。
         panel.CollapseToggleAsked += () =>
         {
-            SetFocusedPanel(panel);
             panel.IsCollapsed = !panel.IsCollapsed;
             ApplyLayout();
         };
@@ -707,6 +767,8 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     readonly List<ParameterPanel> mPanels = new();
     int mFocusedIndex;
     bool mAreaHidden;
+    // 等 part 打开再还原的布局（见 RestoreParameterLayout）。
+    (IReadOnlyList<ParameterPanelInfo> Panels, int Focused)? mPendingParameterLayout;
     ParameterPanel FocusedPanel => mPanels[mFocusedIndex];
     // 删除 / 全选锚点作用于指针悬停的那块，没有悬停的就是焦点面板。
     ParameterPanel HoveredOrFocusedPanel => mPanels.FirstOrDefault(p => p.AutomationRenderer.IsHover) ?? FocusedPanel;

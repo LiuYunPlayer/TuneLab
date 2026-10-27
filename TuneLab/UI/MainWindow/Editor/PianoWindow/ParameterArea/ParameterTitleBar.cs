@@ -32,6 +32,9 @@ internal class ParameterTitleBar : LayerPanel
     public event Action? CollapseToggleAsked;
     // 最右的「×」被点：关不关由宿主决定（只剩一块时它本就不显示）。
     public event Action? CloseAsked;
+    // 在标题栏空白处 / 参数名上按下了左键（点一下或开始拖动改高度都算）：聚焦这块面板。按在三角、「×」、
+    // 回显 chip 上不算——它们盖在拖拽把手上面，事件到不了把手。
+    public event Action? Pressed;
 
     public interface IDependency
     {
@@ -53,6 +56,12 @@ internal class ParameterTitleBar : LayerPanel
         // 底层拖拽把手：Moved 换算成标题栏在父容器内的目标 top（把手在标题栏内恒为 (0,0)，补上自身位置即可）。
         var dragHandle = new MovableComponent();
         dragHandle.Moved.Subscribe(p => Moved?.Invoke(p.Y + Bounds.Y));
+        // 挂在把手上（自绘组件把指针事件标成已处理，故连已处理的也收）。
+        dragHandle.AddHandler(PointerPressedEvent, (_, e) =>
+        {
+            if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+                Pressed?.Invoke();
+        }, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
         Children.Add(dragHandle);
 
         var content = new DockPanel() { LastChildFill = false };

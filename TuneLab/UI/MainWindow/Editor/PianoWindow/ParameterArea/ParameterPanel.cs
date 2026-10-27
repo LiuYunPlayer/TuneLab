@@ -5,6 +5,7 @@ using Avalonia.Media;
 using System;
 using System.Collections.Generic;
 using TuneLab.Data;
+using TuneLab.Extensions.Formats.TLP;
 using TuneLab.Foundation;
 using TuneLab.GUI;
 using TuneLab.I18N;
@@ -35,7 +36,7 @@ internal sealed class ParameterPanel : AutomationRenderer.IDependency, Parameter
     public event Action? ActiveAutomationChanged;
     public event Action? VisibleAutomationChanged;
     public event Action? SynthesizedParameterVisibilityChanged;
-    // 交给宿主的：在这块面板里按下了（聚焦它）、收起三角被点、点了「×」或右键选了关闭。
+    // 交给宿主的：点了标题栏（聚焦它）、收起三角被点、点了「×」或右键选了关闭。
     public event Action? FocusRequested;
     public event Action? CollapseToggleAsked;
     public event Action? CloseAsked;
@@ -73,9 +74,9 @@ internal sealed class ParameterPanel : AutomationRenderer.IDependency, Parameter
         TitleBar = new ParameterTitleBar(this) { Height = titleBarHeight };
         ActiveAutomation = DefaultAutomation;
 
-        // 在面板里任何地方按下都聚焦它（隧道 + 已处理的也收：渲染器里的操作会把按下标成已处理）。
-        Container.AddHandler(InputElement.PointerPressedEvent, OnPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
-        TitleBar.AddHandler(InputElement.PointerPressedEvent, OnPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
+        // 只有按标题栏才聚焦（见 ParameterTitleBar.Pressed）。在内容里画参数不切焦点：用户可以常驻几块面板、
+        // 留一块主面板专门用底部标签栏切参数——画完别的面板，标签栏照旧作用于主面板。
+        TitleBar.Pressed += () => FocusRequested?.Invoke();
         TitleBar.CollapseToggleAsked += () => CollapseToggleAsked?.Invoke();
         TitleBar.CloseAsked += () => CloseAsked?.Invoke();
         // 右键菜单不能挂 ContextRequested：标题栏底层的拖拽把手（自绘组件）把指针事件都标成已处理，Avalonia 就不再派发它。
@@ -106,6 +107,52 @@ internal sealed class ParameterPanel : AutomationRenderer.IDependency, Parameter
         SynthesizedParameterVisibilityChanged?.Invoke();
     }
 
+    // 存进工程文件（EditorInfo）。effect 参数按当前 part 的链补上实例身份（见 ParameterPanelLayoutStore）。
+    public ParameterPanelInfo Capture(IReadOnlyList<ParameterPanelLayoutStore.EffectSlot> effects)
+    {
+        var info = new ParameterPanelInfo
+        {
+            Height = DesiredHeight,
+            Collapsed = mIsCollapsed,
+            Active = mActiveAutomation is { } active ? ParameterPanelLayoutStore.ToRef(active, effects) : null,
+        };
+        foreach (var key in mVisibleAutomations)
+        {
+            if (ParameterPanelLayoutStore.ToRef(key, effects) is { } r)
+                info.Visible.Add(r);
+        }
+        foreach (var key in mVisibleSynthesizedParameters)
+        {
+            if (ParameterPanelLayoutStore.ToRef(key, effects) is { } r)
+                info.VisibleSynthesized.Add(r);
+        }
+        return info;
+    }
+
+    // 从工程文件还原。认不回的参数就少这一条；激活参数认不回则回落默认（Volume）。
+    public void Restore(ParameterPanelInfo info, IReadOnlyList<ParameterPanelLayoutStore.EffectSlot> effects)
+    {
+        mVisibleAutomations.Clear();
+        foreach (var r in info.Visible)
+        {
+            if (ParameterPanelLayoutStore.Resolve(r, effects) is { } key && !mVisibleAutomations.Contains(key))
+                mVisibleAutomations.Add(key);
+        }
+        mVisibleSynthesizedParameters.Clear();
+        foreach (var r in info.VisibleSynthesized)
+        {
+            if (ParameterPanelLayoutStore.Resolve(r, effects) is { } key)
+                mVisibleSynthesizedParameters.Add(key);
+        }
+        mActiveAutomation = info.Active is { } active ? ParameterPanelLayoutStore.Resolve(active, effects) ?? DefaultAutomation : DefaultAutomation;
+        DesiredHeight = info.Height;
+        mIsCollapsed = info.Collapsed;
+        ActiveAutomationChanged?.Invoke();
+        VisibleAutomationChanged?.Invoke();
+        SynthesizedParameterVisibilityChanged?.Invoke();
+        RefreshHeader();
+    }
+
     // 关掉面板：退订一切共享事件源（它们比面板活得久，订阅在就一直收事件、也释放不掉）。
     public void Detach()
     {
@@ -113,8 +160,6 @@ internal sealed class ParameterPanel : AutomationRenderer.IDependency, Parameter
         AutomationRenderer.Detach();
         TitleBar.Detach();
     }
-
-    void OnPressed(object? sender, PointerPressedEventArgs e) => FocusRequested?.Invoke();
 
     void OnTitleBarReleased(object? sender, PointerReleasedEventArgs e)
     {

@@ -1,3 +1,5 @@
+using TuneLab.Extensions.Formats.TLP;
+
 namespace TuneLab.Commands;
 
 // 「把用户正看着的那份文档换成磁盘上的另一个工程」——`project open` 用的宿主能力。
@@ -28,4 +30,8 @@ internal interface IProjectFileAccess
     // 保存。path 为空 = 存回当前路径；给了 path = 另存为，**工程的保存路径随之改到那里**
     // （与界面上的另存为同义，不是 `project export` 那种只写一份副本）。成功返回 null，失败返回原因。
     string? Save(string? path);
+
+    // 当前编辑器里要随工程文件存下的状态（播放头、参数面板布局）。`project export` 写 native 格式时带上它，
+    // 导出的副本与界面另存为的一模一样。只在主线程调。
+    EditorInfo CaptureEditorInfo();
 }

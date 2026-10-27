@@ -154,7 +154,6 @@ public partial class MainWindow : Window
 
                 mEditor.Project.SetInfo(file.Project);
                 mEditor.Project.SetExportConfig(file.Export);
-                mEditor.Playhead.Pos = Math.Max(0, file.Editor.PlayheadPos);
                 mEditor.Project.Commit();
                 foreach (var part in mEditor.Project.Tracks.SelectMany(track => track.Parts))
                 {
@@ -164,6 +163,8 @@ public partial class MainWindow : Window
                         break;
                     }
                 }
+                // 在开了 part 之后：布局里的 effect 参数要对着钢琴窗里的 part 认回。
+                mEditor.RestoreEditorInfo(file.Editor);
             }
             catch (Exception ex)
             {
