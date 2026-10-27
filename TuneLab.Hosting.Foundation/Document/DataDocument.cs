@@ -10,6 +10,9 @@ namespace TuneLab.Foundation;
 public class DataDocument : DataObject
 {
     public event Action? StatusChanged;
+    // 有没有未提交的改动。StatusChanged 在每压进一条命令时也会发；要只认"落定"（提交 / 放弃 / 撤销 / 重做之后）的，
+    // 在回调里看它为 false 即可——编辑进行中（含拖动的 DiscardTo + 重放）它一直为 true。
+    public bool HasUncommittedChanges => mUncommitedCommands.Count > 0;
     public override Head Head => new(mCommitedCommands.Count + mUncommitedCommands.Count);
     
     public DataDocument() { }
