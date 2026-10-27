@@ -14,52 +14,6 @@ namespace TuneLab.SDK;
 // 构造期 / 管线拆除后 / 无会话时照样能包（直读数据层、永远在）。引擎可读 part 当前真值（含非属性字段：note 时间 /
 // 音高 / 歌词、已声明自动化曲线、note 集合本身）条件化 schema。线程契约：仅数据线程同步只读、不留存视图引用。
 
-// 单条 part 的只读值视图（声明面）。
-public interface IVoiceSynthesisPartView
-{
-    // 该 part 选定声库（= IVoiceSynthesisEngine.VoiceSourceInfos 的 key）：引擎据此分流多声库。
-    string VoiceId { get; }
-    // part 运行期身份（= IVoiceSynthesisContext.PartId，同一个号）：插件据此查回会话为该 part 算的派生状态。
-    // 声明求值不绑定具体 part 时（如无 part 的静态 schema 枚举）为空串——插件按"无派生状态"作答即可。
-    string PartId { get; }
-    // 当前 note 集合（只读、宿主当前序）：原始几何，未经引擎口径的去重叠 / 钳位。
-    IReadOnlyList<IVoiceSynthesisNoteView> Notes { get; }
-    // part 属性值快照（多选 part 时各 part 一个，三态合并归插件：context.Parts.Select(p => p.PartProperties).Merge()）。
-    PropertyObject PartProperties { get; }
-    // 当前**存在用户内容**的自动化轨求值器（按 key；查询轴全局秒；连续/分段/被 vibrato 投影皆算有内容，
-    // 含孤儿）：只读 map，可枚举可点取。外生口径（非「已声明」）：声明集 = f(context)，按声明枚举会把
-    // 引擎上一轮输出喂回声明求值；未绘制且无投影的已声明轨不在 map——其值恒为引擎自知的默认。
-    IReadOnlyMap<string, IAutomationEvaluator> Automations { get; }
-}
-
-// voice 音素的只读值视图（声明面）：几何当前值 + per-phoneme 属性值快照。属性只在钉死音素上有意义。
-public interface IVoiceSynthesisPhonemeView
-{
-    string Symbol { get; }
-    double Duration { get; }              // 标称时长（秒）
-    double StretchWeight { get; }
-    PropertyObject Properties { get; }    // per-phoneme 属性值快照
-}
-
-// voice part 数据 note 的只读值视图（声明面；EndTime 取原始满末，未钳）。
-public interface IVoiceSynthesisNoteView
-{
-    // note 运行期身份（= IVoiceSynthesisNote.Id，同一个号）：插件据此查回会话为该 note 算的派生状态。
-    string Id { get; }
-    double StartTime { get; }              // 全局秒
-    double EndTime { get; }                // 全局秒（原始满末，未钳）
-    int Pitch { get; }
-    string Lyric { get; }
-    PropertyObject Properties { get; }     // per-note 属性值快照；多选 note 合并三态归插件
-    double BodyOffset { get; }             // 主体起点（结合线）相对 note 头的有符号偏移（junction = noteStart + BodyOffset）
-    // 钉死音素的结构化双列表（引导 / 主体），时间序。分类即列表成员。
-    // 全序列 = LeadingPhonemes ++ BodyPhonemes（时间序）；刻意不设合并投影属性——派生量是消费侧私事，
-    // 核相对 slot 坐标（音素属性声明 GetPhonemePropertyConfigs 的键）由 PhonemeSlots 从这两列表派生
-    //（slot = 全序列下标 − LeadingPhonemes.Count），引擎与宿主共用同一口径。
-    IReadOnlyList<IVoiceSynthesisPhonemeView> LeadingPhonemes { get; }
-    IReadOnlyList<IVoiceSynthesisPhonemeView> BodyPhonemes { get; }
-}
-
 // part 级声明壳（多选 part；单选 = 1 个、无选中 = 空）。包一层壳抗迭代——以后加只读字段不动方法签名。
 public interface IVoiceSynthesisPartPropertyContext
 {
