@@ -130,6 +130,10 @@ internal static class ScriptRunner
                 : ex.Message;      // 超时 / 递归 / 内存 / 语句数上限等
         }
 
+        // 属性写入按 config 校验（跑完才校验，见 ScriptContext.ValidatePropertyWrites）：不合法即按出错处理、整体回滚。
+        if (error == null)
+            error = context.ValidatePropertyWrites();
+
         // 收口：成功且有改动 → 提交成一个可撤销单位；出错/取消/无改动 → 原子回退到跑脚本前的干净状态。
         // preview 时无论如何都回退（只看会改什么、不落地）；ChangeCount 仍如实报本会改动数。
         bool committed = context.Finish(rollback: error != null || preview);

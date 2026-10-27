@@ -110,6 +110,12 @@ internal sealed class ScriptNote(ScriptContext ctx, INote note)
         ctx.Bump();
     }
 
+    // 属性校验报错里点名用（见 ScriptContext.ValidatePropertyWrites）：歌词 + 位置。
+    internal static string DescribeNote(INote n) => string.Format(System.Globalization.CultureInfo.InvariantCulture, "note \"{0}\" at tick {1}", n.Lyric.Value, n.Pos.Value);
+
+    // 单个 note 的声明上下文：校验时按写入后的数据求 schema。
+    internal static NotePropertyContext NoteContext(INote n) => new(new PartContext(n.Part), [new PartContext.PartNote(n)]);
+
     // ── note 级自定义属性（voice/instrument 声明的 per-note 参数；schema 见 list_sound_sources 的 note 级 config） ──
     // 值存在 note.Properties 容器里、只在音源声明了该键时有意义。与 effect 的 getProperty/setProperty 同范式。
 
@@ -124,6 +130,7 @@ internal sealed class ScriptNote(ScriptContext ctx, INote note)
         var n = W;
         ctx.EnsureBracket(n.Part);
         n.Properties.SetValue(key, pv);
+        ctx.RecordPropertyWrite(n.Properties, key, () => DescribeNote(n), () => n.Part.SoundSource.GetNotePropertyConfig(NoteContext(n)));
         ctx.Bump();
     }
 
@@ -293,6 +300,12 @@ internal sealed class ScriptPhoneme(ScriptContext ctx, ScriptNote note, bool isL
         note.EnsureLockedForEdit();
         var p = LockedPhoneme() ?? throw new ScriptApiException("this phoneme is no longer present (structure changed); re-fetch note.phonemes().");
         p.Properties.SetValue(key, pv);
+        var n = note.Require();
+        int slot = isLeading ? localIndex - n.LeadingPhonemes.Count : localIndex;   // 核相对 slot（音素声明的键）
+        ctx.RecordPropertyWrite(p.Properties, key,
+            () => string.Format("phoneme \"{0}\" (slot {1}) of {2}", p.Symbol.Value, slot, ScriptNote.DescribeNote(n)),
+            () => n.Part.SoundSource.GetPhonemePropertyConfigs(ScriptNote.NoteContext(n)).GetValue(slot, out var found) is { } config && found
+                ? config : ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>()));
         ctx.Bump();
     }
 
@@ -818,6 +831,8 @@ internal sealed class ScriptPart(ScriptContext ctx, IPart part)
         var midi = MidiW;
         ctx.EnsureBracket(midi);
         midi.Properties.SetValue(key, pv);
+        ctx.RecordPropertyWrite(midi.Properties, key, () => string.Format("part \"{0}\"", midi.Name.Value),
+            () => midi.SoundSource.GetPartPropertyConfig(PartPropertyContext.Single(midi)));
         ctx.Bump();
     }
 
@@ -1072,6 +1087,8 @@ internal sealed class ScriptEffect(ScriptContext ctx, IEffect effect)
         var e = W;
         ctx.EnsureWritable();
         e.Properties.SetValue(key, pv);
+        ctx.RecordPropertyWrite(e.Properties, key, () => string.Format("effect \"{0}\"", e.Type),
+            () => ((Effect)e).PropertyConfig);
         ctx.Bump();
     }
 

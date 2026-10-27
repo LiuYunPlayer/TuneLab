@@ -168,7 +168,7 @@ public class TagConfigTests
     {
         using var raw = JsonDocument.Parse("\"power\"");
         var (_, error) = ExtensionSettingsText.Normalize(TagConfig.Create(Catalog), raw.RootElement, "timbre");
-        Assert.Contains("give a JSON array", error);
+        Assert.Contains("give an array", error);
     }
 
     // ===== 片段预设：整值写入（有序、空选择也能清空）=====

@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using TuneLab.Extensions;
 using TuneLab.Foundation;
+using TuneLab.GUI.Controllers;
 using TuneLab.SDK;
 
 namespace TuneLab.Commands.Handlers;
@@ -240,7 +241,7 @@ internal sealed class ExtensionSetSettingCommand : ICommand
           "properties": {
             "extension": { "type": "string", "description": "The extension's id (\"<kind>:<id>\" or just the id), display name, or the id of the package that provides it, as listed by list_extension_settings." },
             "key": { "type": "string", "description": "The field key exactly as listed." },
-            "value": { "type": ["string", "number", "boolean", "array"], "description": "The new value, matching the field's declared type/range/options. A tags field takes a JSON array of its allowed values, e.g. [\"a\", \"b\"]." },
+            "value": { "type": ["string", "number", "boolean", "array", "object"], "description": "The new value, matching the field's declared type/range/options. A tags field takes a JSON array of its allowed values, e.g. [\"a\", \"b\"]; a list field takes the whole list as a JSON array and a grouped field a JSON object, shaped as listed." },
             "packageId": { "type": "string", "description": "Optional: needed only when two packages provide the same extension id." }
           },
           "required": ["extension", "key", "value"],
@@ -315,13 +316,30 @@ internal sealed class ExtensionSetSettingCommand : ICommand
                 "\"{0}\" is a secret field (API key / licence), which the agent is not allowed to set. Ask the user to enter it themselves in the Settings window's Extensions page, under \"{1}\".",
                 fieldKey, entry.DisplayName));
 
-        var (value, valueError) = ExtensionSettingsText.Normalize(fieldConfig!, raw, fieldKey);
+        // 按【写入后的值】重新求 schema 再校验：列表 / 变长键控的逐元素 config 是插件按数据现算的，新值长度、键变了，
+        // 拿旧 schema 校验会对不上（也让"先改模式开关再写开关下的字段"这类依赖关系照常成立）。
+        var values = ExtensionSettingsManager.Load(entry);
+        var candidate = new Map<string, PropertyValue>();
+        foreach (var kv in values)
+            candidate[kv.Key] = kv.Value;
+        candidate[fieldKey] = ConfigText.ToPropertyValue(JsonNode.Parse(raw.GetRawText()));
+        IControllerConfig checkConfig = fieldConfig!;
+        try
+        {
+            var after = ExtensionSettingsText.SchemaOf(entry, new PropertyObject(candidate));
+            if (after.Properties.FirstOrDefault(p => p.Key.Id == fieldKey)?.Value is { } declared)
+                checkConfig = declared;
+        }
+        catch (Exception)
+        {
+            // 插件按候选值求 schema 出错：退回按当前 schema 校验（保存时的回喂另有自己的出错处理）。
+        }
+
+        var (value, valueError) = ExtensionSettingsText.Normalize(checkConfig, raw, fieldKey);
         if (valueError != null)
             return Fail("invalid_value", valueError);
 
-        var values = ExtensionSettingsManager.Load(entry);
-        var old = values.TryGetValue(fieldKey, out var cur) ? cur
-            : fieldConfig is IValueConfig leaf ? leaf.DefaultValue : PropertyValue.Null;
+        var old = values.TryGetValue(fieldKey, out var cur) ? cur : fieldConfig!.GetDefaultValue();
         if (value.Equals(old))
             return new FieldPlan(null, new JsonObject
             {
