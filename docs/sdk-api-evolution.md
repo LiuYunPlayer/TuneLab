@@ -108,4 +108,16 @@ SDK 公开枚举（`PropertyType` / `SynthesisSegmentStatus` / `DragAxis` 等）
 | 给枚举加成员 | ✅ 加性（有条件） | 确认消费侧未知值容忍 + 申报 Unshipped |
 | 删/改任何 public 签名 | ❌ breaking | 编译必红（RS0017+RS0016）；发布前 = 编辑 Shipped.txt 重新定稿；发布后 = 3.0 事项，`*REMOVED*` 留痕 |
 | struct ↔ class、field ↔ property、改字段类型宽度 | ❌ breaking | 同上——这三类在冻结前已按终形定案，不要再动 |
+| 改参数 / 返回值的可空标注（`?`） | ⚠️ 不破二进制、但破语义 | 清单记着可空标注（RS0016/17 照样报警）；放宽（非空 → 可空）对调用方无害，收紧（可空 → 非空）会让传 null 的插件编译告警、运行被拒——按 breaking 对待。可空是契约：标了 `?` 宿主就永远得接受 null |
 | 新 API 落地 / 发布 | — | 发版后第一笔：`SdkVersion` 提一档 + 版本表加「尚未发布」行；同周期后续：并入该档、不再提；发版：Unshipped → Shipped + `LastReleasedSdkVersion` 跟上（见 §0） |
+
+## 5. 源码组织：一个公开类型一个文件
+
+挪类型不影响 ABI、清单也不变，但插件作者（与读 SDK 源码的 agent）是按类型名找文件的。规矩：**能被独立使用的公开类型单独一个文件**，文件名 = 类型名。只有四种情况可以同住：
+
+1. 类型与它的扩展方法、Builder、internal 辅助类型（如 `IReadOnlyMap` + `IReadOnlyMapExtensions` + `IReadOnlyMapBuilder`）；
+2. 接口与它的静态工厂类（如 `INormalizedScale` + `NormalizedScale`）；
+3. 只被这一个类型用到的枚举或小类型（如 `PathPickerConfig` + `PathPickerTarget` / `FileTypeFilter`）；
+4. 封闭族：基类与它的几种具体情况（如 `VoiceSourceLayoutItem` / `Voice` / `Group`）。
+
+一旦附属类型被第二个类型用到，就该拆出去。族的总说明留在族的主文件里，拆出去的成员文件头一行指回去。
