@@ -29,29 +29,24 @@ internal static class FieldFoldStore
 // 分组标题的放在右侧（见 SideBarSection）——两种位置本身就是层级区分。
 internal sealed class Chevron : Path
 {
+    const double StrokeDip = 2;
+
+    // size：尺寸档位（分组标题 / 音素块 8，字段 / 对象 6）。三角的直边长 ≈ size 的一半多一点，朝右时宽为其一半。
     public Chevron(double size, Color color)
     {
-        Data = Geometry.Parse("M0,0 L4,4 L0,8 Z");
+        mSide = Math.Max(2, Math.Round(size * 0.55));   // 直边长（逻辑单位）：8 → 4，6 → 3
+        // 外框是逻辑单位下固定的正方形：调用方构造后就按它算摆放边距（LeftForCenter），排版取整后外框原点落在整物理像素上。
+        Width = Height = mSide + StrokeDip;
         Fill = color.ToBrush();
-        // 同色描边 + 圆角转角：三个尖角磨圆，小尺寸下也不扎眼。描边越粗转角越圆，但它画在缩放后的三角外沿上、会把
-        // 整体往外撑——外框按描边粗细收回去，使看到的大小只由 size 定。按 Uniform 缩放保持三角比例（Fill 会把它拉成外框
-        // 的比例，外框宽高各减同样的描边量后比例就不是 1:2 了，三角被拉瘦）。
-        const double stroke = 2;
         Stroke = Fill;
-        StrokeThickness = stroke;
-        StrokeJoin = PenLineJoin.Round;
-        Stretch = Stretch.Uniform;
-        Width = size * 0.4 + 1 - stroke;
-        Height = size * 0.8 + 1 - stroke;
-        mVisualWidth = Width + stroke;
-        RenderTransformOrigin = RelativePoint.Center;
+        StrokeJoin = PenLineJoin.Round;   // 同色描边 + 圆角转角：三个尖角磨圆，小尺寸下也不扎眼
+        Stretch = Stretch.None;
         IsHitTestVisible = false;
+        Rebuild(1);
     }
 
-    // 左对齐摆放时让中心落在 x 处的左边距（三角绕中心旋转，展开 / 收起中心不动）。
-    public double LeftForCenter(double x) => x - mVisualWidth / 2 + StrokeThickness / 2;
-
-    readonly double mVisualWidth;
+    // 左对齐摆放时让中心落在 x 处的左边距（展开 / 收起换图形、外框不变，中心不动）。
+    public double LeftForCenter(double x) => x - Width / 2;
 
     public bool IsExpanded
     {
@@ -59,10 +54,56 @@ internal sealed class Chevron : Path
         set
         {
             mExpanded = value;
-            RenderTransform = value ? new RotateTransform(90) : null;
+            Data = value ? mDown : mRight;
         }
     }
 
+    // 这么小的图形，直边（朝右时竖的那条、朝下时横的那条）落在半个物理像素上，就会被抗锯齿摊成两列 / 两行、看着发虚。
+    // 逻辑坐标取整不够：缩放 150% 时逻辑单位的奇数落在半像素上。故按当前缩放把描边、直边长、直边位置都取整到物理像素，
+    // 再换回逻辑坐标；不缩放、按像素坐标直接画朝右 / 朝下两个三角，换方向换图形而不旋转（旋转后直边落点由居中算出，常是小数）。
+    // 斜边与尖角落在哪都无所谓。窗口换到缩放不同的屏幕时重算。
+    void Rebuild(double scaling)
+    {
+        double s = scaling > 0 ? scaling : 1;
+        double stroke = Math.Max(1, Math.Round(StrokeDip * s));   // 以下都是物理像素
+        double side = Math.Max(2, Math.Round(mSide * s));
+        double half = side / 2;
+        double box = (mSide + StrokeDip) * s;
+        // 看到的轮廓（含描边）的起点取整：直边的外沿就落在整像素上；描边沿轮廓居中，轮廓线在外沿往里半个描边处。
+        double back = Math.Round((box - (half + stroke)) / 2) + stroke / 2;   // 直边所在
+        double lead = Math.Round((box - (side + stroke)) / 2) + stroke / 2;   // 直边的起端
+        string Pt(double x, double y) => string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0},{1}", x / s, y / s);
+        mRight = Geometry.Parse("M" + Pt(back, lead) + " L" + Pt(back + half, lead + half) + " L" + Pt(back, lead + side) + " Z");
+        mDown = Geometry.Parse("M" + Pt(lead, back) + " L" + Pt(lead + side, back) + " L" + Pt(lead + half, back + half) + " Z");
+        StrokeThickness = stroke / s;
+        Data = mExpanded ? mDown : mRight;
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        mTopLevel = TopLevel.GetTopLevel(this);
+        if (mTopLevel != null)
+        {
+            mTopLevel.ScalingChanged += OnScalingChanged;
+            Rebuild(mTopLevel.RenderScaling);
+        }
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        if (mTopLevel != null)
+            mTopLevel.ScalingChanged -= OnScalingChanged;
+        mTopLevel = null;
+    }
+
+    void OnScalingChanged(object? sender, EventArgs e) => Rebuild(mTopLevel?.RenderScaling ?? 1);
+
+    readonly double mSide;
+    Geometry mRight = null!;
+    Geometry mDown = null!;
+    TopLevel? mTopLevel;
     bool mExpanded;
 }
 
