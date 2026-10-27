@@ -77,6 +77,23 @@ WAVE_FORMAT_EXTENSIBLE 这类词直接写成正文。其余 Markdown 语法（�
 误报）；`.github/workflows/check-release-notes.yml` 在 release 发布或正文被编辑时跑它，
 `upload-release.yml` 则对 CI 自动生成的正文用 `--fix` 就地净化。
 
+## Text that agents read
+
+The built-in agent's system prompt (`AgentSideBarContentProvider.SystemPrompt`) and the external-agent
+onboarding text (`ExternalAgentOnboarding`) describe other modules, so a new or renamed command does not
+touch them — they drift silently. Both once said the agent "cannot export audio"; after
+`project export-audio` landed, an external agent still refused to export because the text told it so.
+
+- Write behaviour rules there ("tell me before rendering audio", "don't save unless asked"), never a
+  capability list or "you cannot X". What exists comes from the command registry.
+- A deliberate, permanent boundary (e.g. the agent never reads secrets) belongs in the documentation of
+  the command that enforces it, not in these texts.
+- When you reverse a "we don't do X" decision, grep the repo for its wording — comments and docs repeat it.
+
+`AgentGuidanceTextTests` fails on tool names / `tunelab <group> <verb>` paths that do not exist and on
+negated-capability phrasing. Fix the text, don't widen the allowlist; only runtime-state sentences
+("the bridge is off right now") go there.
+
 ## Conventions
 
 - Code comments may be written in Chinese; log messages, assertions and exception messages

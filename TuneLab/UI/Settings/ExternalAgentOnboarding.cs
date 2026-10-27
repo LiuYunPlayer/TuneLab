@@ -39,11 +39,14 @@ internal static class ExternalAgentOnboarding
     /// <summary>
     /// 生成这一刻的接入说明。正文英文（读它的是模型），状态感知的那一段里嵌用户界面上的中文/本地化字样。
     /// </summary>
-    public static string Build()
+    public static string Build() => Build(ExecutablePath, Settings.CommandBridgeEnabled.Value);
+
+    // 状态由参数给，测试据此覆盖每一种分支的文案（AgentGuidanceTextTests）。
+    internal static string Build(string? executablePath, bool bridgeEnabled)
     {
         var sb = new StringBuilder();
 
-        if (ExecutablePath is not { } exe)
+        if (executablePath is not { } exe)
         {
             // 便携产物里理论上不该缺，但缺了就必须说清——给一条不存在的路径，那个 agent 会拿它试到放弃。
             sb.AppendLine("TuneLab is a singing voice synthesis editor running on this machine, but THIS install has no command line");
@@ -52,7 +55,7 @@ internal static class ExternalAgentOnboarding
             return sb.ToString();
         }
 
-        if (!Settings.CommandBridgeEnabled.Value)
+        if (!bridgeEnabled)
         {
             // 桥没开：先说清这件事只有用户做得到，并把他界面上真实的字样告诉他自己（复制出去的文案
             // 也会被他自己再读一遍）。顺带说明"哪些事不用桥"——那正是 agent 可以立刻开始做的事。
@@ -100,12 +103,11 @@ internal static class ExternalAgentOnboarding
         // 必须告诉它这件事，否则它要么擅自存，要么做完就走、改动留在撤销栈里，用户下次打开才发现。
         sb.AppendLine("- Don't save my project unless I ask you to: until then your edits live in the app's undo stack.");
         sb.AppendLine("  Tell me when you are done so I can review and save.");
-        sb.AppendLine("- If a command says TuneLab is not reachable, show me exactly what it printed.");
-        sb.AppendLine();
+        sb.AppendLine("- If a command says TuneLab is not reachable, show me exactly what it printed.");        sb.AppendLine();
         // 记忆那一段：只让它记【门】，不让它记门后的东西。命令清单/参数/版本会随版本漂移，记住了
         // 就会自信地调一条不存在的命令；而"有这道门、门在哪、几条铁律"是稳定的。
         // 铁律里也只写稳定的约束，不写"你能/不能做 X"——能力随版本增长，写死的"不能"会过时并劝退 agent
-        //（曾写过"不能导出音频"，命令加上后它照样拒绝替用户导出）。
+        //（曾写过"不能导出音频"，命令加上后它照样拒绝替用户导出）。AgentGuidanceTextTests 守着这条。
         sb.AppendLine("If you keep notes across sessions, remember the ground rules above and that this command exists");
         sb.AppendLine("(re-check the path when you use it — installs move) — then I won't have to paste this again.");
         sb.AppendLine("Do NOT memorize the command list, their arguments, or which version this is: run `tunelab --help`");

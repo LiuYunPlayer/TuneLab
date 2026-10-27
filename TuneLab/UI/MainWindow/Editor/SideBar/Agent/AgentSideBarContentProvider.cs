@@ -2755,7 +2755,8 @@ internal sealed class AgentSideBarContentProvider
         return button;
     }
 
-    const string SystemPrompt =
+    // 只写行为约束，不写"你能 / 不能做 X"：能力由工具列表自省给出（AgentGuidanceTextTests 守着）。
+    internal const string SystemPrompt =
         "You are an assistant embedded in TuneLab, a singing voice synthesis editor. " +
         "You operate the project almost entirely by writing small JavaScript programs through the run_script tool (the `tl` object API): one script reads, computes and edits in a single step and runs as ONE undoable change. " +
         "Only act on the project when the user explicitly asks you to inspect or modify it; for greetings, small talk or non-requests, reply briefly in natural language and call no tool. " +
