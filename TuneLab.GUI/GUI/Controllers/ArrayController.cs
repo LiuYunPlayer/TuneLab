@@ -615,6 +615,9 @@ internal sealed class ListController : ArrayControllerBase
 // 选中态同轨道头：整行底色提亮 + 右缘 3px 强调条（叠在上层、不占布局，选中与否不抖动）。
 sealed class ElementRow : IDisposable
 {
+    // 嵌套面板类元素左侧保留的留白：让元素里再嵌的对象，其折叠三角与引导线仍露在序号条右侧。
+    const double NestedLeftGutter = 8;
+
     public Control Root => mRoot;
     public Type ConfigType => mWidget.ConfigType;
 
@@ -641,7 +644,14 @@ sealed class ElementRow : IDisposable
         var index = new Border { Width = ArrayControlsFactory.StripWidth, Background = Style.HIGH_LIGHT.ToBrush(), Child = mIndexText };
         if (rowHost != null)
             AttachHandle(index, rowHost);
-        mWidget.View.Margin = new(8, 6, 0, 6);
+        // 嵌套面板类元素（对象 / 变长键控）里的字段自带左右 Gutter（那是顶层的版心边距），层层叠加就缩进过多：右侧整个
+        // 抵消，内容与标量元素一样贴着行的右沿；左侧抵消到只剩 NestedLeftGutter——元素里的叶子字段不折叠（嵌套面板没有
+        // 折叠作用域），留白本是空的，但元素里再嵌的对象仍把折叠三角与引导线画在这条留白里，留一点让它们露出来。
+        // 左侧因此伸进序号条底下一截：序号条叠在上面（ZIndex），拖动 / 选中照常。伸出去的部分不挡删除钮（它在 Popup 里）。
+        mWidget.View.Margin = mWidget.CarriesGutter
+            ? new(8 - (ArrayControlsFactory.Gutter - NestedLeftGutter), 6, -ArrayControlsFactory.Gutter, 6)
+            : new(8, 6, 0, 6);
+        index.ZIndex = 1;
         var body = new DockPanel { LastChildFill = true };
         DockPanel.SetDock(index, Avalonia.Controls.Dock.Left);
         body.Children.Add(index);
@@ -896,6 +906,8 @@ internal abstract class ElementWidget : IDisposable
 {
     public abstract Control View { get; }
     public abstract Type ConfigType { get; }
+    // 视图里的字段自带左右 Gutter（嵌套的属性面板 / 键控条目），元素行据此抵消右侧那一份（见 ElementRow）。
+    public virtual bool CarriesGutter => false;
     public abstract void Update(IControllerConfig config);
     public virtual void Dispose() => s.DisposeAll();
 
@@ -1097,6 +1109,7 @@ internal abstract class ElementWidget : IDisposable
 
         public override Control View => mController;
         public override Type ConfigType => typeof(ObjectConfig);
+        public override bool CarriesGutter => true;
         public override void Update(IControllerConfig config) => mController.Reconcile((ObjectConfig)config);
         public override void Dispose()
         {
@@ -1165,6 +1178,7 @@ internal abstract class ElementWidget : IDisposable
 
         public override Control View => mController;
         public override Type ConfigType => typeof(ExtensibleObjectConfig);
+        public override bool CarriesGutter => true;
         public override void Update(IControllerConfig config) => mController.Apply((ExtensibleObjectConfig)config);
         public override void Dispose()
         {
