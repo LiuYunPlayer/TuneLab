@@ -1149,7 +1149,7 @@ props.Add(("editor", "编辑器"), ButtonConfig.Create("打开...", async _ =>
 ```csharp
 // 在声明里（如 GetNotePropertyConfig）：取各选中对象这个字段的值（读不到 = 默认值）交给工厂，摘要也在这时算好
 var values = context.Notes.Select(n => n.Properties.Map.TryGetValue("stretch", out var v) ? v : StretchCurveCanvas.Default).ToList();
-props.Add(("stretch", "拉伸曲线"), CanvasConfig.Create(StretchCurveCanvas.Default, 96, host => new StretchCurveCanvas(host, values))
+props.Add(("stretch", "拉伸曲线"), CanvasConfig.Create(StretchCurveCanvas.Default, 280, 96, host => new StretchCurveCanvas(host, values))
     .WithSummary(SummaryOf(values)));
 
 sealed class StretchCurveCanvas(ICanvasHost host, IReadOnlyList<PropertyValue> values) : ICanvasControl
@@ -1219,7 +1219,7 @@ sealed class StretchCurveCanvas(ICanvasHost host, IReadOnlyList<PropertyValue> v
 
 ### 10.4 绘制与输入
 
-- **尺寸**：宽度跟随面板，高度是声明的高度；当前尺寸读 `host.Width` / `host.Height`。坐标是逻辑像素（左上角为原点，与 DPI 无关），绘制裁剪在画布内；宿主先画好底（与输入框同款的深色圆角底），你画在它上面。`host.DevicePixelRatio` 是一个逻辑像素对应的物理像素数（随屏幕缩放，如 1.5、2），自己生成位图时用得到。
+- **尺寸**：`Create` 的首选宽高是你心目中这块画布的最佳尺寸，认真定——它只是期望，实际给多大由宿主按所在位置决定（侧栏里宽度跟随面板、只取首选高度；没有外部约束的位置宽高都取；眼下还没有位置取宽度，但以后出现时就用你给的值）。实际尺寸读 `host.Width` / `host.Height`，随时可能变（如拖宽侧栏），变了宿主会按新尺寸重画，没有单独的事件——每次 `Render` 都按当前尺寸排版，内部几何用相对单位存。坐标是逻辑像素（左上角为原点，与 DPI 无关），绘制裁剪在画布内；宿主先画好底（与输入框同款的深色圆角底），你画在它上面。`host.DevicePixelRatio` 是一个逻辑像素对应的物理像素数（随屏幕缩放，如 1.5、2），自己生成位图时用得到。
 - **绘图**（`ICanvasDrawing`，只在 `Render` 期间有效）：`Draw*` 画线条 / 轮廓，`Fill*` 填充，既要填充又要描边就调两次——`DrawLine`、`DrawPolyline`、`DrawPolygon` / `FillPolygon`（三角形等）、`DrawRectangle` / `FillRectangle`（可圆角）、`DrawEllipse` / `FillEllipse`（圆即两半径相等）、`DrawText`、`MeasureText`。颜色是 `System.Drawing.Color`（注意别漏掉 alpha）。`DrawText` 按九宫格（`CanvasAlignment`）把文字对齐在给定矩形内，矩形宽高给 0 即"以该点为锚"；文字里的 `\n` 换行，多行时每一行也按横向对齐（`Center` 即每行各自居中），不会自动折行；字体由宿主决定（跟随界面字体），排版用 `MeasureText` 的结果，别写死文字宽度。
 - **图片**：`CanvasImage.FromEncodedData(bytes)`（PNG、JPEG、WebP、SVG；SVG 不加载外部引用）或 `CanvasImage.FromPixelData(width, height, rgba)`（每像素 R、G、B、A 四字节、非预乘、逐行无填充）创建，`DrawImage(image, x, y, w, h)` 缩放画进矩形（不保持宽高比，要保持就按 `image.Width` / `image.Height` 自己算；SVG 按绘制尺寸清晰栅格化）。图片**创建后不可改写**：换内容就新建一张、把旧的 `Dispose`（先 Dispose 再新建，宿主更容易及时回收）；已经画出去的那一帧不受 Dispose 影响。可以在任意线程创建与 Dispose（如后台解码），绘制只在 `Render` 里。解码要花时间，**图片在插件级缓存**，别在工厂或 `Render` 里每次重新解码。自己生成像素时按 `宽 × host.DevicePixelRatio` 的像素数生成才清晰，比例变了（窗口拖到另一块屏幕）宿主会重新调用 `Render`。
 - **绘制状态**：`PushOpacity(opacity)`（不透明度，与外层相乘）、`PushClip(x, y, w, h, cornerRadius)`（只画矩形内，与外层取交集）、`PushTransform(Matrix3x2)`（坐标变换，`System.Numerics`，与外层复合）——之后的绘制都受影响，直到 Dispose 返回值，用 `using` 写最自然。按栈嵌套、后进先出，`Render` 结束时没撤销的宿主一并撤销。变换只影响绘制：**鼠标坐标永远是画布坐标**，命中检测自己做逆变换。

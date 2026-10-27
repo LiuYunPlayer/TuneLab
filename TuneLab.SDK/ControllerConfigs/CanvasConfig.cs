@@ -3,7 +3,7 @@ using TuneLab.Foundation;
 
 namespace TuneLab.SDK;
 
-// 画布：一个**由插件自己画界面的值字段**。宿主给出一块区域（宽度跟随面板、高度由本 config 声明），插件经 ICanvasDrawing
+// 画布：一个**由插件自己画界面的值字段**。宿主给出一块区域（大小由宿主定，参考本 config 的首选尺寸），插件经 ICanvasDrawing
 // 作画、经鼠标事件交互、经 ICanvasHost 把编辑结果写回本字段——适合官方控件表达不了的编辑（如音素内部的拉伸曲线）。
 // 它就是一个普通的值字段（实现 IValueConfig）：恢复默认、preset、撤销、多选都照常参与；值的形状由插件自定（宿主不解读），
 // 插件读取时须自行校验（撤销 / preset / 粘贴都可能带来任意形状的值）。
@@ -25,9 +25,11 @@ public sealed class CanvasConfig : IValueConfig
 {
     public PropertyValue DefaultValue { get; private init; }
 
-    // 画布区域的首选高度（与 DPI 无关的逻辑像素）。宽度跟随面板。v1 即实际高度；将来加最小 / 最大 / 自适应高度时，
-    // 它仍是没有其他约束时采用的高度。
-    public double Height { get; private init; }
+    // 插件心目中的最佳尺寸（与 DPI 无关的逻辑像素）。只是期望：各承载位置按自己的约束取用，实际尺寸以 ICanvasHost.Width / Height
+    // 为准、随时可能变，控件须按实际尺寸适配。侧栏宽度跟随面板、只取首选高度；没有外部约束的位置宽高都取。
+    // 眼下没有位置取宽度，但它同样是契约的一部分——以后出现这样的位置时，宿主就用这里给的值。
+    public double PreferredWidth { get; private init; }
+    public double PreferredHeight { get; private init; }
 
     public Func<ICanvasHost, ICanvasControl> CreateControl { get; private init; } = null!;
 
@@ -38,16 +40,18 @@ public sealed class CanvasConfig : IValueConfig
     private CanvasConfig() { }
     CanvasConfig Clone() => (CanvasConfig)MemberwiseClone();
 
-    public static CanvasConfig Create(PropertyValue defaultValue, double height, Func<ICanvasHost, ICanvasControl> createControl)
+    public static CanvasConfig Create(PropertyValue defaultValue, double preferredWidth, double preferredHeight, Func<ICanvasHost, ICanvasControl> createControl)
     {
         ArgumentNullException.ThrowIfNull(createControl);
-        if (!(height > 0))
-            throw new ArgumentOutOfRangeException(nameof(height), "Canvas height must be positive.");
+        if (!(preferredWidth > 0 && double.IsFinite(preferredWidth)))
+            throw new ArgumentOutOfRangeException(nameof(preferredWidth), "Canvas preferred width must be a positive finite number.");
+        if (!(preferredHeight > 0 && double.IsFinite(preferredHeight)))
+            throw new ArgumentOutOfRangeException(nameof(preferredHeight), "Canvas preferred height must be a positive finite number.");
         // 默认值就是"未设"状态，也定了字段的类型（存值类型不同按默认处理）：Null 作默认 = 字段永远存不进值；
         // Multiple 只是多选读出时"各对象不一致"的标记、绝不入存储。两者都是写错了，当场报出来。
         if (defaultValue.IsNull() || defaultValue.IsMultiple())
             throw new ArgumentException("A canvas default value must be a real value: it is the unset state and fixes the field's type (an empty object {} is a good \"unset\"). Null means no value, and Multiple only marks differing values when reading a multi-selection.", nameof(defaultValue));
-        return new() { DefaultValue = defaultValue, Height = height, CreateControl = createControl };
+        return new() { DefaultValue = defaultValue, PreferredWidth = preferredWidth, PreferredHeight = preferredHeight, CreateControl = createControl };
     }
 
     public CanvasConfig WithSummary(string summary) { var c = Clone(); c.Summary = summary; return c; }

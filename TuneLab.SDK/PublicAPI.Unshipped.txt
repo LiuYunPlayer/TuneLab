@@ -2,7 +2,7 @@
 override TuneLab.SDK.TagItem.Equals(object? obj) -> bool
 override TuneLab.SDK.TagItem.GetHashCode() -> int
 static TuneLab.SDK.ButtonConfig.Create(string! text, System.Func<TuneLab.SDK.IButtonClickContext!, System.Threading.Tasks.Task!>! onClick) -> TuneLab.SDK.ButtonConfig!
-static TuneLab.SDK.CanvasConfig.Create(TuneLab.Foundation.PropertyValue defaultValue, double height, System.Func<TuneLab.SDK.ICanvasHost!, TuneLab.SDK.ICanvasControl!>! createControl) -> TuneLab.SDK.CanvasConfig!
+static TuneLab.SDK.CanvasConfig.Create(TuneLab.Foundation.PropertyValue defaultValue, double preferredWidth, double preferredHeight, System.Func<TuneLab.SDK.ICanvasHost!, TuneLab.SDK.ICanvasControl!>! createControl) -> TuneLab.SDK.CanvasConfig!
 static TuneLab.SDK.CanvasHostExtensions.EditScope(this TuneLab.SDK.ICanvasHost! host) -> System.IDisposable!
 static TuneLab.SDK.CanvasImage.FromEncodedData(System.ReadOnlySpan<byte> data) -> TuneLab.SDK.CanvasImage!
 static TuneLab.SDK.CanvasImage.FromPixelData(int width, int height, System.ReadOnlySpan<byte> rgba) -> TuneLab.SDK.CanvasImage!
@@ -31,7 +31,8 @@ TuneLab.SDK.CanvasAlignment.RightTop = 2 -> TuneLab.SDK.CanvasAlignment
 TuneLab.SDK.CanvasConfig
 TuneLab.SDK.CanvasConfig.CreateControl.get -> System.Func<TuneLab.SDK.ICanvasHost!, TuneLab.SDK.ICanvasControl!>!
 TuneLab.SDK.CanvasConfig.DefaultValue.get -> TuneLab.Foundation.PropertyValue
-TuneLab.SDK.CanvasConfig.Height.get -> double
+TuneLab.SDK.CanvasConfig.PreferredHeight.get -> double
+TuneLab.SDK.CanvasConfig.PreferredWidth.get -> double
 TuneLab.SDK.CanvasConfig.Summary.get -> string?
 TuneLab.SDK.CanvasConfig.WithSummary(string! summary) -> TuneLab.SDK.CanvasConfig!
 TuneLab.SDK.CanvasEvent

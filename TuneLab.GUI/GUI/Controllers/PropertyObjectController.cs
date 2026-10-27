@@ -1052,7 +1052,7 @@ internal class PropertyObjectController : StackPanel
         void Apply(CanvasConfig config)
         {
             mConfig = config;
-            mCanvas.Height = config.Height;
+            mCanvas.Height = config.PreferredHeight;   // 侧栏：宽跟面板，高取首选
             mCanvas.SetFactory(config.CreateControl);
         }
 

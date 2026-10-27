@@ -41,9 +41,12 @@ public class CanvasConfigTests
     [Fact]
     public void Create_ValidatesArguments()
     {
-        Assert.Throws<ArgumentNullException>(() => CanvasConfig.Create(Curve, 80, null!));
-        Assert.Throws<ArgumentOutOfRangeException>(() => CanvasConfig.Create(Curve, 0, _ => new NullControl()));
-        Assert.Throws<ArgumentOutOfRangeException>(() => CanvasConfig.Create(Curve, double.NaN, _ => new NullControl()));
+        Assert.Throws<ArgumentNullException>(() => CanvasConfig.Create(Curve, 240, 80, null!));
+        Assert.Throws<ArgumentOutOfRangeException>(() => CanvasConfig.Create(Curve, 240, 0, _ => new NullControl()));
+        Assert.Throws<ArgumentOutOfRangeException>(() => CanvasConfig.Create(Curve, 240, double.NaN, _ => new NullControl()));
+        // 首选宽度眼下没有位置取用，但同样是契约：一样要求是正的有限数。
+        Assert.Throws<ArgumentOutOfRangeException>(() => CanvasConfig.Create(Curve, 0, 80, _ => new NullControl()));
+        Assert.Throws<ArgumentOutOfRangeException>(() => CanvasConfig.Create(Curve, double.PositiveInfinity, 80, _ => new NullControl()));
     }
 
     // 默认值就是未设状态、也定了字段类型：Null 作默认 = 永远存不进值，Multiple 绝不入存储——都当场报错。
@@ -51,17 +54,17 @@ public class CanvasConfigTests
     [Fact]
     public void Create_RejectsNullOrMultipleDefault()
     {
-        Assert.Throws<ArgumentException>(() => CanvasConfig.Create(PropertyValue.Null, 80, _ => new NullControl()));
-        Assert.Throws<ArgumentException>(() => CanvasConfig.Create(PropertyValue.Multiple, 80, _ => new NullControl()));
-        CanvasConfig.Create(PropertyValue.Create(0.5), 80, _ => new NullControl());
-        CanvasConfig.Create(PropertyObject.Empty, 80, _ => new NullControl());
+        Assert.Throws<ArgumentException>(() => CanvasConfig.Create(PropertyValue.Null, 240, 80, _ => new NullControl()));
+        Assert.Throws<ArgumentException>(() => CanvasConfig.Create(PropertyValue.Multiple, 240, 80, _ => new NullControl()));
+        CanvasConfig.Create(PropertyValue.Create(0.5), 240, 80, _ => new NullControl());
+        CanvasConfig.Create(PropertyObject.Empty, 240, 80, _ => new NullControl());
     }
 
     [Fact]
     public void Create_DoesNotCallTheFactory()
     {
         int calls = 0;
-        var config = CanvasConfig.Create(Curve, 80, _ => { calls++; return new NullControl(); });
+        var config = CanvasConfig.Create(Curve, 240, 80, _ => { calls++; return new NullControl(); });
         _ = ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig> { { "curve", config } }).GetDefaultValue();
         Assert.Equal(0, calls);   // 声明（含 agent / CLI 只读声明）不建控件
     }
@@ -69,11 +72,12 @@ public class CanvasConfigTests
     [Fact]
     public void WithSummary_ReturnsACopy()
     {
-        var plain = CanvasConfig.Create(Curve, 80, _ => new NullControl());
+        var plain = CanvasConfig.Create(Curve, 240, 80, _ => new NullControl());
         var summarized = plain.WithSummary("Linear");
         Assert.Null(plain.Summary);
         Assert.Equal("Linear", summarized.Summary);
-        Assert.Equal(plain.Height, summarized.Height);
+        Assert.Equal(plain.PreferredWidth, summarized.PreferredWidth);
+        Assert.Equal(plain.PreferredHeight, summarized.PreferredHeight);
         Assert.Same(plain.CreateControl, summarized.CreateControl);
     }
 
@@ -82,7 +86,7 @@ public class CanvasConfigTests
     {
         var config = ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>
         {
-            { "curve", CanvasConfig.Create(Curve, 80, _ => new NullControl()) },
+            { "curve", CanvasConfig.Create(Curve, 240, 80, _ => new NullControl()) },
         });
 
         Assert.True(config.GetDefaultValue().ToObject(out var value));
@@ -92,7 +96,7 @@ public class CanvasConfigTests
     [Fact]
     public void CommandSurface_PointsToTheIntroduction_AndTakesAnyJsonAsIs()
     {
-        var canvas = CanvasConfig.Create(Curve, 80, _ => new NullControl());
+        var canvas = CanvasConfig.Create(Curve, 240, 80, _ => new NullControl());
         var text = ConfigText.Describe(canvas);
         Assert.Contains("canvas", text);
         Assert.Contains("introduction", text);

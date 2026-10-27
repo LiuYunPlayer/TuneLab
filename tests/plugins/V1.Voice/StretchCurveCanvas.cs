@@ -28,7 +28,7 @@ sealed class StretchCurveCanvas(ICanvasHost host, IReadOnlyList<PropertyValue> v
 
     // 声明时调用：values = 每个选中对象的这个字段的值（未设过的给 Default）。
     public static CanvasConfig Config(IReadOnlyList<PropertyValue> values)
-        => CanvasConfig.Create(Default, 96, host => new StretchCurveCanvas(host, values))
+        => CanvasConfig.Create(Default, 280, 96, host => new StretchCurveCanvas(host, values))
             .WithSummary(!AllEqual(values) ? "Mixed" : IsLinear(values[0]) ? "Linear" : "Custom");
 
     static readonly Color Grid = Color.FromArgb(40, 255, 255, 255);
