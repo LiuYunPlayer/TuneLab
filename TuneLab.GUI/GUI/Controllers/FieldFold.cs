@@ -33,12 +33,25 @@ internal sealed class Chevron : Path
     {
         Data = Geometry.Parse("M0,0 L4,4 L0,8 Z");
         Fill = color.ToBrush();
+        // 同色描边 + 圆角转角：三个尖角磨圆，小尺寸下也不扎眼。描边越粗转角越圆，但它画在缩放后的三角外沿上、会把
+        // 整体往外撑——外框按描边粗细收回去，使看到的大小只由 size 定。按 Uniform 缩放保持三角比例（Fill 会把它拉成外框
+        // 的比例，外框宽高各减同样的描边量后比例就不是 1:2 了，三角被拉瘦）。
+        const double stroke = 2;
+        Stroke = Fill;
+        StrokeThickness = stroke;
+        StrokeJoin = PenLineJoin.Round;
         Stretch = Stretch.Uniform;
-        Width = size * 0.5;
-        Height = size;
+        Width = size * 0.4 + 1 - stroke;
+        Height = size * 0.8 + 1 - stroke;
+        mVisualWidth = Width + stroke;
         RenderTransformOrigin = RelativePoint.Center;
         IsHitTestVisible = false;
     }
+
+    // 左对齐摆放时让中心落在 x 处的左边距（三角绕中心旋转，展开 / 收起中心不动）。
+    public double LeftForCenter(double x) => x - mVisualWidth / 2 + StrokeThickness / 2;
+
+    readonly double mVisualWidth;
 
     public bool IsExpanded
     {
@@ -91,12 +104,13 @@ internal sealed class FieldFold : IDisposable
             return;
 
         // 三角落在标签左侧 24px 留白的中段（中心在 GuideX，与分组三角同一条竖线），与标签文字同一条中线。
-        mChevron = new Chevron(8, Style.TEXT_LABEL)
+        // 比分组标题的三角小一档（字段层级低一级）。
+        mChevron = new Chevron(FieldChevronSize, Style.TEXT_LABEL)
         {
             HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
             VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-            Margin = new(ChevronLeft, 0, 0, 0),
         };
+        mChevron.Margin = new(mChevron.LeftForCenter(GuideX), 0, 0, 0);
         mHeader.Children.Add(mChevron);
         mHeader.PointerPressed += OnHeaderPressed;
         if (watch != null)
@@ -105,9 +119,10 @@ internal sealed class FieldFold : IDisposable
         SetCollapsed(persistKey != null && (FieldFoldStore.Current?.IsCollapsed(persistKey) ?? false), persist: false);
     }
 
-    // 三角左缘（中心约在 x = 14）：对象的引导线据此对齐到三角正下方（见 ObjectCreator）。
-    public const double ChevronLeft = 12;
-    public const double GuideX = ChevronLeft + 2;
+    // 三角中心的 x（字段与分组标题同一条竖线）：对象的引导线据此对齐到三角正下方（见 ObjectCreator）。
+    public const double GuideX = 14;
+    // 字段 / 对象三角的尺寸（分组标题用 8，见 SideBarSection）。
+    public const double FieldChevronSize = 6;
     // 末项（收起或行内字段）的底边距：标题行 30、文字居中，文字下方本有约 7 的留白，再补 7 凑成 14——
     // 与「分组标题线 → 第一项文字」的 14 对称（那一侧由分组内容区的顶部留白补足，见侧栏的 SideBarSection.CreateInset）。
     const double CollapsedBottomGap = 7;
