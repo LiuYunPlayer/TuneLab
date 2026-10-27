@@ -29,9 +29,9 @@ public class CanvasConfigTests
         public bool SetValue(PropertyValue value) => true;
         public void CommitValue() { }
         public void DiscardValue() { }
-        public Task<string?> PopupTextBox(string text, double x, double y, double width, double height, double fontSize,
-            CanvasAlignment alignment = CanvasAlignment.Center, bool multiline = false) => Task.FromResult<string?>(null);
-        public Task<PropertyValue?> PopupMenu(double x, double y, double width, double height, IReadOnlyList<ComboBoxItem> items)
+        public Task<string?> PopupTextBox(string text, CanvasRect bounds, CanvasTextStyle? style = null, bool multiline = false)
+            => Task.FromResult<string?>(null);
+        public Task<PropertyValue?> PopupMenu(CanvasRect anchor, IReadOnlyList<ComboBoxItem> items)
             => Task.FromResult<PropertyValue?>(null);
         public IDialogService DialogService => throw new NotSupportedException();
     }

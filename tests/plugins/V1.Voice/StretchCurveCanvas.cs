@@ -31,13 +31,17 @@ sealed class StretchCurveCanvas(ICanvasHost host, IReadOnlyList<PropertyValue> v
         => CanvasConfig.Create(Default, 280, 96, host => new StretchCurveCanvas(host, values))
             .WithSummary(!AllEqual(values) ? "Mixed" : IsLinear(values[0]) ? "Linear" : "Custom");
 
-    static readonly Color Grid = Color.FromArgb(40, 255, 255, 255);
-    static readonly Color Curve = Color.FromArgb(255, 115, 194, 229);
+    // 画笔、画刷、文字样式都不可变：建好存进静态字段，每帧直接用（宿主据此缓存原生对象）。
+    static readonly CanvasPen Grid = CanvasPen.Create(Color.FromArgb(40, 255, 255, 255));
+    static readonly CanvasPen Curve = CanvasPen.Create(Color.FromArgb(255, 115, 194, 229), 2);
     static readonly Color Handle = Color.FromArgb(255, 230, 230, 230);
     static readonly Color Hot = Color.FromArgb(255, 255, 196, 64);
-    static readonly Color Label = Color.FromArgb(160, 255, 255, 255);
-    static readonly Color Note = Color.FromArgb(90, 255, 255, 255);
-    const double LabelSize = 11;
+    static readonly CanvasBrush HandleFill = CanvasBrush.Solid(Handle), HotFill = CanvasBrush.Solid(Hot);
+    static readonly CanvasPen HandleRing = CanvasPen.Create(Handle, 1.5), HotRing = CanvasPen.Create(Hot, 1.5);
+    static readonly CanvasBrush Label = CanvasBrush.Solid(Color.FromArgb(160, 255, 255, 255));
+    static readonly CanvasBrush Note = CanvasBrush.Solid(Color.FromArgb(90, 255, 255, 255));
+    // 数值标签以右上角为锚、字号小一点；备注用默认样式（不传：字号跟随宿主、居中）。弹出文本框时传的样式与画字同一套。
+    static readonly CanvasTextStyle LabelStyle = CanvasTextStyle.Create().WithFontSize(11).WithAlignment(CanvasAlignment.RightTop);
 
     static double LinearAt(int i) => i / (double)(Count - 1);
 
@@ -154,31 +158,35 @@ sealed class StretchCurveCanvas(ICanvasHost host, IReadOnlyList<PropertyValue> v
         return -1;
     }
 
+    // 两处文字的位置：Render 画字与弹出文本框用同一个矩形。数值标签是零尺寸矩形 = 以右上角为锚。
+    CanvasRect LabelAt => new(host.Width - Pad, Pad, 0, 0);
+    CanvasRect NoteBounds => new(Pad, Pad, host.Width - 2 * Pad, host.Height - 2 * Pad);
+
     public void Render(ICanvasDrawing d)
     {
         double w = host.Width, h = host.Height;
         for (int i = 0; i < Count; i++)
             d.DrawLine(new Point(X(i), Pad), new Point(X(i), h - Pad), Grid);
         d.DrawLine(new Point(Pad, YOf(0.5)), new Point(w - Pad, YOf(0.5)), Grid);
-        d.DrawText(NoteText(), Pad, Pad, w - 2 * Pad, h - 2 * Pad, Note, LabelSize, CanvasAlignment.Center);
+        d.DrawText(NoteText(), NoteBounds, Note);
 
         var points = Points();
-        d.DrawPolyline(points.Select((p, i) => new Point(X(i), YOf(p.Y))).ToList(), Curve, 2);
+        d.DrawPolyline(points.Select((p, i) => new Point(X(i), YOf(p.Y))).ToList(), Curve);
         for (int i = 0; i < Count; i++)
         {
             var center = new Point(X(i), YOf(points[i].Y));
-            var color = i == (mDragging >= 0 ? mDragging : mHover) ? Hot : Handle;
+            bool hot = i == (mDragging >= 0 ? mDragging : mHover);
             if (points[i].Known)
-                d.FillEllipse(center, HandleRadius, HandleRadius, color);
+                d.FillEllipse(center, HandleRadius, HandleRadius, hot ? HotFill : HandleFill);
             else
-                d.DrawEllipse(center, HandleRadius, HandleRadius, color, 1.5);
+                d.StrokeEllipse(center, HandleRadius, HandleRadius, hot ? HotRing : HandleRing);
         }
 
         int focus = mDragging >= 0 ? mDragging : mHover;
         if (focus >= 0)
         {
             string text = points[focus].Known ? points[focus].Y.ToString("0.00") : "(Multiple)";
-            d.DrawText(text, w - Pad, Pad, 0, 0, Label, LabelSize, CanvasAlignment.RightTop);
+            d.DrawText(text, LabelAt, Label, LabelStyle);
         }
     }
 
@@ -327,7 +335,7 @@ sealed class StretchCurveCanvas(ICanvasHost host, IReadOnlyList<PropertyValue> v
         items.Add(new ComboBoxItem(PropertyValue.Create("edit-note"), "Edit Note..."));
         items.Add(new ComboBoxItem(PropertyValue.Create("reset-all"), "Reset All..."));
 
-        var picked = await host.PopupMenu(at.X, at.Y, 0, 0, items);
+        var picked = await host.PopupMenu(new CanvasRect(at.X, at.Y, 0, 0), items);
         if (picked is not { } value || !value.ToString(out var command))
             return;
         switch (command)
@@ -359,14 +367,14 @@ sealed class StretchCurveCanvas(ICanvasHost host, IReadOnlyList<PropertyValue> v
         host.CommitValue();
     }
 
-    // 在右上角数值标签处弹文本框：参数与 Render 里画标签的 DrawText 相同（零尺寸矩形 + RightTop = 以右上角为锚），框正好盖在字上。
+    // 在右上角数值标签处弹文本框：矩形与样式就是 Render 里画标签用的那两个，框正好盖在字上。
     async Task EditPoint(int index)
     {
         var point = Points()[index];
         mHover = index;   // 弹出期间标签照常显示这个点
         host.Invalidate();
         string? text = await host.PopupTextBox(point.Known ? point.Y.ToString("0.00", CultureInfo.InvariantCulture) : "",
-            host.Width - Pad, Pad, 0, 0, LabelSize, CanvasAlignment.RightTop);
+            LabelAt, LabelStyle);
         if (text != null && double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var y) && double.IsFinite(y))
             SetPoint(index, y);
     }
@@ -374,8 +382,7 @@ sealed class StretchCurveCanvas(ICanvasHost host, IReadOnlyList<PropertyValue> v
     // 备注：多行文本框盖在居中画的备注上（同一个矩形、同样居中），Shift+Enter 换行。清空即删掉成员。
     async Task EditNote()
     {
-        string? text = await host.PopupTextBox(NoteText(), Pad, Pad, host.Width - 2 * Pad, host.Height - 2 * Pad,
-            LabelSize, CanvasAlignment.Center, multiline: true);
+        string? text = await host.PopupTextBox(NoteText(), NoteBounds, multiline: true);
         if (text == null)
             return;
         Draft(WithMember(Base, "note", text.Length == 0 ? (PropertyValue?)null : PropertyValue.Create(text)));

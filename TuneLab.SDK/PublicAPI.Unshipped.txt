@@ -2,10 +2,28 @@
 override TuneLab.SDK.TagItem.Equals(object? obj) -> bool
 override TuneLab.SDK.TagItem.GetHashCode() -> int
 static TuneLab.SDK.ButtonConfig.Create(string! text, System.Func<TuneLab.SDK.IButtonClickContext!, System.Threading.Tasks.Task!>! onClick) -> TuneLab.SDK.ButtonConfig!
+static TuneLab.SDK.CanvasBrush.Solid(System.Drawing.Color color) -> TuneLab.SDK.CanvasBrush!
 static TuneLab.SDK.CanvasConfig.Create(TuneLab.Foundation.PropertyValue defaultValue, double preferredWidth, double preferredHeight, System.Func<TuneLab.SDK.ICanvasHost!, TuneLab.SDK.ICanvasControl!>! createControl) -> TuneLab.SDK.CanvasConfig!
+static TuneLab.SDK.CanvasDrawingExtensions.DrawEllipse(this TuneLab.SDK.ICanvasDrawing! drawing, TuneLab.Foundation.Point center, double radiusX, double radiusY, TuneLab.SDK.CanvasBrush? fill, TuneLab.SDK.CanvasPen? stroke) -> void
+static TuneLab.SDK.CanvasDrawingExtensions.DrawPolygon(this TuneLab.SDK.ICanvasDrawing! drawing, System.Collections.Generic.IReadOnlyList<TuneLab.Foundation.Point>! points, TuneLab.SDK.CanvasBrush? fill, TuneLab.SDK.CanvasPen? stroke) -> void
+static TuneLab.SDK.CanvasDrawingExtensions.DrawPolyline(this TuneLab.SDK.ICanvasDrawing! drawing, System.Collections.Generic.IReadOnlyList<TuneLab.Foundation.Point>! points, TuneLab.SDK.CanvasPen! pen) -> void
+static TuneLab.SDK.CanvasDrawingExtensions.DrawRectangle(this TuneLab.SDK.ICanvasDrawing! drawing, TuneLab.SDK.CanvasRect rect, TuneLab.SDK.CanvasBrush? fill, TuneLab.SDK.CanvasPen? stroke, double cornerRadius = 0) -> void
+static TuneLab.SDK.CanvasDrawingExtensions.FillEllipse(this TuneLab.SDK.ICanvasDrawing! drawing, TuneLab.Foundation.Point center, double radiusX, double radiusY, TuneLab.SDK.CanvasBrush! brush) -> void
+static TuneLab.SDK.CanvasDrawingExtensions.FillPolygon(this TuneLab.SDK.ICanvasDrawing! drawing, System.Collections.Generic.IReadOnlyList<TuneLab.Foundation.Point>! points, TuneLab.SDK.CanvasBrush! brush) -> void
+static TuneLab.SDK.CanvasDrawingExtensions.FillRectangle(this TuneLab.SDK.ICanvasDrawing! drawing, TuneLab.SDK.CanvasRect rect, TuneLab.SDK.CanvasBrush! brush, double cornerRadius = 0) -> void
+static TuneLab.SDK.CanvasDrawingExtensions.PushClip(this TuneLab.SDK.ICanvasDrawing! drawing, TuneLab.SDK.CanvasRect rect, double cornerRadius = 0) -> System.IDisposable!
+static TuneLab.SDK.CanvasDrawingExtensions.StrokeEllipse(this TuneLab.SDK.ICanvasDrawing! drawing, TuneLab.Foundation.Point center, double radiusX, double radiusY, TuneLab.SDK.CanvasPen! pen) -> void
+static TuneLab.SDK.CanvasDrawingExtensions.StrokePolygon(this TuneLab.SDK.ICanvasDrawing! drawing, System.Collections.Generic.IReadOnlyList<TuneLab.Foundation.Point>! points, TuneLab.SDK.CanvasPen! pen) -> void
+static TuneLab.SDK.CanvasDrawingExtensions.StrokeRectangle(this TuneLab.SDK.ICanvasDrawing! drawing, TuneLab.SDK.CanvasRect rect, TuneLab.SDK.CanvasPen! pen, double cornerRadius = 0) -> void
+static TuneLab.SDK.CanvasGeometry.Ellipse(TuneLab.Foundation.Point center, double radiusX, double radiusY) -> TuneLab.SDK.CanvasGeometry!
+static TuneLab.SDK.CanvasGeometry.Polygon(System.Collections.Generic.IReadOnlyList<TuneLab.Foundation.Point>! points) -> TuneLab.SDK.CanvasGeometry!
+static TuneLab.SDK.CanvasGeometry.Polyline(System.Collections.Generic.IReadOnlyList<TuneLab.Foundation.Point>! points) -> TuneLab.SDK.CanvasGeometry!
+static TuneLab.SDK.CanvasGeometry.Rectangle(TuneLab.SDK.CanvasRect rect, double cornerRadius = 0) -> TuneLab.SDK.CanvasGeometry!
 static TuneLab.SDK.CanvasHostExtensions.EditScope(this TuneLab.SDK.ICanvasHost! host) -> System.IDisposable!
 static TuneLab.SDK.CanvasImage.FromEncodedData(System.ReadOnlySpan<byte> data) -> TuneLab.SDK.CanvasImage!
 static TuneLab.SDK.CanvasImage.FromPixelData(int width, int height, System.ReadOnlySpan<byte> rgba) -> TuneLab.SDK.CanvasImage!
+static TuneLab.SDK.CanvasPen.Create(System.Drawing.Color color, double width = 1) -> TuneLab.SDK.CanvasPen!
+static TuneLab.SDK.CanvasTextStyle.Create() -> TuneLab.SDK.CanvasTextStyle!
 static TuneLab.SDK.TagConfig.Create(System.Collections.Generic.IReadOnlyList<TuneLab.SDK.TagItem>! items) -> TuneLab.SDK.TagConfig!
 static TuneLab.SDK.TagItem.implicit operator TuneLab.SDK.TagItem(bool value) -> TuneLab.SDK.TagItem
 static TuneLab.SDK.TagItem.implicit operator TuneLab.SDK.TagItem(double value) -> TuneLab.SDK.TagItem
@@ -28,6 +46,7 @@ TuneLab.SDK.CanvasAlignment.LeftTop = 0 -> TuneLab.SDK.CanvasAlignment
 TuneLab.SDK.CanvasAlignment.RightBottom = 10 -> TuneLab.SDK.CanvasAlignment
 TuneLab.SDK.CanvasAlignment.RightCenter = 6 -> TuneLab.SDK.CanvasAlignment
 TuneLab.SDK.CanvasAlignment.RightTop = 2 -> TuneLab.SDK.CanvasAlignment
+TuneLab.SDK.CanvasBrush
 TuneLab.SDK.CanvasConfig
 TuneLab.SDK.CanvasConfig.CreateControl.get -> System.Func<TuneLab.SDK.ICanvasHost!, TuneLab.SDK.ICanvasControl!>!
 TuneLab.SDK.CanvasConfig.DefaultValue.get -> TuneLab.Foundation.PropertyValue
@@ -35,9 +54,11 @@ TuneLab.SDK.CanvasConfig.PreferredHeight.get -> double
 TuneLab.SDK.CanvasConfig.PreferredWidth.get -> double
 TuneLab.SDK.CanvasConfig.Summary.get -> string?
 TuneLab.SDK.CanvasConfig.WithSummary(string! summary) -> TuneLab.SDK.CanvasConfig!
+TuneLab.SDK.CanvasDrawingExtensions
 TuneLab.SDK.CanvasEvent
 TuneLab.SDK.CanvasEvent.Handled.get -> bool
 TuneLab.SDK.CanvasEvent.Handled.set -> void
+TuneLab.SDK.CanvasGeometry
 TuneLab.SDK.CanvasHostExtensions
 TuneLab.SDK.CanvasImage
 TuneLab.SDK.CanvasImage.Dispose() -> void
@@ -113,6 +134,14 @@ TuneLab.SDK.CanvasKeyEvent
 TuneLab.SDK.CanvasKeyEvent.IsRepeat.get -> bool
 TuneLab.SDK.CanvasKeyEvent.Key.get -> TuneLab.SDK.CanvasKey
 TuneLab.SDK.CanvasKeyEvent.Modifiers.get -> TuneLab.SDK.CanvasModifierKeys
+TuneLab.SDK.CanvasLineCap
+TuneLab.SDK.CanvasLineCap.Flat = 0 -> TuneLab.SDK.CanvasLineCap
+TuneLab.SDK.CanvasLineCap.Round = 1 -> TuneLab.SDK.CanvasLineCap
+TuneLab.SDK.CanvasLineCap.Square = 2 -> TuneLab.SDK.CanvasLineCap
+TuneLab.SDK.CanvasLineJoin
+TuneLab.SDK.CanvasLineJoin.Bevel = 2 -> TuneLab.SDK.CanvasLineJoin
+TuneLab.SDK.CanvasLineJoin.Miter = 0 -> TuneLab.SDK.CanvasLineJoin
+TuneLab.SDK.CanvasLineJoin.Round = 1 -> TuneLab.SDK.CanvasLineJoin
 TuneLab.SDK.CanvasModifierKeys
 TuneLab.SDK.CanvasModifierKeys.Alt = 2 -> TuneLab.SDK.CanvasModifierKeys
 TuneLab.SDK.CanvasModifierKeys.Ctrl = 1 -> TuneLab.SDK.CanvasModifierKeys
@@ -130,6 +159,42 @@ TuneLab.SDK.CanvasMouseButtonEvent.IsDoubleClick.get -> bool
 TuneLab.SDK.CanvasMouseEvent
 TuneLab.SDK.CanvasMouseEvent.Modifiers.get -> TuneLab.SDK.CanvasModifierKeys
 TuneLab.SDK.CanvasMouseEvent.Position.get -> TuneLab.Foundation.Point
+TuneLab.SDK.CanvasPen
+TuneLab.SDK.CanvasPen.Color.get -> System.Drawing.Color
+TuneLab.SDK.CanvasPen.LineCap.get -> TuneLab.SDK.CanvasLineCap
+TuneLab.SDK.CanvasPen.LineJoin.get -> TuneLab.SDK.CanvasLineJoin
+TuneLab.SDK.CanvasPen.Width.get -> double
+TuneLab.SDK.CanvasPen.WithColor(System.Drawing.Color color) -> TuneLab.SDK.CanvasPen!
+TuneLab.SDK.CanvasPen.WithLineCap(TuneLab.SDK.CanvasLineCap lineCap) -> TuneLab.SDK.CanvasPen!
+TuneLab.SDK.CanvasPen.WithLineJoin(TuneLab.SDK.CanvasLineJoin lineJoin) -> TuneLab.SDK.CanvasPen!
+TuneLab.SDK.CanvasPen.WithWidth(double width) -> TuneLab.SDK.CanvasPen!
+TuneLab.SDK.CanvasRect
+TuneLab.SDK.CanvasRect.Bottom.get -> double
+TuneLab.SDK.CanvasRect.CanvasRect() -> void
+TuneLab.SDK.CanvasRect.CanvasRect(double X, double Y, double Width, double Height) -> void
+TuneLab.SDK.CanvasRect.Height.get -> double
+TuneLab.SDK.CanvasRect.Height.init -> void
+TuneLab.SDK.CanvasRect.Left.get -> double
+TuneLab.SDK.CanvasRect.Right.get -> double
+TuneLab.SDK.CanvasRect.Top.get -> double
+TuneLab.SDK.CanvasRect.Width.get -> double
+TuneLab.SDK.CanvasRect.Width.init -> void
+TuneLab.SDK.CanvasRect.X.get -> double
+TuneLab.SDK.CanvasRect.X.init -> void
+TuneLab.SDK.CanvasRect.Y.get -> double
+TuneLab.SDK.CanvasRect.Y.init -> void
+TuneLab.SDK.CanvasSize
+TuneLab.SDK.CanvasSize.CanvasSize() -> void
+TuneLab.SDK.CanvasSize.CanvasSize(double Width, double Height) -> void
+TuneLab.SDK.CanvasSize.Height.get -> double
+TuneLab.SDK.CanvasSize.Height.init -> void
+TuneLab.SDK.CanvasSize.Width.get -> double
+TuneLab.SDK.CanvasSize.Width.init -> void
+TuneLab.SDK.CanvasTextStyle
+TuneLab.SDK.CanvasTextStyle.Alignment.get -> TuneLab.SDK.CanvasAlignment
+TuneLab.SDK.CanvasTextStyle.FontSize.get -> double?
+TuneLab.SDK.CanvasTextStyle.WithAlignment(TuneLab.SDK.CanvasAlignment alignment) -> TuneLab.SDK.CanvasTextStyle!
+TuneLab.SDK.CanvasTextStyle.WithFontSize(double fontSize) -> TuneLab.SDK.CanvasTextStyle!
 TuneLab.SDK.CanvasWheelEvent
 TuneLab.SDK.CanvasWheelEvent.Delta.get -> TuneLab.Foundation.Point
 TuneLab.SDK.IButtonClickContext
@@ -145,18 +210,12 @@ TuneLab.SDK.ICanvasControl.OnMouseUp(TuneLab.SDK.CanvasMouseButtonEvent! e) -> v
 TuneLab.SDK.ICanvasControl.OnScroll(TuneLab.SDK.CanvasWheelEvent! e) -> void
 TuneLab.SDK.ICanvasControl.Render(TuneLab.SDK.ICanvasDrawing! drawing) -> void
 TuneLab.SDK.ICanvasDrawing
-TuneLab.SDK.ICanvasDrawing.DrawEllipse(TuneLab.Foundation.Point center, double radiusX, double radiusY, System.Drawing.Color color, double width = 1) -> void
-TuneLab.SDK.ICanvasDrawing.DrawImage(TuneLab.SDK.CanvasImage! image, double x, double y, double width, double height) -> void
-TuneLab.SDK.ICanvasDrawing.DrawLine(TuneLab.Foundation.Point from, TuneLab.Foundation.Point to, System.Drawing.Color color, double width = 1) -> void
-TuneLab.SDK.ICanvasDrawing.DrawPolygon(System.Collections.Generic.IReadOnlyList<TuneLab.Foundation.Point>! points, System.Drawing.Color color, double width = 1) -> void
-TuneLab.SDK.ICanvasDrawing.DrawPolyline(System.Collections.Generic.IReadOnlyList<TuneLab.Foundation.Point>! points, System.Drawing.Color color, double width = 1) -> void
-TuneLab.SDK.ICanvasDrawing.DrawRectangle(double x, double y, double width, double height, System.Drawing.Color color, double lineWidth = 1, double cornerRadius = 0) -> void
-TuneLab.SDK.ICanvasDrawing.DrawText(string! text, double x, double y, double width, double height, System.Drawing.Color color, double fontSize, TuneLab.SDK.CanvasAlignment alignment = TuneLab.SDK.CanvasAlignment.Center) -> void
-TuneLab.SDK.ICanvasDrawing.FillEllipse(TuneLab.Foundation.Point center, double radiusX, double radiusY, System.Drawing.Color color) -> void
-TuneLab.SDK.ICanvasDrawing.FillPolygon(System.Collections.Generic.IReadOnlyList<TuneLab.Foundation.Point>! points, System.Drawing.Color color) -> void
-TuneLab.SDK.ICanvasDrawing.FillRectangle(double x, double y, double width, double height, System.Drawing.Color color, double cornerRadius = 0) -> void
-TuneLab.SDK.ICanvasDrawing.MeasureText(string! text, double fontSize) -> (double Width, double Height)
-TuneLab.SDK.ICanvasDrawing.PushClip(double x, double y, double width, double height, double cornerRadius = 0) -> System.IDisposable!
+TuneLab.SDK.ICanvasDrawing.DrawGeometry(TuneLab.SDK.CanvasGeometry! geometry, TuneLab.SDK.CanvasBrush? fill, TuneLab.SDK.CanvasPen? stroke) -> void
+TuneLab.SDK.ICanvasDrawing.DrawImage(TuneLab.SDK.CanvasImage! image, TuneLab.SDK.CanvasRect bounds) -> void
+TuneLab.SDK.ICanvasDrawing.DrawLine(TuneLab.Foundation.Point from, TuneLab.Foundation.Point to, TuneLab.SDK.CanvasPen! pen) -> void
+TuneLab.SDK.ICanvasDrawing.DrawText(string! text, TuneLab.SDK.CanvasRect bounds, TuneLab.SDK.CanvasBrush! brush, TuneLab.SDK.CanvasTextStyle? style = null) -> void
+TuneLab.SDK.ICanvasDrawing.MeasureText(string! text, TuneLab.SDK.CanvasTextStyle? style = null) -> TuneLab.SDK.CanvasSize
+TuneLab.SDK.ICanvasDrawing.PushClip(TuneLab.SDK.CanvasGeometry! geometry) -> System.IDisposable!
 TuneLab.SDK.ICanvasDrawing.PushOpacity(double opacity) -> System.IDisposable!
 TuneLab.SDK.ICanvasDrawing.PushTransform(System.Numerics.Matrix3x2 transform) -> System.IDisposable!
 TuneLab.SDK.ICanvasHost
@@ -168,8 +227,8 @@ TuneLab.SDK.ICanvasHost.DiscardValue() -> void
 TuneLab.SDK.ICanvasHost.EndEdit() -> void
 TuneLab.SDK.ICanvasHost.Height.get -> double
 TuneLab.SDK.ICanvasHost.Invalidate() -> void
-TuneLab.SDK.ICanvasHost.PopupMenu(double x, double y, double width, double height, System.Collections.Generic.IReadOnlyList<TuneLab.SDK.ComboBoxItem>! items) -> System.Threading.Tasks.Task<TuneLab.Foundation.PropertyValue?>!
-TuneLab.SDK.ICanvasHost.PopupTextBox(string! text, double x, double y, double width, double height, double fontSize, TuneLab.SDK.CanvasAlignment alignment = TuneLab.SDK.CanvasAlignment.Center, bool multiline = false) -> System.Threading.Tasks.Task<string?>!
+TuneLab.SDK.ICanvasHost.PopupMenu(TuneLab.SDK.CanvasRect anchor, System.Collections.Generic.IReadOnlyList<TuneLab.SDK.ComboBoxItem>! items) -> System.Threading.Tasks.Task<TuneLab.Foundation.PropertyValue?>!
+TuneLab.SDK.ICanvasHost.PopupTextBox(string! text, TuneLab.SDK.CanvasRect bounds, TuneLab.SDK.CanvasTextStyle? style = null, bool multiline = false) -> System.Threading.Tasks.Task<string?>!
 TuneLab.SDK.ICanvasHost.SetValue(TuneLab.Foundation.PropertyValue value) -> bool
 TuneLab.SDK.ICanvasHost.Width.get -> double
 TuneLab.SDK.IDialogService

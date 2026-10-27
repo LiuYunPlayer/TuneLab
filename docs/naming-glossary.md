@@ -30,6 +30,8 @@
 | 引擎发布的只读音素 | `SynthesizedPhoneme` / `SynthesizedSyllable` | 合成音素 | — |
 | 宿主替插件弹出的提示 / 确认 / 进度 / 输入窗（按钮点击期间、画布实例有效期内） | `IDialogService`（经 `IButtonClickContext.DialogService` / `ICanvasHost.DialogService`；宿主侧 `HostDialogService`） | 弹窗服务 | `GetDialogs` / `IHostDialogs` / 属性名 `Dialogs`（读起来像"取一组对话框窗口"，已改名）；不挂在全局 `ITuneLabContext` 上（只在点击期间 / 画布实例有效期内可用） |
 | 向用户索取几个参数的表单（脚本工具与插件按钮共用一个表单窗） | `inputs`（脚本 `getInputConfig` / 插件 `IDialogService.PromptInputs`；窗口 `PropertyFormWindow`） | 输入 | `ShowForm`（描述的是界面形态不是意图）；`RequestInputs` / `AskInputs` |
+| 画布矩形的位置与边 | `CanvasRect.X` / `Y` = 位置（起点）；`Left` / `Top` / `Right` / `Bottom` = 四条边 | 位置 / 边 | 不是同义词：两个概念，只因画布坐标原点在左上、y 朝下，X 与 Left、Y 与 Top 才取值相等。说"放在哪"用 X / Y，说"边到哪"用 Left…Bottom |
+| 画布绘图里画一个形状：按给的填充与描边画 / 只填充 / 只描边 | `Draw*` / `Fill*` / `Stroke*`（`ICanvasDrawing.DrawGeometry` 与 `CanvasDrawingExtensions`） | 画 / 填充 / 描边 | 用 `Draw*` 专指描边；只描边的叫 `Stroke*`，`DrawLine` / `DrawPolyline` 只因线本无填充才叫 Draw |
 | 画布上就地出现、不模态的轻量输入（一段文字 / 从几项里挑一项） | `Popup*`（`ICanvasHost.PopupTextBox` / `PopupMenu`） | 弹出 | `Prompt*`（Prompt 留给模态表单 `PromptInputs`；两者的区别正在形态——就地轻量 vs 模态表单，故此处按形态命名，与上一行"别按形态命名"不矛盾） |
 | 插件宣告它此前给出的声明（`Get*Config` 族）已过期、请宿主重新询问 | `Invalidate*`（`InvalidatePart` / `InvalidateNotes`；宿主侧 `DeclarationsInvalidated` / `DeclarationInvalidation`） | 声明失效 | `Notify*Changed`（读成「数据变了」，而数据归宿主、插件改不了）；`*Configs` 后缀（作废范围按对象划，不按 config 划） |
 | **上位概念**：引擎产物被显示出来这件事（涵盖音素 / 音高 / 参数三种） | —（无符号，勿造） | 回显 | 不得用"回显"指代 `SynthesizedParameter` 这一具体族 |

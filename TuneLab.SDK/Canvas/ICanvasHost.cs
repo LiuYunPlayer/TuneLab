@@ -45,17 +45,17 @@ public interface ICanvasHost
     // 不占 BeginEdit 的计数）。同一时刻至多一个：再弹一个会先关掉前一个（前一个返回 null）。实例作废时弹出随之关闭、返回 null。
     // 返回值只交给插件，宿主不写值：要改值照常 SetValue + CommitValue。
     //
-    // · PopupTextBox：在画布上弹出文本框，初始内容 text。框就是给定的矩形（画布坐标，同 Render），文字按 alignment 排在框内、
-    //   字号 fontSize、字体随界面——与 ICanvasDrawing.DrawText 同一套，传画字的参数就能让框正好盖在字上。矩形应给"这段文字
-    //   可用的地方"（如整个格子），而非当前文字的宽度：框不随内容变大，装不下时框内滚动（不自动折行）。太小时按 alignment 的锚点
-    //   扩到一行高与最小宽度，宽高给 0 即"以该点为锚"。弹出后若超出屏幕，宿主挪进来。
+    // · PopupTextBox：在画布上弹出文本框，初始内容 text。框就是给定的矩形（画布坐标，同 Render），文字按 style 的对齐排在框内、
+    //   字号同 style、字体随界面——与 ICanvasDrawing.DrawText 同一套（style 不传同样是默认样式），把画这段字的矩形与样式
+    //   原样传过来，框就正好盖在字上。
+    //   矩形应给"这段文字可用的地方"（如整个格子），而非当前文字的宽度：框不随内容变大，装不下时框内滚动（不自动折行）。
+    //   太小时按对齐的锚点扩到一行高与最小宽度，宽高给 0 即"以该点为锚"。弹出后若超出屏幕，宿主挪进来。
     //   按键同宿主文本框：Enter 或点别处 = 确认，返回文字；Esc = 取消，返回 null。multiline 时 Shift+Enter 换行（文字里是 \n）。
     // · PopupMenu：在给定矩形下方弹出菜单（下方放不下则翻到上方；宽高给 0 即在该点弹出，如右键菜单）。选项同下拉框
     //  （ComboBoxItem：分组为子菜单、分隔线、叶子多时自动加搜索框）。选中返回该项的值，点别处或 Esc 关掉返回 null。
     //   既能当下拉选项，也能当操作菜单（值写成命令名，拿到后自己分派）。
-    Task<string?> PopupTextBox(string text, double x, double y, double width, double height, double fontSize,
-        CanvasAlignment alignment = CanvasAlignment.Center, bool multiline = false);
-    Task<PropertyValue?> PopupMenu(double x, double y, double width, double height, IReadOnlyList<ComboBoxItem> items);
+    Task<string?> PopupTextBox(string text, CanvasRect bounds, CanvasTextStyle? style = null, bool multiline = false);
+    Task<PropertyValue?> PopupMenu(CanvasRect anchor, IReadOnlyList<ComboBoxItem> items);
 
     // 弹窗服务（提示 / 确认 / 进度 / 输入表单）：与按钮点击拿到的是同一套（见 IButtonClickContext.DialogService），以画布
     // 所在的窗口为父窗口，弹窗上标明来源插件。本实例有效期内都能用（画布没有"一次点击"的边界），实例作废后再调抛

@@ -8,6 +8,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Media.Immutable;
 using Avalonia.Threading;
 using TuneLab.Foundation;
 using TuneLab.GUI.Controllers;
@@ -566,18 +567,18 @@ internal sealed class PluginCanvas : Component
         // —— 弹出：同一时刻至多一个（mPopup），关闭 = 结果为 null。结果经 RunContinuationsAsynchronously 交回插件：
         // 插件的续体总在弹出状态清掉之后才跑，那时再 SetValue / CommitValue 不会撞上"弹出仍开着"。
 
-        public Task<string?> PopupTextBox(string text, double x, double y, double width, double height, double fontSize,
-            CanvasAlignment alignment = CanvasAlignment.Center, bool multiline = false)
+        public Task<string?> PopupTextBox(string text, CanvasRect bounds, CanvasTextStyle? style = null, bool multiline = false)
         {
             VerifyThread();
             ArgumentNullException.ThrowIfNull(text);
+            style ??= DefaultTextStyle;
             if (!IsAlive)
                 return Task.FromResult<string?>(null);
             ClosePopup();
 
             var result = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
             var token = new PopupToken();
-            var popup = new CanvasTextPopup(view, text, x, y, width, height, fontSize, alignment, multiline, value =>
+            var popup = new CanvasTextPopup(view, text, bounds.X, bounds.Y, bounds.Width, bounds.Height, FontSizeOf(style), style.Alignment, multiline, value =>
             {
                 if (mPopup == token)
                 {
@@ -593,7 +594,7 @@ internal sealed class PluginCanvas : Component
             return result.Task;
         }
 
-        public Task<PropertyValue?> PopupMenu(double x, double y, double width, double height, IReadOnlyList<TuneLab.SDK.ComboBoxItem> items)
+        public Task<PropertyValue?> PopupMenu(CanvasRect anchor, IReadOnlyList<TuneLab.SDK.ComboBoxItem> items)
         {
             VerifyThread();
             ArgumentNullException.ThrowIfNull(items);
@@ -629,7 +630,7 @@ internal sealed class PluginCanvas : Component
             };
             mPopup = token;
             UpdateLock();
-            menu.Open(ComboBoxController.BuildItems(items), 0, AnchorRect(x, y, width, height));
+            menu.Open(ComboBoxController.BuildItems(items), 0, AnchorRect(anchor.X, anchor.Y, anchor.Width, anchor.Height));
             return result.Task;
         }
 
@@ -728,6 +729,11 @@ internal sealed class PluginCanvas : Component
         IDisposable? mEditing;   // 面板在用期间在所在窗口 EditGate 上的登记（见 UpdateLock）
     }
 
+    // 画布文字不传样式 / 不给字号时：字号与宿主界面上的字段文字同档（PropertyObjectController 的字段标签），宿主调整时一起改。
+    const double DefaultFontSize = 12;
+    static readonly CanvasTextStyle DefaultTextStyle = CanvasTextStyle.Create();
+    static double FontSizeOf(CanvasTextStyle style) => style.FontSize ?? DefaultFontSize;
+
     // ICanvasDrawing 的 Avalonia 实现：只在一次 Render 期间有效（之后调用抛 InvalidOperationException）。
     // 绘制状态（Push*）记在本次 Render 自己的栈上：撤销某一层连同其内层一起撤销，Render 结束时（Expire）撤销剩下的——
     // 插件漏了 Dispose 也不会把状态带进宿主后续的绘制。
@@ -739,12 +745,12 @@ internal sealed class PluginCanvas : Component
             mExpired = true;
         }
 
-        public void DrawImage(CanvasImage image, double x, double y, double width, double height)
+        public void DrawImage(CanvasImage image, CanvasRect bounds)
         {
             Verify();
             ArgumentNullException.ThrowIfNull(image);
-            if (width > 0 && height > 0 && image.Content is CanvasImageFactory.Content content)
-                content.Draw(context, new Rect(x, y, width, height), scaling);
+            if (bounds.Width > 0 && bounds.Height > 0 && image.Content is CanvasImageFactory.Content content)
+                content.Draw(context, ToRect(bounds), scaling);
         }
 
         public IDisposable PushOpacity(double opacity)
@@ -753,11 +759,14 @@ internal sealed class PluginCanvas : Component
             return Push(context.PushOpacity(double.IsNaN(opacity) ? 1 : Math.Clamp(opacity, 0, 1)));
         }
 
-        public IDisposable PushClip(double x, double y, double width, double height, double cornerRadius = 0)
+        // 矩形（含圆角）走圆角矩形裁剪的快路径，其余按形状围出的区域裁剪。退化的形状裁成空：什么都不留（仍要入栈，Dispose 才配得上）。
+        public IDisposable PushClip(CanvasGeometry geometry)
         {
             Verify();
-            var rect = new Rect(x, y, Math.Max(0, width), Math.Max(0, height));
-            return Push(context.PushClip(new RoundedRect(rect, Radius(cornerRadius))));
+            ArgumentNullException.ThrowIfNull(geometry);
+            if (geometry.Kind == CanvasGeometry.ShapeKind.Rectangle)
+                return Push(context.PushClip(new RoundedRect(ToRect(geometry.Rect), geometry.CornerRadius)));
+            return Push(GeometryOf(geometry) is { } native ? context.PushGeometryClip(native) : context.PushClip(new Rect()));
         }
 
         public IDisposable PushTransform(System.Numerics.Matrix3x2 transform)
@@ -800,86 +809,61 @@ internal sealed class PluginCanvas : Component
 
         readonly List<DrawingContext.PushedState> mStack = [];
 
-        public void DrawLine(Point from, Point to, System.Drawing.Color color, double width = 1)
+        public void DrawLine(Point from, Point to, CanvasPen pen)
         {
             Verify();
-            if (width > 0)
-                context.DrawLine(StrokePen(color, width), from.ToAvalonia(), to.ToAvalonia());
+            ArgumentNullException.ThrowIfNull(pen);
+            context.DrawLine(PenOf(pen), from.ToAvalonia(), to.ToAvalonia());
         }
 
-        public void DrawPolyline(IReadOnlyList<Point> points, System.Drawing.Color color, double width = 1)
+        public void DrawGeometry(CanvasGeometry geometry, CanvasBrush? fill, CanvasPen? stroke)
         {
             Verify();
-            ArgumentNullException.ThrowIfNull(points);
-            if (points.Count >= 2 && width > 0)
-                context.DrawGeometry(null, StrokePen(color, width), Polygon(points, closed: false));
+            ArgumentNullException.ThrowIfNull(geometry);
+            if (fill == null && stroke == null)
+                return;
+            var brush = fill != null ? BrushOf(fill) : null;
+            var pen = stroke != null ? PenOf(stroke) : null;
+            switch (geometry.Kind)
+            {
+                // 矩形与椭圆走 DrawingContext 的专用方法（快、且不必建几何）。
+                case CanvasGeometry.ShapeKind.Rectangle:
+                    var rect = geometry.Rect;
+                    if (rect.Width >= 0 && rect.Height >= 0)
+                        context.DrawRectangle(brush, pen, ToRect(rect), geometry.CornerRadius, geometry.CornerRadius);
+                    break;
+                case CanvasGeometry.ShapeKind.Ellipse:
+                    if (geometry.RadiusX >= 0 && geometry.RadiusY >= 0)
+                        context.DrawEllipse(brush, pen, geometry.Center.ToAvalonia(), geometry.RadiusX, geometry.RadiusY);
+                    break;
+                default:
+                    if (GeometryOf(geometry) is { } native)
+                        context.DrawGeometry(brush, pen, native);
+                    break;
+            }
         }
 
-        public void DrawPolygon(IReadOnlyList<Point> points, System.Drawing.Color color, double width = 1)
-        {
-            Verify();
-            ArgumentNullException.ThrowIfNull(points);
-            if (points.Count >= 2 && width > 0)
-                context.DrawGeometry(null, StrokePen(color, width), Polygon(points, closed: true));
-        }
-
-        public void FillPolygon(IReadOnlyList<Point> points, System.Drawing.Color color)
-        {
-            Verify();
-            ArgumentNullException.ThrowIfNull(points);
-            if (points.Count >= 3)
-                context.DrawGeometry(Brush(color), null, Polygon(points, closed: true));
-        }
-
-        public void DrawRectangle(double x, double y, double width, double height, System.Drawing.Color color, double lineWidth = 1, double cornerRadius = 0)
-        {
-            Verify();
-            if (width >= 0 && height >= 0 && lineWidth > 0)
-                context.DrawRectangle(null, new Pen(Brush(color), lineWidth), new Rect(x, y, width, height), Radius(cornerRadius), Radius(cornerRadius));
-        }
-
-        public void FillRectangle(double x, double y, double width, double height, System.Drawing.Color color, double cornerRadius = 0)
-        {
-            Verify();
-            if (width > 0 && height > 0)
-                context.DrawRectangle(Brush(color), null, new Rect(x, y, width, height), Radius(cornerRadius), Radius(cornerRadius));
-        }
-
-        public void DrawEllipse(Point center, double radiusX, double radiusY, System.Drawing.Color color, double width = 1)
-        {
-            Verify();
-            if (radiusX >= 0 && radiusY >= 0 && width > 0)
-                context.DrawEllipse(null, new Pen(Brush(color), width), center.ToAvalonia(), radiusX, radiusY);
-        }
-
-        public void FillEllipse(Point center, double radiusX, double radiusY, System.Drawing.Color color)
-        {
-            Verify();
-            if (radiusX > 0 && radiusY > 0)
-                context.DrawEllipse(Brush(color), null, center.ToAvalonia(), radiusX, radiusY);
-        }
-
-        public void DrawText(string text, double x, double y, double width, double height, System.Drawing.Color color, double fontSize, CanvasAlignment alignment = CanvasAlignment.Center)
+        public void DrawText(string text, CanvasRect bounds, CanvasBrush brush, CanvasTextStyle? style = null)
         {
             Verify();
             ArgumentNullException.ThrowIfNull(text);
-            if (!(fontSize > 0))
-                return;
+            ArgumentNullException.ThrowIfNull(brush);
+            style ??= DefaultTextStyle;
             // CanvasAlignment 的取值与宿主的九宫格编码一致（见其注释）；未知值按居中。同一个对齐既定矩形内的锚点、又定文字自身的
             // 对齐点，于是零尺寸矩形 = 以该点为锚。
-            int align = Enum.IsDefined(alignment) ? (int)alignment : (int)CanvasAlignment.Center;
-            context.DrawString(text, new Rect(x, y, Math.Max(0, width), Math.Max(0, height)), Brush(color), fontSize, align, align, alignLines: true);
+            int align = Enum.IsDefined(style.Alignment) ? (int)style.Alignment : (int)CanvasAlignment.Center;
+            context.DrawString(text, ToRect(bounds), BrushOf(brush), FontSizeOf(style), align, align, alignLines: true);
         }
 
-        public (double Width, double Height) MeasureText(string text, double fontSize)
+        public CanvasSize MeasureText(string text, CanvasTextStyle? style = null)
         {
             Verify();
             ArgumentNullException.ThrowIfNull(text);
-            if (!(fontSize > 0) || text.Length == 0)
-                return (0, 0);
+            if (text.Length == 0)
+                return new(0, 0);
             var formatted = new FormattedText(text, System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
-                TuneLab.Utils.Extensions.DrawStringTypeface, fontSize, null);
-            return (formatted.Width, formatted.Height);
+                TuneLab.Utils.Extensions.DrawStringTypeface, FontSizeOf(style ?? DefaultTextStyle), null);
+            return new(formatted.Width, formatted.Height);
         }
 
         void Verify()
@@ -888,19 +872,43 @@ internal sealed class PluginCanvas : Component
                 throw new InvalidOperationException("ICanvasDrawing is only valid during ICanvasControl.Render.");
         }
 
-        static double Radius(double cornerRadius) => cornerRadius > 0 ? cornerRadius : 0;
+        static Rect ToRect(CanvasRect rect) => new(rect.X, rect.Y, Math.Max(0, rect.Width), Math.Max(0, rect.Height));
 
-        static IBrush Brush(System.Drawing.Color color) => new SolidColorBrush(Avalonia.Media.Color.FromArgb(color.A, color.R, color.G, color.B));
+        // 样式与形状对象不可变：转成的原生对象缓存在它们身上，插件存进静态字段反复用时每帧不必重建。
+        static IBrush BrushOf(CanvasBrush brush)
+            => (IBrush)(brush.Native ??= new ImmutableSolidColorBrush(ToAvalonia(brush.SolidColor)));
 
-        // 折线 / 多边形的转角与端点取圆头（同宿主自己画曲线的 DrawCurve），粗线时不出尖角。
-        static Pen StrokePen(System.Drawing.Color color, double width) => new(Brush(color), width, null, PenLineCap.Round, PenLineJoin.Round);
+        static IPen PenOf(CanvasPen pen)
+            => (IPen)(pen.Native ??= new ImmutablePen(new ImmutableSolidColorBrush(ToAvalonia(pen.Color)), pen.Width, null,
+                pen.LineCap switch { CanvasLineCap.Flat => PenLineCap.Flat, CanvasLineCap.Square => PenLineCap.Square, _ => PenLineCap.Round },
+                pen.LineJoin switch { CanvasLineJoin.Miter => PenLineJoin.Miter, CanvasLineJoin.Bevel => PenLineJoin.Bevel, _ => PenLineJoin.Round }));
+
+        static Avalonia.Media.Color ToAvalonia(System.Drawing.Color color) => Avalonia.Media.Color.FromArgb(color.A, color.R, color.G, color.B);
+
+        // 折线 / 多边形（与按形状裁剪的椭圆）转成的 Avalonia 几何；退化的（点不够、半径为负）为 null。
+        static Geometry? GeometryOf(CanvasGeometry geometry)
+        {
+            if (geometry.Native is Geometry cached)
+                return cached;
+            Geometry? native = geometry.Kind switch
+            {
+                CanvasGeometry.ShapeKind.Polyline => geometry.Points.Count >= 2 ? Polygon(geometry.Points, closed: false) : null,
+                CanvasGeometry.ShapeKind.Polygon => geometry.Points.Count >= 2 ? Polygon(geometry.Points, closed: true) : null,
+                CanvasGeometry.ShapeKind.Ellipse => geometry.RadiusX >= 0 && geometry.RadiusY >= 0
+                    ? new EllipseGeometry(new Rect(geometry.Center.X - geometry.RadiusX, geometry.Center.Y - geometry.RadiusY,
+                        2 * geometry.RadiusX, 2 * geometry.RadiusY)) : null,
+                _ => null,
+            };
+            geometry.Native = native;
+            return native;
+        }
 
         static StreamGeometry Polygon(IReadOnlyList<Point> points, bool closed)
         {
             var geometry = new StreamGeometry();
             using (var g = geometry.Open())
             {
-                g.BeginFigure(points[0].ToAvalonia(), closed);
+                g.BeginFigure(points[0].ToAvalonia(), true);   // 可填充：不闭合的折线按首尾相连围出的区域填充 / 裁剪
                 for (int i = 1; i < points.Count; i++)
                     g.LineTo(points[i].ToAvalonia());
                 g.EndFigure(closed);

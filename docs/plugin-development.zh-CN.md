@@ -1160,7 +1160,7 @@ sealed class StretchCurveCanvas(ICanvasHost host, IReadOnlyList<PropertyValue> v
     public void Render(ICanvasDrawing d)
     {
         var curve = mDraft is { } draft ? Read(draft) : Merge(values);   // 读值一律校验；多选怎么合并你定，见 §10.1
-        d.DrawPolyline(ToPoints(curve), Color.SkyBlue, 2);
+        d.DrawPolyline(ToPoints(curve), CurvePen);   // 画笔建好存在静态字段：static readonly CanvasPen CurvePen = CanvasPen.Create(Color.SkyBlue, 2);
     }
     public void OnMouseDown(CanvasMouseButtonEvent e)
     {
@@ -1220,9 +1220,9 @@ sealed class StretchCurveCanvas(ICanvasHost host, IReadOnlyList<PropertyValue> v
 ### 10.4 绘制与输入
 
 - **尺寸**：`Create` 的首选宽高是你心目中这块画布的最佳尺寸，认真定——它只是期望，实际给多大由宿主按所在位置决定（侧栏里宽度跟随面板、只取首选高度；没有外部约束的位置宽高都取；眼下还没有位置取宽度，但以后出现时就用你给的值）。实际尺寸读 `host.Width` / `host.Height`，随时可能变（如拖宽侧栏），变了宿主会按新尺寸重画，没有单独的事件——每次 `Render` 都按当前尺寸排版，内部几何用相对单位存。坐标是逻辑像素（左上角为原点，与 DPI 无关），绘制裁剪在画布内；宿主先画好底（与输入框同款的深色圆角底），你画在它上面。`host.DevicePixelRatio` 是一个逻辑像素对应的物理像素数（随屏幕缩放，如 1.5、2），自己生成位图时用得到。
-- **绘图**（`ICanvasDrawing`，只在 `Render` 期间有效）：`Draw*` 画线条 / 轮廓，`Fill*` 填充，既要填充又要描边就调两次——`DrawLine`、`DrawPolyline`、`DrawPolygon` / `FillPolygon`（三角形等）、`DrawRectangle` / `FillRectangle`（可圆角）、`DrawEllipse` / `FillEllipse`（圆即两半径相等）、`DrawText`、`MeasureText`。颜色是 `System.Drawing.Color`（注意别漏掉 alpha）。`DrawText` 按九宫格（`CanvasAlignment`）把文字对齐在给定矩形内，矩形宽高给 0 即"以该点为锚"；文字里的 `\n` 换行，多行时每一行也按横向对齐（`Center` 即每行各自居中），不会自动折行；字体由宿主决定（跟随界面字体），排版用 `MeasureText` 的结果，别写死文字宽度。
-- **图片**：`CanvasImage.FromEncodedData(bytes)`（PNG、JPEG、WebP、SVG；SVG 不加载外部引用）或 `CanvasImage.FromPixelData(width, height, rgba)`（每像素 R、G、B、A 四字节、非预乘、逐行无填充）创建，`DrawImage(image, x, y, w, h)` 缩放画进矩形（不保持宽高比，要保持就按 `image.Width` / `image.Height` 自己算；SVG 按绘制尺寸清晰栅格化）。图片**创建后不可改写**：换内容就新建一张、把旧的 `Dispose`（先 Dispose 再新建，宿主更容易及时回收）；已经画出去的那一帧不受 Dispose 影响。可以在任意线程创建与 Dispose（如后台解码），绘制只在 `Render` 里。解码要花时间，**图片在插件级缓存**，别在工厂或 `Render` 里每次重新解码。自己生成像素时按 `宽 × host.DevicePixelRatio` 的像素数生成才清晰，比例变了（窗口拖到另一块屏幕）宿主会重新调用 `Render`。
-- **绘制状态**：`PushOpacity(opacity)`（不透明度，与外层相乘）、`PushClip(x, y, w, h, cornerRadius)`（只画矩形内，与外层取交集）、`PushTransform(Matrix3x2)`（坐标变换，`System.Numerics`，与外层复合）——之后的绘制都受影响，直到 Dispose 返回值，用 `using` 写最自然。按栈嵌套、后进先出，`Render` 结束时没撤销的宿主一并撤销。变换只影响绘制：**鼠标坐标永远是画布坐标**，命中检测自己做逆变换。
+- **绘图**（`ICanvasDrawing`，只在 `Render` 期间有效）：参数一律"画什么、在哪 → 用什么画"，怎么画装在三种样式对象里——`CanvasPen`（描边：颜色、粗细，`WithLineCap` / `WithLineJoin`，默认圆头圆角）、`CanvasBrush`（填充与文字颜色，眼下只有 `CanvasBrush.Solid(color)`）、`CanvasTextStyle`（`Create()` 起手，字号默认跟随宿主、`WithFontSize` 指定，`WithAlignment` 九宫格对齐、默认居中；用到文字的地方都可以不传样式，等于默认样式）。三者都不可变、构造时校验（粗细、字号须为正的有限数），**建好存进静态字段反复用**，宿主据此缓存，每帧不必重建。颜色是 `System.Drawing.Color`（注意别漏掉 alpha）。接口只有几个原语：`DrawLine(from, to, pen)`、`DrawGeometry(geometry, fill, stroke)`（fill / stroke 可只给一个）、`DrawText`、`MeasureText`、`DrawImage`；形状是 `CanvasGeometry`（`Polyline` / `Polygon` / `Rectangle(rect, cornerRadius)` / `Ellipse`，点列建时拷一份），常用写法在扩展方法里：`Draw*` 按给的填充 + 描边画、`Fill*` 只填充、`Stroke*` 只描边——`DrawPolyline`、`DrawPolygon` / `FillPolygon` / `StrokePolygon`、`DrawRectangle` / `FillRectangle` / `StrokeRectangle`（可圆角）、`DrawEllipse` / `FillEllipse` / `StrokeEllipse`（圆即两半径相等）。矩形是 `CanvasRect(x, y, width, height)`，尺寸是 `CanvasSize`。`DrawText(text, bounds, brush, style)` 按样式的对齐把文字排在矩形内，矩形宽高给 0 即"以该点为锚"；文字里的 `\n` 换行，多行时每一行也按横向对齐（`Center` 即每行各自居中），不会自动折行；字体由宿主决定（跟随界面字体），排版用 `MeasureText(text, style)` 的结果，别写死文字宽度，也别按字号推算（默认字号跟随宿主、可能变）。
+- **图片**：`CanvasImage.FromEncodedData(bytes)`（PNG、JPEG、WebP、SVG；SVG 不加载外部引用）或 `CanvasImage.FromPixelData(width, height, rgba)`（每像素 R、G、B、A 四字节、非预乘、逐行无填充）创建，`DrawImage(image, bounds)` 缩放画进矩形（不保持宽高比，要保持就按 `image.Width` / `image.Height` 自己算；SVG 按绘制尺寸清晰栅格化）。图片**创建后不可改写**：换内容就新建一张、把旧的 `Dispose`（先 Dispose 再新建，宿主更容易及时回收）；已经画出去的那一帧不受 Dispose 影响。可以在任意线程创建与 Dispose（如后台解码），绘制只在 `Render` 里。解码要花时间，**图片在插件级缓存**，别在工厂或 `Render` 里每次重新解码。自己生成像素时按 `宽 × host.DevicePixelRatio` 的像素数生成才清晰，比例变了（窗口拖到另一块屏幕）宿主会重新调用 `Render`。
+- **绘制状态**：`PushOpacity(opacity)`（不透明度，与外层相乘）、`PushClip(geometry)`（只画形状围出的区域内，与外层取交集；矩形写 `PushClip(rect, cornerRadius)`）、`PushTransform(Matrix3x2)`（坐标变换，`System.Numerics`，与外层复合）——之后的绘制都受影响，直到 Dispose 返回值，用 `using` 写最自然。按栈嵌套、后进先出，`Render` 结束时没撤销的宿主一并撤销。变换只影响绘制：**鼠标坐标永远是画布坐标**，命中检测自己做逆变换。
 - **重画**：值、草稿或尺寸变化时宿主自动重画；你自己的状态变了（如悬停）调 `host.Invalidate()`。
 - **鼠标**：`OnMouseDown` / `OnMouseMove` / `OnMouseUp` / `OnMouseEnter` / `OnMouseLeave` / `OnScroll`，连同 `Render` 全部带空的默认实现，只实现你关心的。按下后宿主自动捕获鼠标（拖出画布也继续收到移动与抬起）；双击（`IsDoubleClick`）与点击（`IsClick`）由宿主判定；修饰键跨平台归一（macOS 的 Cmd 记作 `Ctrl`）。
 - **键盘**：`OnKeyDown` / `OnKeyUp(CanvasKeyEvent)`（`Key`、`Modifiers`、`IsRepeat`），画布**有焦点**时才收到——点一下画布即获得焦点，点别处、切走窗口即失去。只转发 `CanvasKey` 收录的键（字母、数字、F1–F12、方向键、Enter、Esc、Tab、Backspace、Delete、Home / End、PageUp / PageDown、空格、Ctrl / Alt / Shift；修饰键本身也有按下 / 抬起，左右不区分），其余键不经画布。按住不放时系统重复发来的按下 `IsRepeat` 为 true，节奏随系统设置。同样**严格成对**：每个 `OnKeyUp` 都有本实例收到过的对应 `OnKeyDown`；按着键时失去焦点或画布离开界面，宿主补发抬起；换了实例后新实例收到的第一个按下 `IsRepeat` 为 false（对它来说键刚按下）。按住连调的操作照常**在第一次按下时写草稿、抬起时提交**，一段连按只成一个撤销步骤。没有文字输入（输入法 / 字符）。
@@ -1236,14 +1236,14 @@ sealed class StretchCurveCanvas(ICanvasHost host, IReadOnlyList<PropertyValue> v
 
 ```csharp
 // 右键菜单：值写成命令名，拿到后自己分派
-var picked = await host.PopupMenu(e.Position.X, e.Position.Y, 0, 0, [
+var picked = await host.PopupMenu(new CanvasRect(e.Position.X, e.Position.Y, 0, 0), [
     new ComboBoxItem(PropertyValue.Create("set"), "输入数值…"),
     new ComboBoxItem(PropertyValue.Create("reset"), "全部复位…"),
 ]);
 if (picked is { } v && v.ToString(out var command) && command == "set")
 {
-    // 在画数值的位置弹文本框：参数与画这段字的 DrawText 相同，框正好盖在字上
-    string? text = await host.PopupTextBox(label, host.Width - 10, 10, 0, 0, 11, CanvasAlignment.RightTop);
+    // 在画数值的位置弹文本框：矩形与样式就是画这段字的 DrawText 用的那两个，框正好盖在字上
+    string? text = await host.PopupTextBox(label, LabelAt, LabelStyle);
     if (text != null && double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var y))
     {
         host.SetValue(WithPoint(mDraft ?? StartFrom(values), index, y));   // 弹出只返回结果，改值照常 SetValue + CommitValue
@@ -1252,8 +1252,8 @@ if (picked is { } v && v.ToString(out var command) && command == "set")
 }
 ```
 
-- **`PopupTextBox(text, x, y, width, height, fontSize, alignment, multiline)`**：几何与 `DrawText` 同一套——文字区就是给定的矩形（画布坐标），文字按 `alignment` 排在里面，字号由你给、字体随界面，所以把画这段字的参数原样传过去，框就正好盖在字上。矩形要给"这段文字可用的地方"（如整个格子），别给当前文字的宽度：框**不随内容变大**，装不下就在框内滚动（不自动折行）。矩形太小时宿主按 `alignment` 指的锚点把它扩到一行高与最小宽度，宽高给 0 即"以该点为锚"。按键同宿主的文本框：Enter 或点别处 = 确认，返回文字；Esc = 取消，返回 `null`；`multiline` 时 Shift+Enter 换行（文字里是 `\n`）。
-- **`PopupMenu(x, y, width, height, items)`**：在矩形下方弹出（下方放不下就翻到上方；宽高给 0 即在该点弹出，如右键菜单）。选项就是下拉框用的 `ComboBoxItem`——分组成子菜单、分隔线、叶子多时自动加搜索框。选中返回该项的值，点别处或按 Esc 返回 `null`。既能当下拉选项，也能当操作菜单：值写成命令名，拿到后自己分派。
+- **`PopupTextBox(text, bounds, style, multiline)`**（style 可不传）：几何与 `DrawText` 同一套——文字区就是给定的矩形（画布坐标），文字按样式的对齐排在里面，字号同样式、字体随界面，所以把画这段字的矩形与样式原样传过去，框就正好盖在字上。矩形要给"这段文字可用的地方"（如整个格子），别给当前文字的宽度：框**不随内容变大**，装不下就在框内滚动（不自动折行）。矩形太小时宿主按对齐指的锚点把它扩到一行高与最小宽度，宽高给 0 即"以该点为锚"。按键同宿主的文本框：Enter 或点别处 = 确认，返回文字；Esc = 取消，返回 `null`；`multiline` 时 Shift+Enter 换行（文字里是 `\n`）。
+- **`PopupMenu(anchor, items)`**：在矩形下方弹出（下方放不下就翻到上方；宽高给 0 即在该点弹出，如右键菜单）。选项就是下拉框用的 `ComboBoxItem`——分组成子菜单、分隔线、叶子多时自动加搜索框。选中返回该项的值，点别处或按 Esc 返回 `null`。既能当下拉选项，也能当操作菜单：值写成命令名，拿到后自己分派。
 - **只返回结果，宿主不写值**：要改值照常 `SetValue` + `CommitValue`。结果在弹出关掉之后才交回，`await` 之后可以直接写。
 - **弹出期间画布算"在用"**：与 `BeginEdit`、草稿是三个独立的状态，任一存在就锁住画布（面板不刷新、实例不被换掉），弹出不占 `BeginEdit` 的计数。同一时刻至多一个——再弹一个会先关掉前一个（前一个返回 `null`）。实例作废时（见 §10.2）弹出随之关闭、返回 `null`；`await` 回来时实例若已作废，`SetValue` 返回 `false`、什么都不写。
 - **弹窗**：`host.DialogService` 与按钮点击拿到的是同一套（提示 / 确认 / 进度 / 输入表单，§9.2），以画布所在的窗口为父窗口、标明来源插件。区别只在有效期：画布没有"一次点击"的边界，**本实例有效期内都能用**，实例作废后再调抛 `InvalidOperationException`。弹窗开着时同弹出一样算"在用"。

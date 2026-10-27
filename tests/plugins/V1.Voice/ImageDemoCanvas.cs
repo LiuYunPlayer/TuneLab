@@ -42,6 +42,10 @@ sealed class ImageDemoCanvas(ICanvasHost host, IReadOnlyList<PropertyValue> valu
         </svg>
         """)));
 
+    static readonly CanvasBrush LabelBrush = CanvasBrush.Solid(Color.FromArgb(160, 255, 255, 255));
+    static readonly CanvasTextStyle LabelStyle = CanvasTextStyle.Create().WithFontSize(11).WithAlignment(CanvasAlignment.LeftBottom);
+    static readonly CanvasPen Frame = CanvasPen.Create(Color.FromArgb(80, 255, 255, 255)).WithLineJoin(CanvasLineJoin.Miter);
+
     static double Angle(PropertyValue value) => value.ToDouble(out var angle) && double.IsFinite(angle) ? angle : 0;
 
     // 现在画的角度：有草稿画草稿（自己记的），否则画工程里的值（多选不一致时取第一个对象的）。
@@ -64,21 +68,23 @@ sealed class ImageDemoCanvas(ICanvasHost host, IReadOnlyList<PropertyValue> valu
         if (Portrait.Value is { } portrait)
         {
             double pw = size * portrait.Width / portrait.Height;
-            using (d.PushClip(Pad, Pad, pw, size, 8))
+            var bounds = new CanvasRect(Pad, Pad, pw, size);
+            using (d.PushClip(bounds, 8))
             using (d.PushOpacity(mInside ? 1 : 0.5))
-                d.DrawImage(portrait, Pad, Pad, pw, size);
+                d.DrawImage(portrait, bounds);
         }
 
         // 星形：绕自身中心旋转。
         double cx = w / 2, cy = h / 2;
         using (d.PushTransform(Matrix3x2.CreateRotation((float)(CurrentAngle * Math.PI / 180), new Vector2((float)cx, (float)cy))))
-            d.DrawImage(Star.Value, cx - size / 2, cy - size / 2, size, size);
-        d.DrawText(Mixed ? "Mixed" : $"{CurrentAngle:0}°", cx + size / 2 + 4, h - Pad, 0, 0, Color.FromArgb(160, 255, 255, 255), 11, CanvasAlignment.LeftBottom);
+            d.DrawImage(Star.Value, new CanvasRect(cx - size / 2, cy - size / 2, size, size));
+        d.DrawText(Mixed ? "Mixed" : $"{CurrentAngle:0}°", new CanvasRect(cx + size / 2 + 4, h - Pad, 0, 0), LabelBrush, LabelStyle);
 
         // 色带：按物理像素生成。
         double gw = Math.Min(120, w / 4), gx = w - Pad - gw;
-        d.DrawImage(Gradient(gw, size), gx, Pad, gw, size);
-        d.DrawRectangle(gx, Pad, gw, size, Color.FromArgb(80, 255, 255, 255));
+        var band = new CanvasRect(gx, Pad, gw, size);
+        d.DrawImage(Gradient(gw, size), band);
+        d.StrokeRectangle(band, Frame);
     }
 
     // 色带图片：逻辑尺寸 × 设备像素比 = 像素尺寸。变了就先 Dispose 旧的再新建（不可改写，换内容就换一张）。
