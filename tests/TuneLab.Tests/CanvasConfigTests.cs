@@ -29,7 +29,7 @@ public class CanvasConfigTests
         public bool SetValue(PropertyValue value) => true;
         public void CommitValue() { }
         public void DiscardValue() { }
-        public Task<string?> PopupTextBox(string text, Rect bounds, CanvasTextStyle? style = null, bool multiline = false)
+        public Task<string?> PopupTextBox(string text, Rect bounds, CanvasTextStyle? style = null, CanvasTextBoxOptions? options = null)
             => Task.FromResult<string?>(null);
         public Task<PropertyValue?> PopupMenu(Rect anchor, IReadOnlyList<ComboBoxItem> items)
             => Task.FromResult<PropertyValue?>(null);

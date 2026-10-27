@@ -568,7 +568,7 @@ internal sealed class PluginCanvas : Component
         // —— 弹出：同一时刻至多一个（mPopup），关闭 = 结果为 null。结果经 RunContinuationsAsynchronously 交回插件：
         // 插件的续体总在弹出状态清掉之后才跑，那时再 SetValue / CommitValue 不会撞上"弹出仍开着"。
 
-        public Task<string?> PopupTextBox(string text, TuneLab.Foundation.Rect bounds, CanvasTextStyle? style = null, bool multiline = false)
+        public Task<string?> PopupTextBox(string text, TuneLab.Foundation.Rect bounds, CanvasTextStyle? style = null, CanvasTextBoxOptions? options = null)
         {
             VerifyThread();
             ArgumentNullException.ThrowIfNull(text);
@@ -579,7 +579,7 @@ internal sealed class PluginCanvas : Component
 
             var result = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
             var token = new PopupToken();
-            var popup = new CanvasTextPopup(view, text, bounds.X, bounds.Y, bounds.Width, bounds.Height, FontSizeOf(style), style.Alignment, multiline, value =>
+            var popup = new CanvasTextPopup(view, text, bounds.X, bounds.Y, bounds.Width, bounds.Height, FontSizeOf(style), style.Alignment, options?.IsMultiline ?? false, value =>
             {
                 if (mPopup == token)
                 {

@@ -27,6 +27,7 @@ static TuneLab.SDK.CanvasHostExtensions.EditScope(this TuneLab.SDK.ICanvasHost! 
 static TuneLab.SDK.CanvasImage.FromEncodedData(System.ReadOnlySpan<byte> data) -> TuneLab.SDK.CanvasImage!
 static TuneLab.SDK.CanvasImage.FromPixelData(int width, int height, System.ReadOnlySpan<byte> rgba) -> TuneLab.SDK.CanvasImage!
 static TuneLab.SDK.CanvasPen.Create(TuneLab.Foundation.Color color, double width = 1) -> TuneLab.SDK.CanvasPen!
+static TuneLab.SDK.CanvasTextBoxOptions.Create() -> TuneLab.SDK.CanvasTextBoxOptions!
 static TuneLab.SDK.CanvasTextStyle.Create() -> TuneLab.SDK.CanvasTextStyle!
 static TuneLab.SDK.TagConfig.Create(System.Collections.Generic.IReadOnlyList<TuneLab.SDK.TagItem>! items) -> TuneLab.SDK.TagConfig!
 static TuneLab.SDK.TagItem.implicit operator TuneLab.SDK.TagItem(bool value) -> TuneLab.SDK.TagItem
@@ -172,6 +173,9 @@ TuneLab.SDK.CanvasPen.WithColor(TuneLab.Foundation.Color color) -> TuneLab.SDK.C
 TuneLab.SDK.CanvasPen.WithLineCap(TuneLab.SDK.CanvasLineCap lineCap) -> TuneLab.SDK.CanvasPen!
 TuneLab.SDK.CanvasPen.WithLineJoin(TuneLab.SDK.CanvasLineJoin lineJoin) -> TuneLab.SDK.CanvasPen!
 TuneLab.SDK.CanvasPen.WithWidth(double width) -> TuneLab.SDK.CanvasPen!
+TuneLab.SDK.CanvasTextBoxOptions
+TuneLab.SDK.CanvasTextBoxOptions.IsMultiline.get -> bool
+TuneLab.SDK.CanvasTextBoxOptions.WithMultiline(bool value = true) -> TuneLab.SDK.CanvasTextBoxOptions!
 TuneLab.SDK.CanvasTextStyle
 TuneLab.SDK.CanvasTextStyle.Alignment.get -> TuneLab.SDK.CanvasAlignment
 TuneLab.SDK.CanvasTextStyle.FontSize.get -> double?
@@ -210,7 +214,7 @@ TuneLab.SDK.ICanvasHost.EndEdit() -> void
 TuneLab.SDK.ICanvasHost.Height.get -> double
 TuneLab.SDK.ICanvasHost.Invalidate() -> void
 TuneLab.SDK.ICanvasHost.PopupMenu(TuneLab.Foundation.Rect anchor, System.Collections.Generic.IReadOnlyList<TuneLab.SDK.ComboBoxItem>! items) -> System.Threading.Tasks.Task<TuneLab.Foundation.PropertyValue?>!
-TuneLab.SDK.ICanvasHost.PopupTextBox(string! text, TuneLab.Foundation.Rect bounds, TuneLab.SDK.CanvasTextStyle? style = null, bool multiline = false) -> System.Threading.Tasks.Task<string?>!
+TuneLab.SDK.ICanvasHost.PopupTextBox(string! text, TuneLab.Foundation.Rect bounds, TuneLab.SDK.CanvasTextStyle? style = null, TuneLab.SDK.CanvasTextBoxOptions? options = null) -> System.Threading.Tasks.Task<string?>!
 TuneLab.SDK.ICanvasHost.SetValue(TuneLab.Foundation.PropertyValue value) -> bool
 TuneLab.SDK.ICanvasHost.Width.get -> double
 TuneLab.SDK.IDialogService

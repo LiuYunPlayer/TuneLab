@@ -50,11 +50,11 @@ public interface ICanvasHost
     //   原样传过来，框就正好盖在字上。
     //   矩形应给"这段文字可用的地方"（如整个格子），而非当前文字的宽度：框不随内容变大，装不下时框内滚动（不自动折行）。
     //   太小时按对齐的锚点扩到一行高与最小宽度，宽高给 0 即"以该点为锚"。弹出后若超出屏幕，宿主挪进来。
-    //   按键同宿主文本框：Enter 或点别处 = 确认，返回文字；Esc = 取消，返回 null。multiline 时 Shift+Enter 换行（文字里是 \n）。
+    //   按键同宿主文本框：Enter 或点别处 = 确认，返回文字；Esc = 取消，返回 null。options 开了多行（CanvasTextBoxOptions.WithMultiline）时 Shift+Enter 换行（文字里是 \n）；options 不传 = 单行。
     // · PopupMenu：在给定矩形下方弹出菜单（下方放不下则翻到上方；宽高给 0 即在该点弹出，如右键菜单）。选项同下拉框
     //  （ComboBoxItem：分组为子菜单、分隔线、叶子多时自动加搜索框）。选中返回该项的值，点别处或 Esc 关掉返回 null。
     //   既能当下拉选项，也能当操作菜单（值写成命令名，拿到后自己分派）。
-    Task<string?> PopupTextBox(string text, Rect bounds, CanvasTextStyle? style = null, bool multiline = false);
+    Task<string?> PopupTextBox(string text, Rect bounds, CanvasTextStyle? style = null, CanvasTextBoxOptions? options = null);
     Task<PropertyValue?> PopupMenu(Rect anchor, IReadOnlyList<ComboBoxItem> items);
 
     // 弹窗服务（提示 / 确认 / 进度 / 输入表单）：与按钮点击拿到的是同一套（见 IButtonClickContext.DialogService），以画布

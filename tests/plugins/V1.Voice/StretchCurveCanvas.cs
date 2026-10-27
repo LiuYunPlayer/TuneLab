@@ -39,6 +39,7 @@ sealed class StretchCurveCanvas(ICanvasHost host, IReadOnlyList<PropertyValue> v
     static readonly CanvasBrush Label = CanvasBrush.Solid(Color.FromArgb(160, 255, 255, 255));
     static readonly CanvasBrush Note = CanvasBrush.Solid(Color.FromArgb(90, 255, 255, 255));
     // 数值标签以右上角为锚、字号小一点；备注用默认样式（不传：字号跟随宿主、居中）。弹出文本框时传的样式与画字同一套。
+    static readonly CanvasTextBoxOptions NoteBox = CanvasTextBoxOptions.Create().WithMultiline();   // 备注可多行
     static readonly CanvasTextStyle LabelStyle = CanvasTextStyle.Create().WithFontSize(11).WithAlignment(CanvasAlignment.RightTop);
 
     static double LinearAt(int i) => i / (double)(Count - 1);
@@ -380,7 +381,7 @@ sealed class StretchCurveCanvas(ICanvasHost host, IReadOnlyList<PropertyValue> v
     // 备注：多行文本框盖在居中画的备注上（同一个矩形、同样居中），Shift+Enter 换行。清空即删掉成员。
     async Task EditNote()
     {
-        string? text = await host.PopupTextBox(NoteText(), NoteBounds, multiline: true);
+        string? text = await host.PopupTextBox(NoteText(), NoteBounds, options: NoteBox);
         if (text == null)
             return;
         Draft(WithMember(Base, "note", text.Length == 0 ? (PropertyValue?)null : PropertyValue.Create(text)));
