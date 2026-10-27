@@ -97,7 +97,7 @@
 一行一个入口。**入口**列是这个文件里的稳定 key（菜单项取显示名字面量、按钮/开关取变量名；同名的按出现
 次序加 `#2`），**不带行号**——行号天天变，那样这张表会因为无关改动天天红。
 
-**175 个入口**：`action` 27 · `command` 15 · `script` 73 · `pending` 0 · `dialog` 35 · `internal` 19 · `by-design` 1 · `todo` 5
+**175 个入口**：`action` 32 · `command` 15 · `script` 73 · `pending` 0 · `dialog` 35 · `internal` 19 · `by-design` 1 · `todo` 0
 
 #### TuneLab/App.axaml.cs
 
@@ -198,24 +198,24 @@
 
 | 入口 | 种类 | 裁决 | 说明 |
 |---|---|---|---|
-| mCloseButton | button | `todo` | 标题栏最右的「×」关掉这块参数面板（与右键「关闭面板」同一件事）。第四期进动作面，面板是选择器参数 |
-| mCollapseToggle | toggle | `todo` | 单块参数面板收起 / 展开（参数面板多开，docs/parameter-panels.md）。第四期进动作面：一对终态动作、面板是选择器参数 |
+| mCloseButton | button | `action:view.closeParameterPanel` | 标题栏最右的「×」关掉这块参数面板（与右键「关闭面板」同一件事）；面板是可选的选择器参数，不给 = 焦点面板 |
+| mCollapseToggle | toggle | `action:view.collapseParameterPanel` | 单块参数面板收起 / 展开。三角是切换，动作面给**一对终态**（collapse / expand），面板是可选的选择器参数（不给 = 焦点面板） |
 | toggle | toggle | `action:parameter.showSynthesizedTrack` | 合成参数轨显隐。chip 是 toggle，动作面给**一对终态**（show / hide），成员则是那两条动作的**选择器参数**——随 part 的声源与效果器链而变，逐成员开 id 会爆 |
 
 #### TuneLab/UI/MainWindow/Editor/PianoWindow/ParameterArea/ParameterPanel.cs
 
 | 入口 | 种类 | 裁决 | 说明 |
 |---|---|---|---|
-| Hide Parameter Panel | menu | `action:view.toggleParameterPanel` | 标题栏右键藏起整个参数区；与 Ctrl+P 同一件事（菜单只在显示着时够得着，故只有藏这一半） |
-| TitleBar | button | `todo` | 点标题栏聚焦这块参数面板（底部标签栏随之作用于它）。第四期进动作面：聚焦面板，面板是选择器参数 |
-| Close Panel | menu | `todo` | 关掉一块参数面板（标题栏右键）。第四期进动作面，面板是选择器参数 |
+| Hide Parameter Panel | menu | `action:view.hideParameterPanel` | 标题栏右键藏起整个参数区（终态；与 view.showParameterPanel 成对，Ctrl+P 是两者的切换 view.toggleParameterPanel） |
+| TitleBar | button | `action:view.focusParameterPanel` | 按标题栏聚焦这块参数面板（底部标签栏随之作用于它）；面板是必填的选择器参数 |
+| Close Panel | menu | `action:view.closeParameterPanel` | 关掉一块参数面板（标题栏右键），同「×」 |
 
 #### TuneLab/UI/MainWindow/Editor/PianoWindow/ParameterTabBar/ParameterTabBar.cs
 
 | 入口 | 种类 | 裁决 | 说明 |
 |---|---|---|---|
 | mWaveformToggle | toggle | `action:view.toggleWaveform` | 开关与动作都是切换：波形带显隐是一件事，人心里也是一件事 |
-| mAddPanelButton | button | `todo` | 「+」加一块参数面板（照着焦点面板、插在它下方）；右键「+」关掉焦点面板（熟手快捷方式）。第四期进动作面 |
+| mAddPanelButton | button | `action:view.addParameterPanel` | 「+」加一块参数面板（照着焦点面板、插在它下方）；右键「+」关掉焦点面板 = view.closeParameterPanel 不给参数。藏着时点「+」只唤醒参数区，动作则唤醒并真加一块（动作说的是「加一块」） |
 | Remove from Parameter Panel | menu | `action:parameter.unpinProperty` | 解钉（tab 右键）。与侧栏属性右键、与那条动作共用 `ParameterPinning.SetPinned`；解钉哪一个是它的选择器参数 |
 
 #### TuneLab/UI/MainWindow/Editor/PianoWindow/PianoScrollView/PianoScrollViewOperation.cs

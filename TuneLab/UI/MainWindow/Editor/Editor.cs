@@ -101,6 +101,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 endTime: () => AudioEngine.EndTime,
                 currentToolActionId: () => ToolActionId(mPianoWindow.PianoTool.Value),
                 isParameterPanelVisible: () => mPianoWindow.IsParameterPanelVisible,
+                parameterPanels: () => mPianoWindow.ParameterPanelStatuses,
                 isWaveformVisible: () => mPianoWindow.IsWaveformVisible,
                 sidebarPanelActionIds: () => mRightSideTabBar.OpenTabs.Select(SidebarActionId).OfType<string>().ToList(),
                 focusedSurface: () => mTrackWindow.IsKeyboardFocusWithin ? "arrangement" : mPianoWindow.IsKeyboardFocusWithin ? "pianoRoll" : null,

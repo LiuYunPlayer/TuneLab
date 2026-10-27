@@ -157,6 +157,23 @@ internal static class ShotPlan
             camera.Shoot(window, name, crop: new Rect(area.X, top, area.Width, tabArea.Bottom - top));
         }
 
+        // ==== 07 参数面板多开：上面一块看音量、下面一块（焦点，标题栏带圆点）画气声 ====
+        pianoWindow.ActiveAutomation = AutomationKey.Voice("Volume");
+        pianoWindow.AddParameterPanel();
+        pianoWindow.ActiveAutomation = AutomationKey.Voice("Growl");
+        await Camera.Settle(6);
+        // 面板堆变高了：重新取景，让音符落回堆顶以上（参数区是半透明的，压在音符上会透出来）。
+        FrameEditingPart(editor, pianoWindow, pianoScroll, vocalPart);
+        await Camera.Settle(12);
+        {
+            var area = B(pianoScroll);
+            var tabArea = B(parameterTabBar);
+            double top = area.Y + PianoAreaHeight(pianoWindow);
+            camera.Shoot(window, "parameter-panels", crop: new Rect(area.X, top, area.Width, tabArea.Bottom - top));
+        }
+        pianoWindow.CloseFocusedParameterPanel();
+        await Camera.Settle(8);
+
         // ==== 08 侧栏各页 ====
         vocalPart.Notes.ElementAt(2).Select();
         await Camera.Settle(10);

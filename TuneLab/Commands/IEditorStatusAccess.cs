@@ -28,9 +28,14 @@ internal interface IEditorStatusAccess
     // 里那几条切工具的动作直接对上，不必猜工具名怎么拼。
     string CurrentToolActionId { get; }
 
+    // 整个参数区显示着没有（Ctrl+P 藏起来的就是 false；各面板自己收起与否不算）。
     bool IsParameterPanelVisible { get; }
 
-    // 波形带显隐（参数区标题栏那个开关）。
+    // 参数区里的面板，自上而下（与 view.*ParameterPanel 那几条动作的 1-based 序号同序）。
+    // 恒至少一块；参数区藏着时照报（它们还在，只是没显示）。
+    IReadOnlyList<ParameterPanelStatus> ParameterPanels { get; }
+
+    // 波形带显隐（标签栏最左那个开关）。
     bool IsWaveformVisible { get; }
 
     // 开着的侧栏面（可多个并排），按打开顺序，各用【动作 id】表示（sidebar.showAgent …）；空 = 侧栏全关。
@@ -49,3 +54,6 @@ internal interface IEditorStatusAccess
     // 故这一条同时解释了那批动作此刻为什么可用或不可用。
     string? FocusedSurface { get; }
 }
+
+// 一块参数面板：它此刻的激活参数（标题栏上写的名字）、是不是焦点（底部标签栏作用于它）、收起没有。
+internal readonly record struct ParameterPanelStatus(string ActiveParameter, bool IsFocused, bool IsCollapsed);

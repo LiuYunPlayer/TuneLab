@@ -173,6 +173,9 @@ internal sealed class ParameterPanel : AutomationRenderer.IDependency, Parameter
         menu.Open(TitleBar);
     }
 
+    // 激活参数的显示名（标题栏上写的那个）：动作面的面板值域、编辑器状态用它让外部认出是哪一块。
+    public string ActiveName => DescribeActive().Name;
+
     public void RefreshHeader()
     {
         var (name, color) = DescribeActive();

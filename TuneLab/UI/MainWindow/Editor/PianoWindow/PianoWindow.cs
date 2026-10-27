@@ -32,6 +32,9 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     public bool IsWaveformVisible => EditorState.WaveformVisible.Value;
     // 参数区是否显示着（Ctrl+P 藏起来的就是不显示；各面板自己收起与否不算）。
     public bool IsParameterPanelVisible => !mAreaHidden;
+    // 报给外部的面板列表（`editor status`），自上而下。
+    public IReadOnlyList<TuneLab.Commands.ParameterPanelStatus> ParameterPanelStatuses
+        => mPanels.Select(p => new TuneLab.Commands.ParameterPanelStatus(p.ActiveName, p.IsFocused, p.IsCollapsed)).ToList();
     public TickAxis TickAxis => mTickAxis;
     public PitchAxis PitchAxis => mPitchAxis;
     public IHolder<IMidiPart> PartHolder => mPartHolder;
@@ -210,6 +213,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         Keymap.Register(Transpose("note.transposeDown", () => "Semitone Down".Tr(TC.Menu), -1), KeyScope.PianoWindow, new(Key.Down));
 
         RegisterParameterPanelActions();
+        RegisterPanelStackActions();
     }
 
     // 一条移调动作。带一个**可选修饰符参数**（动作面上第一个，见 TuneLab.Input.ActionParameter.Optional）：
@@ -316,6 +320,105 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
                 Execute = token => SetPinned(token, false),
             },
         });
+    }
+
+    // 参数面板堆本身（几块、哪块是焦点、各自收起没有、整个区显示没有）的动作。与标题栏 / 标签栏那几个按钮是同一件事。
+    // 改的都是编辑器自身的显示状态（不进撤销、不算工程已修改）→ AppState、不过闸门。都是终态且幂等
+    //（收起已收起的、聚焦已是焦点的什么都不做），只有「加一块」本就不是幂等的。
+    // 「哪一块」是选择器参数：值 = 自上而下的 1-based 序号，标签 = 它此刻的激活参数名。关、收起、展开的参数可选，
+    // 不给就作用于焦点面板（右键「+」关的也是它）；聚焦必须说是哪块。
+    void RegisterPanelStackActions()
+    {
+        ActionRegistry.Register(new()
+        {
+            Id = "view.showParameterPanel",
+            DisplayName = () => "Show Parameter Panel".Tr(TC.Menu),
+            Kind = ActionKind.AppState,
+            Execute = () => SetParameterAreaHidden(false),
+        });
+        ActionRegistry.Register(new()
+        {
+            Id = "view.hideParameterPanel",
+            DisplayName = () => "Hide Parameter Panel".Tr(TC.Menu),
+            Kind = ActionKind.AppState,
+            Execute = () => SetParameterAreaHidden(true),
+        });
+        // 照着焦点面板加一块、插在它下方并获得焦点（同标签栏的「+」）。参数区藏着时先显示出来——
+        // 与「+」不同（藏着时点「+」只是唤醒）：动作说的是"加一块"，就该真加一块。
+        ActionRegistry.Register(new()
+        {
+            Id = "view.addParameterPanel",
+            DisplayName = () => "Add Parameter Panel".Tr(TC.Menu),
+            Kind = ActionKind.AppState,
+            Execute = () =>
+            {
+                SetParameterAreaHidden(false);
+                InsertPanelAfterFocused();
+            },
+        });
+        ActionRegistry.Register(new()
+        {
+            Id = "view.closeParameterPanel",
+            DisplayName = () => "Close Panel".Tr(TC.Menu),
+            Kind = ActionKind.AppState,
+            Unavailable = () => CanClosePanel ? null : "only one parameter panel is open, and the last one cannot be closed",
+            Execute = () => ClosePanel(FocusedPanel),
+            Parameter = PanelParameter(panel => ClosePanel(panel), optional: true, "closes the focused panel"),
+        });
+        ActionRegistry.Register(new()
+        {
+            Id = "view.collapseParameterPanel",
+            DisplayName = () => "Collapse Panel".Tr(TC.Menu),
+            Kind = ActionKind.AppState,
+            Execute = () => SetPanelCollapsed(FocusedPanel, true),
+            Parameter = PanelParameter(panel => SetPanelCollapsed(panel, true), optional: true, "collapses the focused panel"),
+        });
+        ActionRegistry.Register(new()
+        {
+            Id = "view.expandParameterPanel",
+            DisplayName = () => "Expand Panel".Tr(TC.Menu),
+            Kind = ActionKind.AppState,
+            Execute = () => SetPanelCollapsed(FocusedPanel, false),
+            Parameter = PanelParameter(panel => SetPanelCollapsed(panel, false), optional: true, "expands the focused panel"),
+        });
+        ActionRegistry.Register(new()
+        {
+            Id = "view.focusParameterPanel",
+            DisplayName = () => "Focus Panel".Tr(TC.Menu),
+            Kind = ActionKind.AppState,
+            Parameter = PanelParameter(panel => SetFocusedPanel(panel), optional: false, null),
+        });
+    }
+
+    ActionParameter PanelParameter(Action<ParameterPanel> execute, bool optional, string? defaultBehavior) => new()
+    {
+        Name = "panel",
+        Description = "Which parameter panel, numbered from the top starting at 1. The label is the parameter it is showing right now (the name on its title bar); the label works too, but two panels can show the same parameter, so the number is the unambiguous way.",
+        Values = PanelValues,
+        Execute = token => execute(mPanels[int.Parse(token) - 1]),
+        Optional = optional,
+        DefaultBehavior = defaultBehavior,
+    };
+
+    IReadOnlyList<ActionArgument> PanelValues()
+    {
+        var values = new List<ActionArgument>();
+        for (int i = 0; i < mPanels.Count; i++)
+        {
+            var panel = mPanels[i];
+            var state = string.Join(", ", new[] { panel.IsFocused ? "focused" : null, panel.IsCollapsed ? "collapsed" : null }.OfType<string>());
+            values.Add(new ActionArgument((i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture), panel.ActiveName, state.Length == 0 ? null : state));
+        }
+        return values;
+    }
+
+    void SetPanelCollapsed(ParameterPanel panel, bool collapsed)
+    {
+        if (panel.IsCollapsed == collapsed)
+            return;
+
+        panel.IsCollapsed = collapsed;
+        ApplyLayout();
     }
 
     const string TrackParameterDescription =
@@ -600,6 +703,11 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
             return;
         }
 
+        InsertPanelAfterFocused();
+    }
+
+    void InsertPanelAfterFocused()
+    {
         var focused = FocusedPanel;
         var panel = CreatePanel(focused.DesiredHeight);
         panel.CopyFrom(focused);
@@ -634,11 +742,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         panel.FocusRequested += () => SetFocusedPanel(panel);
         panel.CloseAsked += () => ClosePanel(panel);
         // 收起 / 展开不切焦点（同只有点标题栏才聚焦的约定）。
-        panel.CollapseToggleAsked += () =>
-        {
-            panel.IsCollapsed = !panel.IsCollapsed;
-            ApplyLayout();
-        };
+        panel.CollapseToggleAsked += () => SetPanelCollapsed(panel, !panel.IsCollapsed);
         panel.TitleBar.Moved += top => OnPanelDragged(panel, top);
         return panel;
     }

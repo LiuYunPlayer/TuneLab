@@ -106,10 +106,17 @@ ParameterRef
 
 ### 3.4 动作面、状态、文档
 
-- 新增动作（终态、可带面板参数）：新增面板、关闭面板、设置面板收起、聚焦面板；`parameter.show/hideSynthesizedTrack`
-  作用于焦点面板（可选面板参数）。按钮 / 右键菜单入口在 `docs/action-coverage.md` 认领（`ActionCoverageTests` 会检查）。
-- 编辑器状态：`parameterPanelVisible` 保留（= 整个参数区是否展开），另报面板列表（个数、焦点、各自激活参数）。
-- ScreenshotBot 改为设置焦点面板的激活参数；用户手册的参数面板一节补多开；改完界面重跑截图。
+- 动作（`view.*` 域，AppState、不过闸门）：
+  - `showParameterPanel` / `hideParameterPanel`：整区显示 / 隐藏的一对终态（`toggleParameterPanel` 是两者的切换，带 Ctrl+P）；
+  - `addParameterPanel`：照着焦点面板加一块（参数区藏着时先显示出来、再真加一块——与藏着时点「+」只唤醒不同）；
+  - `closeParameterPanel` / `collapseParameterPanel` / `expandParameterPanel`：可选 `panel` 参数，不给 = 焦点面板；
+  - `focusParameterPanel`：必填 `panel` 参数。
+  - `panel` 的值 = 自上而下 1-based 序号，标签 = 激活参数名，状态标 focused / collapsed。
+  - `parameter.show/hideSynthesizedTrack` 作用于焦点面板（动作面只收一个参数，要改别的面板先聚焦它）。
+  - 各按钮 / 右键菜单入口在 `docs/action-coverage.md` 认领（`ActionCoverageTests` 会检查）。
+- 编辑器状态：`parameterPanelVisible` 保留（= 整个参数区是否显示），另报 `parameterPanels`（自上而下：序号、激活参数、焦点、收起）。
+- ScreenshotBot 设置的是焦点面板的激活参数，另拍一张两块面板的 `parameter-panels`；用户手册参数面板一节补「多个参数面板」。
+- 测试文档：`tests/PARAMETER-PANELS-TEST-CASES.md`。
 
 ## 4. 分期
 
