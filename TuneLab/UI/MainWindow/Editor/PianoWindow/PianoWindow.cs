@@ -20,11 +20,11 @@ using Avalonia.Threading;
 
 namespace TuneLab.UI;
 
-internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.IDependency, TimelineView.IDependency, ParameterTabBar.IDependency, ParameterTitleBar.IDependency, AutomationRenderer.IDependency, PlayheadLayer.IDependency
+internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.IDependency, TimelineView.IDependency, ParameterTabBar.IDependency, ParameterPanel.IHost, PlayheadLayer.IDependency
 {
+    // 底部标签栏与外部读到的「激活 / 可见」都是焦点面板的（第一期只有一个面板，它即焦点）。
     public event Action? ActiveAutomationChanged;
     public event Action? VisibleAutomationChanged;
-    public event Action? SynthesizedParameterVisibilityChanged;
     public IActionEvent WaveformBottomChanged => mWaveformBottomChanged;
     public IActionEvent WaveformVisibleChanged => mWaveformVisibleChanged;
     public IActionEvent ParameterPanelVisibilityChanged => mParameterPanelVisibilityChanged;
@@ -41,36 +41,17 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     }
     public ParameterButton PitchButton => mParameterTabBar.PitchButton;
     public PianoScrollView PianoScrollView => mPianoScrollView;
-    public AutomationRenderer AutomationRenderer => mParameterContainer.AutomationRenderer;
+    public AutomationRenderer AutomationRenderer => FocusedPanel.AutomationRenderer;
     public IQuantization Quantization => mQuantization;
     public IPlayhead Playhead => mDependency.Playhead;
     public INotifiableProperty<PianoTool> PianoTool => mDependency.PianoTool;
     public INotifiableProperty<PlayScrollTarget> PlayScrollTarget => mDependency.PlayScrollTarget;
     public AutomationKey? ActiveAutomation
     {
-        get
-        {
-            if (Part == null)
-                return null;
-
-            if (mActiveAutomation.HasValue && IsAutomationVisible(mActiveAutomation.Value))
-                return mActiveAutomation.Value;
-
-            return AutomationKey.Voice(ConstantDefine.PreCommonAutomationConfigs[0].Key.Id);
-        }
-        set
-        {
-            Part?.DeselectAllAutomationPoints();
-            mActiveAutomation = value;
-            if (mActiveAutomation.HasValue)
-            {
-                SetAutomationVisible(mActiveAutomation.Value, true);
-            }
-
-            ActiveAutomationChanged?.Invoke();
-        }
+        get => FocusedPanel.ActiveAutomation;
+        set => FocusedPanel.ActiveAutomation = value;
     }
-    public IReadOnlyList<AutomationKey> VisibleAutomations => mVisibleAutomations;
+    public IReadOnlyList<AutomationKey> VisibleAutomations => FocusedPanel.VisibleAutomations;
     public double WaveformBottom => mPianoScrollView.Bounds.Height - mParameterTitleBar.Height - mParameterContainer.Height;
     public interface IDependency
     {
@@ -115,10 +96,14 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
 
                     mParameterLayer = new DockPanel() { LastChildFill = false, MinHeight = PARAMETER_TITLE_BAR_HEIGHT };
                     {
-                        mParameterContainer = new ParameterContainer(this) { Height = mParameterHeight };
+                        mPanel = new ParameterPanel(this, PARAMETER_TITLE_BAR_HEIGHT);
+                        mPanel.ActiveAutomationChanged += () => ActiveAutomationChanged?.Invoke();
+                        mPanel.VisibleAutomationChanged += () => VisibleAutomationChanged?.Invoke();
+                        mParameterContainer = mPanel.Container;
+                        mParameterContainer.Height = mParameterHeight;
                         mParameterLayer.AddDock(mParameterContainer, Dock.Bottom);
 
-                        mParameterTitleBar = new ParameterTitleBar(this) { Height = PARAMETER_TITLE_BAR_HEIGHT };
+                        mParameterTitleBar = mPanel.TitleBar;
                         mParameterLayer.AddDock(mParameterTitleBar, Dock.Bottom);
                     }
                     pianoScrollViewPanel.Children.Add(mParameterLayer);
@@ -165,8 +150,6 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
 
         ClipToBounds = true;
 
-        ActiveAutomation = AutomationKey.Voice(ConstantDefine.PreCommonAutomationConfigs[0].Key.Id);
-
         RegisterActions();
     }
 
@@ -175,38 +158,9 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         s.DisposeAll();
     }
 
-    public bool IsAutomationVisible(AutomationKey automation)
-    {
-        if (Part == null)
-            return false;
+    public bool IsAutomationVisible(AutomationKey automation) => FocusedPanel.IsAutomationVisible(automation);
 
-        if (!Part.IsEffectiveAutomation(automation) && !Part.IsEffectivePiecewiseAutomation(automation)
-            && !Part.IsEffectiveNoteLane(automation) && !Part.IsEffectivePhonemeLane(automation))
-            return false;
-
-        return mVisibleAutomations.Contains(automation);
-    }
-
-    public void SetAutomationVisible(AutomationKey automation, bool isVisible)
-    {
-        bool wasVisible = mVisibleAutomations.Contains(automation);
-        mVisibleAutomations.Remove(automation);
-
-        if (isVisible)
-            mVisibleAutomations.Add(automation);
-
-        VisibleAutomationChanged?.Invoke();
-
-        // 配对轨的单向联动：点亮可编辑轨（灭→亮的那一刻）⇒ 同 key 的回显轨一起亮。需求本身不对称——
-        // 只看回显是独立的合法用法（对着模型输出观察），而查看自己画的曲线时几乎总要参照模型输出。
-        // 故只带亮、不连带熄灭（否则会吞掉用户原本单独开着的回显），也不锁 chip（允许手动关掉）；
-        // 一次性带亮而非持续绑定，与固定"不自动同步"同一种克制。
-        if (isVisible && !wasVisible && SynthesizedParameterConfigs.ContainsKey(automation))
-            SetSynthesizedParameterVisible(automation, true);
-    }
-
-    // —— 合成参数回显轨显隐（只读轨集合，按 AutomationKey 分源合并 voice + 各 effect；独立于可编辑轨的
-    //    Visible/Active 机制；显隐由参数区标题栏管控）——
+    // 合成参数回显轨声明（只读轨集合，按 AutomationKey 分源合并 voice + 各 effect）：各面板共用，显隐由各面板自己管。
     // 每次按源现合并（轨集合随参数 commit 涌现、规模小、不在热路径）：voice 声明 → AutomationKey.Voice，
     // 各 effect 声明 → AutomationKey.Effect(index)。
     public IReadOnlyOrderedMap<AutomationKey, AutomationConfigEntry> SynthesizedParameterConfigs
@@ -237,21 +191,12 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         mWaveformVisibleChanged.Invoke();
     }
 
-    public bool IsSynthesizedParameterVisible(AutomationKey key) => mVisibleSynthesizedParameters.Contains(key);
-
-    public void SetSynthesizedParameterVisible(AutomationKey key, bool isVisible)
-    {
-        bool changed = isVisible ? mVisibleSynthesizedParameters.Add(key) : mVisibleSynthesizedParameters.Remove(key);
-        if (changed)
-            SynthesizedParameterVisibilityChanged?.Invoke();
-    }
-
     protected override void OnKeyDown(KeyEventArgs e)
     {
         if (e.IsHandledByTextBox())
             return;
 
-        if (mParameterContainer.AutomationRenderer.IsOperating)
+        if (FocusedPanel.AutomationRenderer.IsOperating)
             return;
 
         // 命令级快捷键仅在无进行中操作（拖动/缩放等）时分发；进行中的操作态修饰键由各 Operation 自行处理、不经此。
@@ -329,7 +274,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
                 Name = "track",
                 Description = TrackParameterDescription,
                 Values = SynthesizedTrackValues,
-                Execute = token => SetSynthesizedParameterVisible(ParseTrackToken(token), true),
+                Execute = token => FocusedPanel.SetSynthesizedParameterVisible(ParseTrackToken(token), true),
             },
         });
         ActionRegistry.Register(new()
@@ -343,7 +288,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
                 Name = "track",
                 Description = TrackParameterDescription,
                 Values = SynthesizedTrackValues,
-                Execute = token => SetSynthesizedParameterVisible(ParseTrackToken(token), false),
+                Execute = token => FocusedPanel.SetSynthesizedParameterVisible(ParseTrackToken(token), false),
             },
         });
 
@@ -410,7 +355,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         var part = Part;
         var values = new List<ActionArgument>();
         foreach (var kvp in SynthesizedParameterConfigs)
-            values.Add(new ActionArgument(TrackToken(kvp.Key), TrackLabel(part, kvp.Key, kvp.Value), IsSynthesizedParameterVisible(kvp.Key) ? "shown" : "hidden"));
+            values.Add(new ActionArgument(TrackToken(kvp.Key), TrackLabel(part, kvp.Key, kvp.Value), FocusedPanel.IsSynthesizedParameterVisible(kvp.Key) ? "shown" : "hidden"));
         return values;
     }
 
@@ -521,7 +466,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     // 剪贴板类命令仅在无进行中操作（拖动/缩放等）时生效——原本由 OnKeyDown 前置守卫，改由 Editor 路由后在此自守。
     // 公开是给 Editor 的动作可用性判据用（EditSurfaceUnavailable）：外部触发时"正拖着东西所以不收命令"
     // 必须能说出来，不能静默吞掉。
-    public bool CanRunEditCommand => !mParameterContainer.AutomationRenderer.IsOperating && PianoScrollView.OperationState == PianoScrollView.State.None;
+    public bool CanRunEditCommand => !FocusedPanel.AutomationRenderer.IsOperating && PianoScrollView.OperationState == PianoScrollView.State.None;
 
     public void CopySelection() { if (CanRunEditCommand) PianoScrollView.Copy(); }
     public void CutSelection() { if (CanRunEditCommand) PianoScrollView.Cut(); }
@@ -531,7 +476,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     {
         if (!CanRunEditCommand)
             return;
-        var automationRenderer = mParameterContainer.AutomationRenderer;
+        var automationRenderer = FocusedPanel.AutomationRenderer;
         // Anchor 工具且悬停 automation 时删锚点，否则删所选对象。
         if (PianoTool.Value == UI.PianoTool.Anchor && automationRenderer.IsHover)
             automationRenderer.DeleteSelectedAnchors();
@@ -543,7 +488,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     {
         if (!CanRunEditCommand)
             return;
-        var automationRenderer = mParameterContainer.AutomationRenderer;
+        var automationRenderer = FocusedPanel.AutomationRenderer;
         switch (PianoTool.Value)
         {
             case UI.PianoTool.Note:
@@ -639,9 +584,9 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     void OnParameterTabBarStateChangeAsked(AutomationKey automation, ParameterButton.ButtonState state)
     {
         if (state == ParameterButton.ButtonState.Edit)
-            ActiveAutomation = automation;
+            FocusedPanel.ActiveAutomation = automation;
         else
-            SetAutomationVisible(automation, state == ParameterButton.ButtonState.Visible);
+            FocusedPanel.SetAutomationVisible(automation, state == ParameterButton.ButtonState.Visible);
     }
 
     const double TIME_AXIS_HEIGHT = 48;
@@ -652,10 +597,9 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
 
     double mParameterHeight = 200;
 
-    AutomationKey? mActiveAutomation;
-    readonly List<AutomationKey> mVisibleAutomations = new();
-    // 回显轨显隐集合（按轨 id；默认隐藏，用户经标题栏 chip 点亮）。
-    readonly HashSet<AutomationKey> mVisibleSynthesizedParameters = new();
+    // 底部标签栏、动作面、编辑命令作用的那块面板。
+    ParameterPanel FocusedPanel => mPanel;
+
     static readonly OrderedMap<AutomationKey, AutomationConfigEntry> sEmptySynthesizedParameterConfigs = new();
 
     readonly ActionEvent mWaveformBottomChanged = new();
@@ -694,6 +638,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     readonly ScrollBar mHorizontalScrollBar;
     readonly EdgeProximityReveal mVerticalReveal;
     readonly EdgeProximityReveal mHorizontalReveal;
+    readonly ParameterPanel mPanel;
     readonly ParameterContainer mParameterContainer;
     readonly ParameterTitleBar mParameterTitleBar;
     readonly PianoRoll mPianoRoll;
