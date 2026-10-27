@@ -40,7 +40,7 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
 
     public PartPropertySideBarContentProvider()
     {
-        SideBarSection.Attach(mPresetPanel, "Preset".Tr(TC.Property));
+        SideBarSection.Attach(mPresetPanel, "Preset".Tr(TC.Property), lineAbove: false);   // 与 Voice 同显同隐，有内容时恒为首个分组
         mPresetContent.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
 
         mPresetMoreButton = new TuneLab.GUI.Components.Button() { Width = 28, Height = 28 }
