@@ -31,8 +31,8 @@ internal interface IMidiPart : IPart, IDataObject<MidiPartInfo>
     // 自动化轨集合因参数 commit 而变（条件轨随值显隐）：UI 收到重建参数栏/默认值面板。仅实际变化时触发。
     // 属性 lane 集合（见 NoteLaneConfigs / PhonemeLaneConfigs）的增删也并入本事件（同一批 UI 消费者：tabbar / 渲染器）。
     IActionEvent AutomationConfigsModified { get; }
-    // 参数面板 note 属性 lane 集合（物化缓存）：用户钉选 ∩ 各 note 声明里有界数值条目的并集，按首见顺序。
-    // 只决定有哪些 lane 与轨色；条目里的量程是首见声明的，逐段的形状按各自 note 取（TryGetNoteLaneShape）。
+    // 参数面板 note 属性 lane 集合（物化缓存）：各 note 声明的并集里，钉选了的可钉字段（有界数值、侧栏画布）+ 全部时间轴画布，
+    // 按首见顺序（种类见 LaneEntry.Kind）。只决定有哪些 lane 与轨色；条目里的量程是首见声明的，逐段的形状按各自 note 取（TryGetNoteLaneShape）。
     // 值本体在各 note.Properties 里按 id 存取。
     IReadOnlyOrderedMap<PropertyKey, LaneEntry> NoteLaneConfigs { get; }
     // 参数面板 phoneme 属性 lane 集合（物化缓存）：用户钉选 ∩ 各 note 逐 slot 音素声明的并集（同 id 取首见声明）。
@@ -172,6 +172,16 @@ internal static class IMidiPartExtension
     public static bool IsEffectivePhonemeLane(this IMidiPart part, AutomationKey key)
     {
         return key.IsPhonemeLane && part.PhonemeLaneConfigs.ContainsKey(key.Id);
+    }
+
+    // 数值 lane（宿主画值段、拖写 / 清除）：画布 lane 的编辑归插件画布，数值手势不碰它，免得把数字写进画布字段。
+    public static bool IsNumberLane(this IMidiPart part, AutomationKey key)
+    {
+        if (key.IsNoteLane)
+            return part.NoteLaneConfigs.TryGetValue(key.Id, out var entry) && entry.IsNumber;
+        if (key.IsPhonemeLane)
+            return part.PhonemeLaneConfigs.TryGetValue(key.Id, out var entry) && entry.IsNumber;
+        return false;
     }
 
     public static LaneEntry GetPhonemeLaneEntry(this IMidiPart part, AutomationKey key)

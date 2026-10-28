@@ -287,7 +287,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
             },
         });
 
-        // ── 参数面板钉选（把一个有界数值的 note / phoneme 属性物化成一条 lane）：显示名沿用界面两处右键
+        // ── 参数面板钉选（把一个有界数值或侧栏画布的 note / phoneme 属性物化成一条 lane）：显示名沿用界面两处右键
         // 菜单的措辞（复用其翻译），执行也是同一个 ParameterPinning.SetPinned。
         // 【为什么仍是 AppState】它写钉选存储（Configs/ParameterPins.json），但那是**界面自身状态的持久化**
         // ——同 view.toggleWaveform 写 EditorState.json，不是 Destructive 说的"往磁盘写文件"（那一档指的是
@@ -427,7 +427,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
 
     // pin 与 unpin 的值域是两个不同的集合（能钉的 / 已钉的），故说明也分开写：共用一句就必然对其中一条说反。
     const string PinPropertyDescription =
-        "Which property to pin to the parameter panel, written \"note:<id>\" or \"phoneme:<id>\" (only bounded numeric properties can be pinned, so the values are exactly the ones that can). "
+        "Which property to pin to the parameter panel, written \"note:<id>\" or \"phoneme:<id>\" (only bounded numeric properties and side-panel canvases can be pinned, so the values are exactly the ones that can; timeline canvases are always in the panel and need no pinning). "
         + "Each value says whether it is already pinned; pinning one that already is does nothing. The label works too.";
 
     const string UnpinPropertyDescription =
@@ -490,7 +490,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
             return "no part is open in the piano roll, so there is no parameter panel to pin to";
         if (pinned)
             return Part.PinnableProperties().Count == 0
-                ? "this part's sound source declares no properties that can be pinned (only bounded numeric ones can)"
+                ? "this part's sound source declares no properties that can be pinned (only bounded numeric ones and side-panel canvases can)"
                 : null;
         return PinnedValues().Count == 0 ? "nothing is pinned to the parameter panel for this part's sound source" : null;
     }

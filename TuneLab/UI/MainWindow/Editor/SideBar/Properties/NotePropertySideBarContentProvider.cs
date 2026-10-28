@@ -173,11 +173,11 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         return item == null ? null : [item];
     }
 
-    // 钉选菜单项（note / phoneme 两 scope 共用）：无 lane 资格（非有界数值）返回 null。
+    // 钉选菜单项（note / phoneme 两 scope 共用）：不能钉（既非有界数值、也非侧栏画布）返回 null。
     Avalonia.Controls.MenuItem? TryBuildLanePinMenuItem(ParameterPinKind scope, PropertyKey key, IControllerConfig config)
     {
         var part = mPart;
-        if (part == null || !LaneEntry.TryGetBoundedNumber(config, out _))
+        if (part == null || !LaneEntry.IsPinnable(config))
             return null;
 
         bool pinned = ParameterPinning.IsPinned(part.SoundSource, scope, key.Id);

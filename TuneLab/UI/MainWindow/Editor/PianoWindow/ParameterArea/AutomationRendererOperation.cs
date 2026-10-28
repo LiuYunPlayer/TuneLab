@@ -580,13 +580,13 @@ internal partial class AutomationRenderer
     bool ActiveIsNoteLane()
     {
         var key = mDependency.ActiveAutomation;
-        return Part != null && key != null && Part.IsEffectiveNoteLane(key.Value);
+        return Part != null && key != null && Part.IsEffectiveNoteLane(key.Value) && Part.IsNumberLane(key.Value);
     }
 
     bool ActiveIsPhonemeLane()
     {
         var key = mDependency.ActiveAutomation;
-        return Part != null && key != null && Part.IsEffectivePhonemeLane(key.Value);
+        return Part != null && key != null && Part.IsEffectivePhonemeLane(key.Value) && Part.IsNumberLane(key.Value);
     }
 
     // note lane 绘制：主键拖动把扫过的 note 的属性值写为鼠标处值（Ctrl = 锁定按下的高度，横扫即批量定值）。
@@ -605,7 +605,7 @@ internal partial class AutomationRenderer
 
             var part = AutomationRenderer.Part;
             var key = AutomationRenderer.mDependency.ActiveAutomation;
-            if (part == null || key == null || !part.IsEffectiveNoteLane(key.Value))
+            if (part == null || key == null || !part.IsEffectiveNoteLane(key.Value) || !part.IsNumberLane(key.Value))
                 return;
 
             State = State.NoteLaneDrawing;
@@ -701,7 +701,7 @@ internal partial class AutomationRenderer
 
             var part = AutomationRenderer.Part;
             var key = AutomationRenderer.mDependency.ActiveAutomation;
-            if (part == null || key == null || !part.IsEffectiveNoteLane(key.Value))
+            if (part == null || key == null || !part.IsEffectiveNoteLane(key.Value) || !part.IsNumberLane(key.Value))
                 return;
 
             State = State.NoteLaneClearing;
@@ -778,7 +778,7 @@ internal partial class AutomationRenderer
 
             var part = AutomationRenderer.Part;
             var key = AutomationRenderer.mDependency.ActiveAutomation;
-            if (part == null || key == null || !part.IsEffectivePhonemeLane(key.Value))
+            if (part == null || key == null || !part.IsEffectivePhonemeLane(key.Value) || !part.IsNumberLane(key.Value))
                 return;
 
             if (!part.GetPhonemeLaneEntry(key.Value).Resolved)
@@ -885,7 +885,7 @@ internal partial class AutomationRenderer
 
             var part = AutomationRenderer.Part;
             var key = AutomationRenderer.mDependency.ActiveAutomation;
-            if (part == null || key == null || !part.IsEffectivePhonemeLane(key.Value))
+            if (part == null || key == null || !part.IsEffectivePhonemeLane(key.Value) || !part.IsNumberLane(key.Value))
                 return;
 
             State = State.NoteLaneClearing;

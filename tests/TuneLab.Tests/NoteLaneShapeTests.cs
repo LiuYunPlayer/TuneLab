@@ -44,7 +44,11 @@ public class NoteLaneShapeTests
             bool high = context.Notes.Count > 0 && context.Notes.All(n => n.Pitch >= 62);
             var map = new OrderedMap<PropertyKey, IControllerConfig> { { "level", SliderConfig.Linear(0, 0, high ? 100 : 10) } };
             if (high)
+            {
                 map.Add("adv", SliderConfig.Linear(0, -12, 12));
+                map.Add("timeline", TimelineCanvasConfig.Create(PropertyObject.Empty, _ => new NullControl()));
+            }
+            map.Add("side", CanvasConfig.Create(PropertyObject.Empty, 200, 80, _ => new NullControl()));
             return ObjectConfig.Create(map);
         }
 
@@ -52,6 +56,8 @@ public class NoteLaneShapeTests
     }
 
     static int DeclarationCount;
+
+    sealed class NullControl : ICanvasControl { }
 
     sealed class DataThreadContext : SynchronizationContext
     {
@@ -151,6 +157,59 @@ public class NoteLaneShapeTests
 
             high.Pitch.Set(65);
             Assert.NotSame(first, part.GetNotePropertyConfig(high));
+        });
+    }
+
+    // 时间轴画布常驻：只有部分 note 声明也进 lane 集合，不用钉；颜色没指定就由宿主分配（实色）。
+    [Fact]
+    public void TimelineCanvasIsAlwaysALane_WithAHostAssignedColor()
+    {
+        OnDataThread(() =>
+        {
+            var part = SamplePart();
+            Assert.True(part.NoteLaneConfigs.TryGetValue("timeline", out var lane));
+            Assert.Equal(LaneKind.TimelineCanvas, lane.Kind);
+            Assert.False(TuneLab.Configs.TrackColors.IsUnassigned(lane.Color));
+            Assert.False(part.IsNumberLane(AutomationKey.NoteLane("timeline")));
+            // 画布 lane 没有数值形状：数值的绘制 / 拖写不碰它。
+            Assert.False(part.TryGetNoteLaneShape(part.Notes.Last(), "timeline", out _));
+        });
+    }
+
+    // 侧栏画布要钉了才进；钉了是 Canvas 种类。
+    [Fact]
+    public void SidePanelCanvasIsALaneOnlyWhenPinned()
+    {
+        OnDataThread(() =>
+        {
+            var part = SamplePart();
+            Assert.False(part.NoteLaneConfigs.ContainsKey("side"));
+            Assert.Contains(part.PinnableProperties(), p => p.Key.Id == "side");
+            Assert.DoesNotContain(part.PinnableProperties(), p => p.Key.Id == "timeline");
+            WithPinned(part, "side", () =>
+            {
+                Assert.True(part.NoteLaneConfigs.TryGetValue("side", out var lane));
+                Assert.Equal(LaneKind.Canvas, lane.Kind);
+            });
+        });
+    }
+
+    // 时间轴画布出现过就一直在：哪个 note 都不再声明它时标签仍在（颜色不变），音源一换才清。
+    [Fact]
+    public void SeenTimelineCanvasStaysUntilTheSourceChanges()
+    {
+        OnDataThread(() =>
+        {
+            var part = SamplePart();
+            var color = part.NoteLaneConfigs["timeline"].Color;
+            part.Notes.Last().Pitch.Set(60);   // 两个 note 都是低音了：谁都不声明 timeline
+            part.RefreshPinnedLaneConfigs();
+            Assert.True(part.NoteLaneConfigs.TryGetValue("timeline", out var kept));
+            Assert.Equal(color, kept.Color);
+
+            part.SoundSource.SetInfo(new SoundSourceInfo());   // 换成空音源
+            part.RefreshPinnedLaneConfigs();
+            Assert.False(part.NoteLaneConfigs.ContainsKey("timeline"));
         });
     }
 }

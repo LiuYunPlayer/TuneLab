@@ -153,7 +153,7 @@ internal class ParameterTabBar : Panel
     }
 
     // 属性 lane 按钮（note 组在前、phoneme 组随后）：与 voice 轨同源（钉选的声源属性），故并入 voice 组尾部、不插分隔符。
-    // 轨色是宿主钉选时分配的（config 无色概念），名字沿用属性声明的 DisplayText。
+    // 轨色：钉选的是钉选时分配的，时间轴画布取声明（未指定的由宿主分配）；名字沿用属性声明的 DisplayText。
     void AddLaneButtons(IReadOnlyOrderedMap<PropertyKey, LaneEntry> lanes, Func<string, AutomationKey> makeKey)
     {
         foreach (var kvp in lanes)
@@ -171,6 +171,10 @@ internal class ParameterTabBar : Panel
                 {
                     var part = Part;
                     if (part == null)
+                        return;
+                    // 时间轴画布是插件声明的常驻参数、不是钉上来的，没有"移除"可言。
+                    var lanes = captured.IsPhonemeLane ? part.PhonemeLaneConfigs : part.NoteLaneConfigs;
+                    if (lanes.TryGetValue(captured.Id, out var lane) && lane.Kind == LaneKind.TimelineCanvas)
                         return;
                     var scope = captured.IsPhonemeLane ? ParameterPinKind.PhonemeProperty : ParameterPinKind.NoteProperty;
                     var menu = new ContextMenu();

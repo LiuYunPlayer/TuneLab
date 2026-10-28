@@ -492,7 +492,7 @@ internal partial class AutomationRenderer : View
             minLabel = entry.MinLabel;
             maxLabel = entry.MaxLabel;
             colorStr = entry.Color;
-            boundsKnown = entry.Resolved;   // 未解析占位：量程未知，不显上下界
+            boundsKnown = entry.Resolved && entry.IsNumber;   // 未解析占位：量程未知；画布 lane 没有值轴——都不显上下界
         }
         else
         {
