@@ -784,6 +784,10 @@ internal static class INoteExtension
         return newNote;
     }
 
+    // 引导音素个数 = 引导列表长度（结构化、稳定、不由几何派生）：音素位置减去它就是 slot（核 = 0，口径见 SDK PhonemeSlots）。
+    public static int PhonemeLeadCount(this INote note)
+        => note.HasPinnedPhonemes ? note.LeadingPhonemes.Count : (note.SynthesizedSyllable?.LeadingPhonemes.Count ?? 0);
+
     public static void LockPhonemes(this INote note)
     {
         if (note.HasPinnedPhonemes)

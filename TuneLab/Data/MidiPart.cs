@@ -30,13 +30,18 @@ internal class MidiPart : Part, IMidiPart
     // 自动化轨集合因参数 commit 而变（voice 依赖 part 参数、各 effect 依赖自身参数）：UI 收到重建参数栏/默认值面板。
     // 仅在轨集合实际变化时触发（签名比对去抖）；换源/链增删走各自既有 UI 触发，不重复经此事件。
     public IActionEvent AutomationConfigsModified => mAutomationConfigsModified;
-    // 参数面板属性 lane 集合（物化缓存，note / phoneme 两 scope）：钉选 ∩ 当前属性 config 的有界数值条目，按声明序。
+    // 参数面板属性 lane 集合（物化缓存，note / phoneme 两 scope）：钉选 ∩ 各 note 声明的有界数值条目的并集，按首见顺序。
     // 重建时机与 voice 轨集合同步（管线重建/换源/part 参数 commit）+ 钉选变更（RefreshPinnedLaneConfigs）
     // + 音素回填补算（phoneme lane 声明面依赖合成产物，见 OnPipelinePhonemesChanged）。
     // + 插件宣告声明失效（InvalidateDeclarations）+ part 数据提交（见 OnDocumentStatusChanged：声明 context 带着
     // part 的全部数据，提交后宿主重新询问声明）。只跟提交、不跟每次改动：批量粘贴 / 拖拽时不反复全量求值。
     public IReadOnlyOrderedMap<PropertyKey, LaneEntry> NoteLaneConfigs => mNoteLaneConfigs;
     public IReadOnlyOrderedMap<PropertyKey, LaneEntry> PhonemeLaneConfigs => mPhonemeLaneConfigs;
+    // 单 note 声明（按 note 缓存，见 NoteDeclarationCache）：lane 逐段的形状与侧栏单选都走这里。
+    public ObjectConfig GetNotePropertyConfig(INote note) => mNoteDeclarations.NoteConfig(note);
+    public IReadOnlyMap<int, ObjectConfig> GetPhonemePropertyConfigs(INote note) => mNoteDeclarations.PhonemeConfigs(note);
+    public bool TryGetNoteLaneShape(INote note, string id, out LaneEntry shape) => mNoteDeclarations.TryGetNoteLaneShape(note, id, out shape);
+    public bool TryGetPhonemeLaneShape(INote note, int index, string id, out LaneEntry shape) => mNoteDeclarations.TryGetPhonemeLaneShape(note, index, id, out shape);
     public override DataString Name { get; }
     public override DataStruct<double> Pos { get; }
     public override DataStruct<double> StartOffset { get; }
@@ -68,6 +73,7 @@ internal class MidiPart : Part, IMidiPart
     {
         mOnTimebaseModified = OnTimebaseModified;
         mOnPronunciationPolicyModified = OnPronunciationPolicyModified;
+        mNoteDeclarations = new(this);
         Name = new(this, string.Empty);
         Pos = new(this);
         StartOffset = new(this);
@@ -101,6 +107,9 @@ internal class MidiPart : Part, IMidiPart
         // 时基入口（见下 Pos 订阅）。合成产物是运行时字段、不在任何失效源内，天然不触发——顺带机械
         // 强制"判定禁依赖产物"。
         Modified.AsEverytime().Subscribe(_ => mContinuationDirty = true);
+        // 单 note 声明缓存同一个失效面（声明 context 经 Part 读得到整个 part）：含 merge 中间态——拖拽期 lane 照样逐 note 读形状。
+        // 只清表、不重新询问，用到再取。注册在一切 UI 订阅之前，UI 的刷新读到的已是清过的缓存。
+        Modified.AsEverytime().Subscribe(_ => mNoteDeclarations.Invalidate());
         // 声明输入变了（见 OnDocumentStatusChanged）：只记一笔，提交时才重新询问声明。
         Modified.AsEverytime().Subscribe(_ => OnDeclarationInputsModified());
         // part 平移 → 时基重建（兑现 VoiceSynthesisContext 既定设计的另一半）：平移跨 bpm 段会改
@@ -205,6 +214,7 @@ internal class MidiPart : Part, IMidiPart
         if (mPipeline == null)
             return;
         mSource.RebuildAutomationConfigs(BuildPartPropertyContext());
+        mNoteDeclarations.Invalidate();   // 不依赖与 Modified 订阅的先后：重算 lane 之前先作废
         RebuildPinnedLaneConfigs();   // note/phoneme 属性 config 依赖 part 值，lane 集合/量程可能随之变
         if (RefreshAutomationConfigsSignatureChanged())
             mAutomationConfigsModified.Invoke();
@@ -242,6 +252,7 @@ internal class MidiPart : Part, IMidiPart
     {
         if (mPipeline == null)
             return;   // 已停用：context 随管线销毁，正常不会到这里；防御迟到的 flush
+        mNoteDeclarations.Invalidate();
         if (invalidation.Part)
             mSource.RebuildAutomationConfigs(BuildPartPropertyContext());
         RebuildPinnedLaneConfigs();
@@ -258,10 +269,12 @@ internal class MidiPart : Part, IMidiPart
             mAutomationConfigsModified.Invoke();
     }
 
-    // lane 集合 = 钉选（含轨色）∩ 当前属性 config 的有界数值条目（呈现序 = config 声明序）。
-    // config 用「全 part note」口径求值——不能随选区闪（选区归侧栏面板管）；无钉选时零开销短路。
-    // phoneme scope：逐 slot config 可异构（核 / 辅音各一套），lane 条目按【首见声明】取量程口径（同 id 后续 slot 的
-    // 异构量程不另开 lane）；instrument 无音素（GetPhonemePropertyConfigs 恒空）→ 走真空分支出占位 tab（钉过 phoneme
+    // lane 集合 = 钉选（含轨色）∩ 各 note 自己声明的有界数值条目的并集：某个 note 声明了它，这条 lane 就在
+    //（其余 note 在这条 lane 上没有段，见 TryGetNoteLaneShape）。不能拿全部 note 合并成一份声明来判：插件的声明随所选 note 的值变，
+    // 合并后的形状可能哪个 note 都不是（侧栏单选看得见、能钉的字段，合并后却被藏起来）。
+    // 条目里的量程 / 默认值取首见声明（note 序、同 note 内 slot 升序），只作标签栏与没有段可画时的口径；逐段的形状各按各的 note。
+    // 没有 note 时按"空选区"问一次，标签栏不因 part 暂时清空而丢掉钉选。无钉选时零开销短路。
+    // phoneme scope：instrument 无音素（GetPhonemePropertyConfigs 恒空）→ 走真空分支出占位 tab（钉过 phoneme
     // 的 instrument 场景本就不存在）。
     void RebuildPinnedLaneConfigs()
     {
@@ -279,26 +292,29 @@ internal class MidiPart : Part, IMidiPart
         if (pinnedNote.Count == 0 && pinnedPhoneme.Count == 0)
             return;
 
-        var context = new NotePropertyContext(new PartContext(this), mNotes.Select(n => new PartContext.PartNote(n)).ToList());
         if (pinnedNote.Count > 0)
         {
-            foreach (var kvp in mSource.GetNotePropertyConfig(context).Properties)
-                TryAddLaneEntry(mNoteLaneConfigs, pinnedNote, kvp.Key, kvp.Value);
+            foreach (var config in NoteDeclarationsOfAllNotes())
+            {
+                foreach (var kvp in config.Properties)
+                    TryAddLaneEntry(mNoteLaneConfigs, pinnedNote, kvp.Key, kvp.Value);
+            }
         }
         if (pinnedPhoneme.Count > 0)
         {
-            var configs = mSource.GetPhonemePropertyConfigs(context);
-            if (configs.Count > 0)
+            bool anyPhonemeDeclaration = false;
+            foreach (var configs in PhonemeDeclarationsOfAllNotes())
             {
-                // 有音素声明面：正常求交集，未声明的钉选自然缺席（引擎条件隐藏语义，同条件自动化轨）。
+                // 有音素声明面：正常求并集，哪个 note 都没声明的钉选自然缺席（引擎条件隐藏语义，同条件自动化轨）。
                 // slot 升序遍历（=引导→核→核后的时间序）：map 无序，「首见声明」须有确定口径。
                 foreach (int slot in configs.Keys.Order())
                 {
+                    anyPhonemeDeclaration = true;
                     foreach (var kvp in configs[slot].Properties)
                         TryAddLaneEntry(mPhonemeLaneConfigs, pinnedPhoneme, kvp.Key, kvp.Value);
                 }
             }
-            else
+            if (!anyPhonemeDeclaration)
             {
                 // 信息真空（尚无任何显示音素，典型 = 激活后合成未产出）：这不是引擎声明隐藏，钉选的 lane 须在场
                 // （tab 可见）。有旧物化条目沿用（保量程/名字），否则给未解析占位；合成回填后升级（见 OnPipelinePhonemesChanged）。
@@ -314,30 +330,53 @@ internal class MidiPart : Part, IMidiPart
     }
 
     // 参数面板【可钉选】的属性（动作面的值域自省用，见 TuneLab.Input.ActionParameter）：
-    // 当前声明面里有 lane 资格（有界数值）的 note / phoneme 属性，按声明序、phoneme 取首个合格声明
-    // ——口径与 RebuildPinnedLaneConfigs 同一份（全 part note 求值，不随选区闪），故值域里的每一项
-    // 钉上去都必然物化成一条 lane。
+    // 各 note 声明里有 lane 资格（有界数值）的 note / phoneme 属性的并集，按首见顺序
+    // ——口径与 RebuildPinnedLaneConfigs 同一份，故值域里的每一项钉上去都必然物化成一条 lane。
     public IReadOnlyList<(ParameterPinKind Kind, PropertyKey Key)> PinnableProperties()
     {
         var result = new List<(ParameterPinKind, PropertyKey)>();
-        var context = new NotePropertyContext(new PartContext(this), mNotes.Select(n => new PartContext.PartNote(n)).ToList());
-        foreach (var kvp in mSource.GetNotePropertyConfig(context).Properties)
+        var seenNote = new HashSet<string>();
+        foreach (var config in NoteDeclarationsOfAllNotes())
         {
-            if (LaneEntry.TryGetBoundedNumber(kvp.Value, out _))
-                result.Add((ParameterPinKind.NoteProperty, kvp.Key));
+            foreach (var kvp in config.Properties)
+            {
+                if (LaneEntry.TryGetBoundedNumber(kvp.Value, out _) && seenNote.Add(kvp.Key.Id))
+                    result.Add((ParameterPinKind.NoteProperty, kvp.Key));
+            }
         }
 
-        var phonemeConfigs = mSource.GetPhonemePropertyConfigs(context);
-        var seen = new HashSet<string>();
-        foreach (int slot in phonemeConfigs.Keys.Order())
+        var seenPhoneme = new HashSet<string>();
+        foreach (var phonemeConfigs in PhonemeDeclarationsOfAllNotes())
         {
-            foreach (var kvp in phonemeConfigs[slot].Properties)
+            foreach (int slot in phonemeConfigs.Keys.Order())
             {
-                if (LaneEntry.TryGetBoundedNumber(kvp.Value, out _) && seen.Add(kvp.Key.Id))
-                    result.Add((ParameterPinKind.PhonemeProperty, kvp.Key));
+                foreach (var kvp in phonemeConfigs[slot].Properties)
+                {
+                    if (LaneEntry.TryGetBoundedNumber(kvp.Value, out _) && seenPhoneme.Add(kvp.Key.Id))
+                        result.Add((ParameterPinKind.PhonemeProperty, kvp.Key));
+                }
             }
         }
         return result;
+    }
+
+    // 逐 note 的单 note 声明（走缓存）；没有 note 时给一份"空选区"声明，让不依赖 note 的字段照样在场。
+    IEnumerable<ObjectConfig> NoteDeclarationsOfAllNotes()
+    {
+        if (mNotes.Count == 0)
+        {
+            yield return mSource.GetNotePropertyConfig(new NotePropertyContext(new PartContext(this), []));
+            yield break;
+        }
+        foreach (var note in mNotes)
+            yield return mNoteDeclarations.NoteConfig(note);
+    }
+
+    // 音素声明依赖 note 里真实的音素，没有 note 就没有可问的。
+    IEnumerable<IReadOnlyMap<int, ObjectConfig>> PhonemeDeclarationsOfAllNotes()
+    {
+        foreach (var note in mNotes)
+            yield return mNoteDeclarations.PhonemeConfigs(note);
     }
 
     static void TryAddLaneEntry(OrderedMap<PropertyKey, LaneEntry> lanes, Dictionary<string, string> pinned, PropertyKey key, IControllerConfig config)
@@ -683,6 +722,7 @@ internal class MidiPart : Part, IMidiPart
     void OnTimebaseModified()
     {
         mContinuationDirty = true;
+        mNoteDeclarations.Invalidate();   // note 视图里的秒值随 tempo 变（tempo 表在 part 的数据树外，不经 Modified）
         if (mPipeline == null || mTimebaseRebuildPending)
             return;
 
@@ -728,6 +768,7 @@ internal class MidiPart : Part, IMidiPart
         // 【顺序不变量，勿调换】先填声明、后建会话：mSource.AutomationConfigs 是物化缓存（详见 Voice.AutomationConfigs），
         // 必须在建会话之前填好——否则会话构造期经 context.Automations 订阅自己声明的轨会读到空缓存、订阅落空、绘制参数不重渲。
         mSource.RefreshDeclarations(BuildPartPropertyContext());
+        mNoteDeclarations.Invalidate();   // 换了会话（可能换了引擎）：旧回答一概作废
         RebuildPinnedLaneConfigs();
         if (mSource.Kind == SourceKind.Voice)
         {
@@ -769,11 +810,13 @@ internal class MidiPart : Part, IMidiPart
         mContinuationDirty = true;
         mSource.SetSession(null);
         mSource.RefreshDeclarations(BuildPartPropertyContext());
+        mNoteDeclarations.Invalidate();
         RebuildPinnedLaneConfigs();
         foreach (var note in mNotes)
         {
             note.SynthesizedSyllable = null;
         }
+        mNoteDeclarations.InvalidatePhonemes();   // 音素声明问的是刚清掉的合成音素
     }
 
     void OnPipelineStatusChanged()
@@ -783,6 +826,8 @@ internal class MidiPart : Part, IMidiPart
 
     void OnPipelinePhonemesChanged()
     {
+        // 音素声明依赖显示音素，而合成产物不是数据、不经 part 的 Modified：回填一到就作废缓存里的音素那一半。
+        mNoteDeclarations.InvalidatePhonemes();
         // phoneme lane 的声明面依赖合成产物：激活时合成音素尚未产出的话，lane 条目是未解析占位（tab 在场、面板空）。
         // 首批音素回填即补算升级为已解析；集合已齐时为廉价 no-op（钉了引擎不声明的陈旧 id 时会随回填重试，
         // 可接受——声明求值是纯函数轻量）。
@@ -1004,6 +1049,7 @@ internal class MidiPart : Part, IMidiPart
     string mAutomationConfigsSignature = string.Empty;
     readonly OrderedMap<PropertyKey, LaneEntry> mNoteLaneConfigs = new();
     readonly OrderedMap<PropertyKey, LaneEntry> mPhonemeLaneConfigs = new();
+    readonly NoteDeclarationCache mNoteDeclarations;
     readonly BatchSignal mSynthesisBatch = new();
     ISynthesisPipeline? mPipeline;
     VoiceSynthesisPipeline? mVoicePipeline;
