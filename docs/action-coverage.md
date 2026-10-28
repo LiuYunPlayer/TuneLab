@@ -216,7 +216,7 @@
 |---|---|---|---|
 | mWaveformToggle | toggle | `action:view.toggleWaveform` | 开关与动作都是切换：波形带显隐是一件事，人心里也是一件事 |
 | mAddPanelButton | button | `action:view.addParameterPanel` | 「+」加一块参数面板（照着焦点面板、插在它下方）；右键「+」关掉焦点面板 = view.closeParameterPanel 不给参数。藏着时点「+」只唤醒参数区，动作则唤醒并真加一块（动作说的是「加一块」） |
-| Remove from Parameter Panel | menu | `action:parameter.unpinProperty` | 解钉（tab 右键）。与侧栏属性右键、与那条动作共用 `ParameterPinning.SetPinned`；解钉哪一个是它的选择器参数 |
+| label | menu | `action:parameter.pinProperty` | 标签栏空白处右键弹出的勾选列表的一项：打勾 = 已钉，点一下在钉 / 解钉间切换，对应 `parameter.pinProperty` / `unpinProperty` 那一对终态动作（标签按钮自己的右键是开关可见，不弹菜单）。列表 = 能钉的 + 引擎不再声明的孤儿钉选；与侧栏属性右键共用 `ParameterPinning.SetPinned`；钉哪一个是它的选择器参数 |
 
 #### TuneLab/UI/MainWindow/Editor/PianoWindow/PianoScrollView/PianoScrollViewOperation.cs
 

@@ -93,6 +93,10 @@ internal class ParameterTabBar : Panel
         };
         Children.Add(mAddPanelButton);
 
+        // 标签栏空白处右键：钉选管理（按音源记、跨所有面板生效，所以挂在标签栏而不是某块面板上，见 OnContextRequested）。
+        // 标签按钮自己的右键是开关可见（小眼睛），不在这里弹菜单。
+        ContextRequested += OnContextRequested;
+
         mDependency.PartHolder.Modified.Subscribe(OnPartChanged, s);
         mDependency.PartHolder.When(p => p.SoundSource.Modified).Subscribe(OnAutomationConfigsChanged, s);
         mDependency.PartHolder.When(p => p.Effects.MembershipModified).Subscribe(OnAutomationConfigsChanged, s);
@@ -134,6 +138,57 @@ internal class ParameterTabBar : Panel
         return finalSize;
     }
 
+    // 钉选管理：右键直接弹出一张勾选列表，打勾 = 已钉进参数栏，点一下切换、菜单不关（可连续勾选）。只认空白处（标签栏本身或按钮行的空隙）：按钮上的右键冒泡上来时不弹。
+    // 列表 = 此刻能钉的（各 note 声明的并集，与 parameter.pinProperty 同一份口径）+ 已钉但引擎不再声明的孤儿（取自钉选存储，
+    // 标签栏里连按钮都没有，只能在这里清掉）。时间轴画布常驻、不用钉，不在列表里。
+    // 钉 / 解钉收口在 ParameterPinning.SetPinned（同侧栏属性右键、同命令面的 parameter.pin / unpinProperty）。
+    void OnContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        if (!ReferenceEquals(e.Source, this) && !ReferenceEquals(e.Source, mAutomationLayout))
+            return;
+        var part = Part;
+        if (part == null)
+            return;
+
+        var entries = new List<(ParameterPinKind Kind, string Id, string Name)>();
+        var listed = new HashSet<(ParameterPinKind, string)>();
+        foreach (var (kind, key) in part.PinnableProperties())
+        {
+            if (listed.Add((kind, key.Id)))
+                entries.Add((kind, key.Id, key.DisplayText ?? key.Id));
+        }
+        foreach (var kind in Enum.GetValues<ParameterPinKind>())
+        {
+            foreach (var id in ParameterPinning.GetPinned(part.SoundSource, kind).Keys)
+            {
+                if (listed.Add((kind, id)))
+                    entries.Add((kind, id, id));
+            }
+        }
+        if (entries.Count == 0)
+            return;
+
+        var menu = new ContextMenu();
+        foreach (var (kind, id, name) in entries)
+        {
+            bool pinned = ParameterPinning.IsPinned(part.SoundSource, kind, id);
+            var label = kind == ParameterPinKind.PhonemeProperty ? name + " (" + "Phoneme".Tr(TC.Property) + ")" : name;
+            MenuItem? item = null;
+            item = new MenuItem() { ToggleType = MenuItemToggleType.CheckBox, IsChecked = pinned, StaysOpenOnClick = true }.SetName(label).SetAction(() => TogglePinned(part, kind, id, item!));
+            menu.Items.Add(item);
+        }
+        menu.Open(this);
+        e.Handled = true;
+    }
+
+    // 点一项不关菜单、可以连续勾选，所以按钉选存储此刻的状态切换（不用打开菜单那一刻的），勾选态也按它回填——
+    // 推迟到这次点击处理完再填：菜单项自己在点击时也会翻转勾选态，两者先后不定，以最后回填的为准。
+    static void TogglePinned(IMidiPart part, ParameterPinKind kind, string id, MenuItem item)
+    {
+        ParameterPinning.SetPinned(part, kind, id, !ParameterPinning.IsPinned(part.SoundSource, kind, id));
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => item.IsChecked = ParameterPinning.IsPinned(part.SoundSource, kind, id));
+    }
+
     // voice 与各 effect 的自动化轨统一汇入这一栏。voice 一组，每个 effect 一组，组间插竖向分隔符让用户看出分组。
     // 轨用 AutomationKey 标识（来源 + plain id），避免与真实 id 撞名。
     void ResetAutomationButtons()
@@ -164,26 +219,6 @@ internal class ParameterTabBar : Panel
                 button = new ParameterButton(ColorUtils.ParseOrFallback(kvp.Value.Color), kvp.Key.DisplayText ?? kvp.Key.Id) { Margin = new(6, 0) };
                 var captured = key;
                 button.StateChangeAsked += (state) => StateChangeAsked?.Invoke(captured, state);
-                // lane 按钮右键可就地解钉——与侧栏属性行右键对称；也是「引擎不再声明该属性」时死 tab 的唯一移除口
-                //（此时侧栏没有对应控件可右键）。只在创建时挂一次（缓存按钮跨重建复用）。
-                var capturedButton = button;
-                button.ContextRequested += (_, e) =>
-                {
-                    var part = Part;
-                    if (part == null)
-                        return;
-                    // 时间轴画布是插件声明的常驻参数、不是钉上来的，没有"移除"可言。
-                    var lanes = captured.IsPhonemeLane ? part.PhonemeLaneConfigs : part.NoteLaneConfigs;
-                    if (lanes.TryGetValue(captured.Id, out var lane) && lane.Kind == LaneKind.TimelineCanvas)
-                        return;
-                    var scope = captured.IsPhonemeLane ? ParameterPinKind.PhonemeProperty : ParameterPinKind.NoteProperty;
-                    var menu = new ContextMenu();
-                    // 解钉收口在 ParameterPinning.SetPinned（同侧栏属性右键、同命令面的 parameter.unpinProperty）。
-                    menu.Items.Add(new MenuItem().SetName("Remove from Parameter Panel".Tr(TC.Menu))
-                        .SetAction(() => ParameterPinning.SetPinned(part, scope, captured.Id, false)));
-                    menu.Open(capturedButton);
-                    e.Handled = true;
-                };
                 mCacheParameterButtons.Add(key, button);
             }
             else
