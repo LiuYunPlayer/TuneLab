@@ -147,8 +147,8 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
         var notes = context.Notes.Select(n => n.Properties).ToList();
         var properties = With(mNoteProperties, ("stretch", "Stretch Curve"), StretchCurveCanvas.Config(ValuesOf(notes, "stretch", StretchCurveCanvas.Default)));
         properties = With(properties, ("image_demo", "Canvas Images"), ImageDemoCanvas.Config(ValuesOf(notes, "image_demo", ImageDemoCanvas.Default)));
-        // 时间轴画布：侧栏不显示，参数面板里每个 note 一块（见 TimelineDemoCanvas）。
-        properties = With(properties, ("timeline_demo", "Timeline Demo"), TimelineDemoCanvas.Config("note"));
+        // 时间轴画布：侧栏不显示，参数面板里每个 note 一块（见 TimelineDemoCanvas）。参数面板里 context 只有这一个 note。
+        properties = With(properties, ("timeline_demo", "Timeline Demo"), TimelineDemoCanvas.Config(ValuesOf(notes, "timeline_demo", TimelineDemoCanvas.Default)[0], "note"));
         properties = With(properties, ("inspect", "Inspect"), ButtonConfig.Create("Show Tones", click => ShowNoteTones(click, partId, noteIds)));
         if (IsBlinkVisible(partId))
             properties = With(properties, ("blink", "Blinking Slider"), mBlinkConfig);
@@ -200,7 +200,8 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
         if (IsBlinkVisible(context.Part.PartId))
             coreProperties = With(coreProperties, ("blink", "Blinking Slider"), mBlinkConfig);
         // 音素级时间轴画布：参数面板里每个核音素一块。
-        coreProperties = With(coreProperties, ("phoneme_timeline", "Phoneme Timeline"), TimelineDemoCanvas.Config("core"));
+        coreProperties = With(coreProperties, ("phoneme_timeline", "Phoneme Timeline"),
+            TimelineDemoCanvas.Config(ValuesOf(context.Notes.Select(n => n.PhonemeAt(0)?.Properties), "phoneme_timeline", TimelineDemoCanvas.Default)[0], "core"));
         var core = ObjectConfig.Create(coreProperties);
         var consonant = ObjectConfig.Create(mConsonantPhonemeProperties);
         var map = new Map<int, ObjectConfig>();
