@@ -53,7 +53,7 @@ internal partial class TrackScrollView
             return Rect().Contains(point);
         }
 
-        // part 自绘：本体底色/标题/midi 音符或波形/基础轮廓/选中（白内描边）/编辑（标题右上角斜放 ✏️ 图标）。
+        // part 自绘：本体底色/标题/midi 音符或波形/基础轮廓/选中（白内描边）/编辑（标题右上角一枚编辑图标）。
         // 竖向位置经 GetTop/GetBottom（drag-aware）取得，故拖动轨道头时内容自动跟随。
         public override void Render(DrawingContext context)
         {
@@ -76,7 +76,7 @@ internal partial class TrackScrollView
 
             var trackColor = track.GetColor();
             // 选中→白色内描边（不叠白罩——会与编排区范围选区的白叠加层撞）；
-            // 编辑→仅在标题右上角放一枚斜放 ✏️ 图标，不改本体色。
+            // 编辑→仅在标题右上角放一枚编辑图标，不改本体色。
             var frameColor = trackColor;
 
             IBrush titleBrush = Brushes.Black;
@@ -229,7 +229,7 @@ internal partial class TrackScrollView
                 context.DrawRectangle(null, new Pen(Style.WHITE.ToBrush(), 2), partRect.Inflate(-1), 4, 4);
             }
 
-            // 编辑维度：在标题栏右上角放一枚醒目的 ✏️ 图标（斜放，更像“在写”），明确“正在编辑此 part”。
+            // 编辑维度：在标题栏右上角放一枚编辑图标（同侧栏编辑按钮的 Assets.Editing），明确“正在编辑此 part”。
             // 钳到视野内：横向锚到 part 右缘与视口右缘的较小者，故 part 滑出右侧时图标仍贴在视口右沿可见。
             if (isEditingPart)
             {
@@ -255,23 +255,20 @@ internal partial class TrackScrollView
                     context.DrawRectangle(null, new Pen(Style.WHITE.Opacity(0.7).ToBrush(), viewportLineWidth), viewportRect.Inflate(-viewportLineWidth / 2));
                 }
 
-                const double iconSize = 14;
-                const double margin = 4;
-                double centerX, centerY = top + 8;   // 标题栏(16px)垂直居中
-                double maxCenterX = Math.Min(right, view.Bounds.Width) - margin - iconSize / 2;
-                double minCenterX = Math.Max(left, 0) + margin + iconSize / 2;   // 极窄 part：退到可见左缘而非画出框外
-                centerX = Math.Max(minCenterX, maxCenterX);
-
-                // 绕图标中心转 ~140°，让笔尖朝左下、笔身斜向右上（书写姿态）。
-                var center = new Avalonia.Point(centerX, centerY);
-                var rotate = Avalonia.Matrix.CreateTranslation(-center.X, -center.Y)
-                    * Avalonia.Matrix.CreateRotation(140 * Math.PI / 180)
-                    * Avalonia.Matrix.CreateTranslation(center.X, center.Y);
-                using (context.PushTransform(rotate))
-                    context.DrawString("✏️", center, titleBrush, iconSize, Alignment.Center);
+                // 图标本身就是斜放的笔，不再整体旋转（小图形旋转后直边发虚）；左上角按物理像素取整，非整数缩放下也不落半像素。
+                const double iconSize = 16;   // = 标题栏高
+                const double margin = 2;
+                double maxX = Math.Min(right, view.Bounds.Width) - margin - iconSize;
+                double minX = Math.Max(left, 0) + margin;   // 极窄 part：退到可见左缘而非画出框外
+                double scaling = TopLevel.GetTopLevel(view)?.RenderScaling ?? 1;
+                double iconX = Math.Round(Math.Max(minX, maxX) * scaling) / scaling;
+                double iconY = Math.Round(top * scaling) / scaling;
+                context.DrawImage(EditingIcon, new Rect(iconX, iconY, iconSize, iconSize));
             }
         }
     }
+
+    static readonly IImage EditingIcon = GUI.Assets.Editing.GetImage(Colors.Black);   // 黑，同标题字色
 
     class PartEndResizeItem(TrackScrollView trackScrollView) : TrackScrollViewItem(trackScrollView)
     {
