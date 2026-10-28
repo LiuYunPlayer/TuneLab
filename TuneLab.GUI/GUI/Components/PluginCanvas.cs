@@ -58,12 +58,68 @@ internal sealed class PluginCanvas : Component
 
     // 换上新声明的工厂：当前实例作废并重画。记下声明时的值：此后值再变，这个工厂就过时了（见 OnFieldModified）。
     public void SetFactory(Func<ICanvasHost, ICanvasControl> factory)
+        => SetFactory(factory, (view, field) => new Session(view, field), session => factory(session));
+
+    // 时间轴画布（TimelineCanvasConfig）的工厂：实例拿到的宿主多一条时间轴（ITimelineCanvasHost）。
+    public void SetTimelineFactory(Func<ITimelineCanvasHost, ICanvasControl> factory, ICanvasTimeAxis timeAxis)
+        => SetFactory(factory, (view, field) => new TimelineSession(view, field, timeAxis), session => factory((TimelineSession)session));
+
+    void SetFactory(Delegate source, Func<PluginCanvas, IDataProperty<PropertyValue>, Session> createSession, Func<Session, ICanvasControl> factory)
     {
+        mFactorySource = source;
+        mCreateSession = createSession;
         mFactory = factory;
         mSeen = CurrentValue;
         Drop();
-        InvalidateVisual();
+        RequestRender();
     }
+
+    // 面板是否在用这个实例（插件宣告了编辑、有草稿、有弹出或弹窗开着）：在用时别换工厂，否则编辑到一半实例被换掉。
+    public bool IsInUse => mSession?.InUse ?? false;
+
+    // —— 交给所在视图去画（参数面板）：画布要按层次夹在别的参数之间（背景参数在半透明黑底下、激活参数在上），
+    // 所以不自己画，由所在视图在它自己的绘制里调 RenderInto；本控件只负责输入、焦点、弹出与编辑状态，自己只画一块透明底
+    // （让整块可命中）。尺寸与露出部分也由所在视图给（SetHostedGeometry）——它按时间轴算出位置后就画，等不到下一次布局。
+    // 请求重画（插件 Invalidate、写草稿……）经 RenderRequested 交给所在视图。
+    public bool ExternallyRendered { get; init; }
+
+    public event Action? RenderRequested;
+
+    public void SetHostedGeometry(Avalonia.Size size, Rect visible)
+    {
+        mHostedSize = size;
+        mHostedVisible = visible;
+    }
+
+    // 在所在视图的绘制里画一帧插件内容（调用方已把坐标原点移到画布左上角、裁好露出的部分）。
+    public void RenderInto(DrawingContext context)
+    {
+        mRendering = true;
+        mRenderedVisibleBounds = CurrentVisibleBounds();
+        try
+        {
+            if (Ensure() is not { } session)
+                return;
+            var drawing = new Drawing(context, Scaling);
+            session.Call(control => control.Render(drawing));
+            drawing.Expire();
+        }
+        finally
+        {
+            mRendering = false;
+        }
+    }
+
+    void RequestRender()
+    {
+        if (ExternallyRendered)
+            RenderRequested?.Invoke();
+        else
+            InvalidateVisual();
+    }
+
+    Avalonia.Size mHostedSize;
+    Rect mHostedVisible;
 
     PropertyValue CurrentValue => mField is IRawValueProperty raw ? raw.RawValue : mField?.Value ?? PropertyValue.Null;
 
@@ -74,7 +130,7 @@ internal sealed class PluginCanvas : Component
     // 来源插件名（插件包目录名，插件改不了）；宿主自己的程序集为 null。
     string? SourceName()
     {
-        var context = mFactory == null ? null : AssemblyLoadContext.GetLoadContext(mFactory.Method.Module.Assembly);
+        var context = mFactorySource == null ? null : AssemblyLoadContext.GetLoadContext(mFactorySource.Method.Module.Assembly);
         return context == null || context == AssemblyLoadContext.Default || string.IsNullOrEmpty(context.Name) ? null : context.Name;
     }
 
@@ -138,17 +194,17 @@ internal sealed class PluginCanvas : Component
         var session = mSession;
         mSession = null;
         session.Close();
-        InvalidateVisual();
+        RequestRender();
     }
 
     Session? Ensure()
     {
         if (mSession != null)
             return mSession.IsFaulted ? null : mSession;
-        if (mField == null || mFactory == null)
+        if (mField == null || mFactory == null || mCreateSession == null)
             return null;
 
-        var session = new Session(this, mField);
+        var session = mCreateSession(this, mField);
         mSession = session;
         try
         {
@@ -184,23 +240,15 @@ internal sealed class PluginCanvas : Component
 
     public override void Render(DrawingContext context)
     {
+        if (ExternallyRendered)
+        {
+            context.FillRectangle(Brushes.Transparent, new Rect(Bounds.Size));   // 只为整块可命中；内容由所在视图画
+            return;
+        }
         // 底 = 宿主输入框同款（Style.BACK、圆角 4，同数值框 / 路径框）：一眼看出这是一块可编辑的区域；
         // 也让画布整块可命中（插件没画东西的地方同样收得到鼠标）。插件画在它上面。
         context.FillRectangle(Style.BACK.ToBrush(), new Rect(Bounds.Size), 4);
-        mRendering = true;
-        mRenderedVisibleBounds = ComputeVisibleBounds();
-        try
-        {
-            if (Ensure() is not { } session)
-                return;
-            var drawing = new Drawing(context, Scaling);
-            session.Call(control => control.Render(drawing));
-            drawing.Expire();
-        }
-        finally
-        {
-            mRendering = false;
-        }
+        RenderInto(context);
     }
 
     bool mRendering;   // 正在画：这期间插件请求重画（如建实例时补发的 Enter 里）不必再排一帧
@@ -327,9 +375,13 @@ internal sealed class PluginCanvas : Component
     // 露出的部分变了才重画（契约：VisibleBounds 变化后宿主重新调用 Render）；没变（如滚动的是画布之外的内容）不打扰插件。
     void OnLayoutUpdated(object? sender, System.EventArgs e)
     {
-        if (mSession != null && ComputeVisibleBounds() != mRenderedVisibleBounds)
+        if (!ExternallyRendered && mSession != null && ComputeVisibleBounds() != mRenderedVisibleBounds)
             InvalidateVisual();
     }
+
+    // 尺寸与露出部分：交给所在视图去画时用它给的（它按时间轴算出的位置立即就画，布局要到下一拍），否则按自己的布局与祖先裁剪。
+    Avalonia.Size CurrentSize => ExternallyRendered ? mHostedSize : Bounds.Size;
+    Rect CurrentVisibleBounds() => ExternallyRendered ? mHostedVisible : ComputeVisibleBounds();
 
     // 画布区域里此刻露在外面的部分（画布坐标）：自身区域与各祖先裁剪区的交集。完全看不见时宽高为 0。
     Rect ComputeVisibleBounds()
@@ -342,7 +394,7 @@ internal sealed class PluginCanvas : Component
     }
 
     // 设备像素比变了（窗口拖到另一块屏幕）：插件按它生成的位图、宿主栅格化的 SVG 都要按新比例重画。
-    void OnScalingChanged(object? sender, System.EventArgs e) => InvalidateVisual();
+    void OnScalingChanged(object? sender, System.EventArgs e) => RequestRender();
 
     double Scaling => mTopLevel?.RenderScaling ?? 1;
 
@@ -454,7 +506,7 @@ internal sealed class PluginCanvas : Component
     };
 
     // 一个插件控件实例的宿主面（即交给它的 ICanvasHost）。Close 之后一切写回不生效。
-    sealed class Session(PluginCanvas view, IDataProperty<PropertyValue> field) : ICanvasHost
+    class Session(PluginCanvas view, IDataProperty<PropertyValue> field) : ICanvasHost
     {
         public ICanvasControl Control { get; set; } = null!;
         public bool IsFaulted { get; private set; }
@@ -464,14 +516,14 @@ internal sealed class PluginCanvas : Component
         public HashSet<CanvasKey> Keys { get; } = [];   // 收到过按下而未抬起的键
         bool IsAlive => !mClosed && !IsFaulted;
 
-        public double Width => view.Bounds.Width;
-        public double Height => view.Bounds.Height;
+        public double Width => view.CurrentSize.Width;
+        public double Height => view.CurrentSize.Height;
         public double DevicePixelRatio => view.Scaling;
         public TuneLab.Foundation.Rect VisibleBounds
         {
             get
             {
-                var visible = view.ComputeVisibleBounds();
+                var visible = view.CurrentVisibleBounds();
                 return new(visible.X, visible.Y, visible.Width, visible.Height);
             }
         }
@@ -479,8 +531,11 @@ internal sealed class PluginCanvas : Component
         {
             VerifyThread();
             if (IsAlive && !view.mRendering)
-                view.InvalidateVisual();
+                view.RequestRender();
         }
+
+        // 见 PluginCanvas.IsInUse；与 UpdateLock 登记 EditGate 同一个判据。
+        public bool InUse => IsAlive && (mEditCount > 0 || mDraft != null || mPopup != null || mDialogCount > 0);
 
         // 编辑状态：插件声明（是否正在编辑只有插件知道，宿主不猜）。计数、可嵌套；与草稿同时起作用，见 UpdateLock。
         public void BeginEdit()
@@ -523,7 +578,7 @@ internal sealed class PluginCanvas : Component
             }
             mDraft = value;
             UpdateLock();
-            view.InvalidateVisual();
+            view.RequestRender();
             return true;
         }
 
@@ -542,7 +597,7 @@ internal sealed class PluginCanvas : Component
             catch (ArgumentException)
             {
                 Log.Error(view.PluginPrefix() + "Canvas CommitValue was given Multiple (the multi-selection's differing values) and nothing was written. Commit a real value, or call DiscardValue when nothing changed.");
-                view.InvalidateVisual();
+                view.RequestRender();
                 return;
             }
             view.mOwnWrite++;
@@ -556,7 +611,7 @@ internal sealed class PluginCanvas : Component
             {
                 view.mOwnWrite--;
             }
-            view.InvalidateVisual();
+            view.RequestRender();
         }
 
         public void DiscardValue()
@@ -565,7 +620,7 @@ internal sealed class PluginCanvas : Component
             if (!IsAlive || mDraft == null)
                 return;
             ClearDraft();
-            view.InvalidateVisual();
+            view.RequestRender();
         }
 
         public void Call(Action<ICanvasControl> action)
@@ -588,7 +643,7 @@ internal sealed class PluginCanvas : Component
             IsFaulted = true;
             ClosePopup();
             ClearDraft();
-            view.InvalidateVisual();
+            view.RequestRender();
         }
 
         public void Close()
@@ -736,7 +791,7 @@ internal sealed class PluginCanvas : Component
         {
             if (!IsAlive)
                 mEditCount = 0;
-            if (IsAlive && (mEditCount > 0 || mDraft != null || mPopup != null || mDialogCount > 0))
+            if (InUse)
             {
                 mEditing ??= EditGate.Of(view)?.BeginEdit();
             }
@@ -761,6 +816,12 @@ internal sealed class PluginCanvas : Component
         IDialogService? mDialogService;   // 交给插件的那一个（包一层：有效期检查 + 在用计数）
         IDialogService? mDialogs;         // 宿主注入的真正实现，用到时才建
         IDisposable? mEditing;   // 面板在用期间在所在窗口 EditGate 上的登记（见 UpdateLock）
+    }
+
+    // 时间轴画布的宿主：多一条时间轴（由所在视图给、跟着它的时间轴走）。
+    sealed class TimelineSession(PluginCanvas view, IDataProperty<PropertyValue> field, ICanvasTimeAxis timeAxis) : Session(view, field), ITimelineCanvasHost
+    {
+        public ICanvasTimeAxis TimeAxis => timeAxis;
     }
 
     // 画布文字不传样式 / 不给字号时：字号与宿主界面上的字段文字同档（PropertyObjectController 的字段标签），宿主调整时一起改。
@@ -955,7 +1016,9 @@ internal sealed class PluginCanvas : Component
 
     readonly DisposableManager s = new();
     IDataProperty<PropertyValue>? mField;
-    Func<ICanvasHost, ICanvasControl>? mFactory;
+    Func<Session, ICanvasControl>? mFactory;
+    Func<PluginCanvas, IDataProperty<PropertyValue>, Session>? mCreateSession;
+    Delegate? mFactorySource;   // 插件给的那个工厂本身：按它所在的程序集标明来源插件（mFactory 是宿主包的一层）
     Session? mSession;
     PropertyValue mSeen;
     int mOwnWrite;

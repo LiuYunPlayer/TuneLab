@@ -278,10 +278,19 @@ internal class ParameterTabBar : Panel
         // 参数区藏着时不点亮激活的那个（画面上确实没有参数在显示）；激活记录本身不动，显示出来即复原。
         var activeAutomation = mDependency.IsParameterPanelVisible ? mDependency.ActiveAutomation : null;
 
+        // 激活的是画布时，背景里的画布不画（两块界面叠起来看不清，见 AutomationRenderer），它们的小眼睛也就不点亮——
+        // 画面上确实没有它；可见记录本身不动，换回别的激活参数即复原。
+        var part = Part;
+        bool IsCanvasLane(AutomationKey key)
+            => (part.IsEffectiveNoteLane(key) || part.IsEffectivePhonemeLane(key)) && !part.IsNumberLane(key);
+        bool activeIsCanvas = activeAutomation is { } active && IsCanvasLane(active);
+
         void SyncKey(AutomationKey key)
         {
             if (activeAutomation == key)
                 SetState(key, ParameterButton.ButtonState.Edit);
+            else if (activeIsCanvas && IsCanvasLane(key))
+                SetState(key, ParameterButton.ButtonState.Off);
             else
                 SetState(key, mDependency.IsAutomationVisible(key) ? ParameterButton.ButtonState.Visible : ParameterButton.ButtonState.Off);
         }

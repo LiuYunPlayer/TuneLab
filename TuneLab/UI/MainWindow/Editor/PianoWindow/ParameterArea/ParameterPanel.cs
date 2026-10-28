@@ -271,7 +271,14 @@ internal sealed class ParameterPanel : AutomationRenderer.IDependency, Parameter
         mVisibleAutomations.Remove(automation);
 
         if (isVisible)
+        {
+            // 画布的可见互斥：一块面板里至多一个画布可见（作背景时画），打开一个就关掉别的——画布是一整块界面，
+            // 两块叠起来哪块都看不清。激活也会把它设为可见，所以切回普通参数后作背景的是最近用过的那个画布。
+            // 曲线 / 数值 lane 不受影响，照常与一个画布同时可见。
+            if (IsCanvasLane(automation))
+                mVisibleAutomations.RemoveAll(IsCanvasLane);
             mVisibleAutomations.Add(automation);
+        }
 
         VisibleAutomationChanged?.Invoke();
 
@@ -282,6 +289,9 @@ internal sealed class ParameterPanel : AutomationRenderer.IDependency, Parameter
         if (isVisible && !wasVisible && SynthesizedParameterConfigs.ContainsKey(automation))
             SetSynthesizedParameterVisible(automation, true);
     }
+
+    bool IsCanvasLane(AutomationKey key)
+        => Part is { } part && (part.IsEffectiveNoteLane(key) || part.IsEffectivePhonemeLane(key)) && !part.IsNumberLane(key);
 
     // —— 合成参数回显轨显隐（只读轨集合；独立于可编辑轨的 Visible/Active 机制；显隐由本面板标题栏管控）——
     public bool IsSynthesizedParameterVisible(AutomationKey key) => mVisibleSynthesizedParameters.Contains(key);

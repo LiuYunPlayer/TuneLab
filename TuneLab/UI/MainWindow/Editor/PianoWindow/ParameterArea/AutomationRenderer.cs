@@ -129,6 +129,7 @@ internal partial class AutomationRenderer : View
         mAnchorValueInput.PointerPressed += OnAnchorValueInputPointerPressed;
         Children.Add(mAnchorValueInput);
 
+        mDependency.PartHolder.Modified.Subscribe(ClearCanvases, s);   // 画布实例跟 part 走（各 note 的声明、数据都换了）
         mDependency.PartHolder.Modified.Subscribe(InvalidateVisual, s);
         mDependency.PartHolder.When(p => p.Automations.Modified).Subscribe(InvalidateVisual, s);
         // 分段轨数据（voice 级在 part.PiecewiseAutomations、effect 级在各 effect.PiecewiseAutomations）编辑后重绘。
@@ -185,6 +186,7 @@ internal partial class AutomationRenderer : View
     public void Detach()
     {
         s.DisposeAll();
+        ClearCanvases();
         mDependency.PianoScrollView.RegionSelectionChanged -= InvalidateVisual;
         mDependency.ActiveAutomationChanged -= InvalidateVisual;
         mDependency.ActiveAutomationChanged -= UpdateAnchorValueInput;
@@ -204,11 +206,25 @@ internal partial class AutomationRenderer : View
             mAnchorValueInput.Arrange(rect);
         else
             mAnchorValueInput.Arrange(new Rect());
+        ArrangeCanvases();
 
         return finalSize;
     }
 
     protected override void OnRender(DrawingContext context)
+    {
+        BeginCanvasFrame();
+        try
+        {
+            RenderContent(context);
+        }
+        finally
+        {
+            EndCanvasFrame();
+        }
+    }
+
+    void RenderContent(DrawingContext context)
     {
         context.FillRectangle(Colors.Black.Opacity(0.25).ToBrush(), this.Rect());
         if (Part == null)
@@ -251,9 +267,19 @@ internal partial class AutomationRenderer : View
         void Draw(AutomationKey automationID, bool isActive)
         {
             if (Part.IsEffectiveNoteLane(automationID))
-                DrawNoteLane(automationID, isActive);
+            {
+                if (Part.IsNumberLane(automationID))
+                    DrawNoteLane(automationID, isActive);
+                else
+                    DrawCanvasLane(context, automationID, phoneme: false, isActive);
+            }
             else if (Part.IsEffectivePhonemeLane(automationID))
-                DrawPhonemeLane(automationID, isActive);
+            {
+                if (Part.IsNumberLane(automationID))
+                    DrawPhonemeLane(automationID, isActive);
+                else
+                    DrawCanvasLane(context, automationID, phoneme: true, isActive);
+            }
             else if (Part.IsEffectiveAutomation(automationID))
                 DrawContinuous(automationID);
             else if (Part.IsEffectivePiecewiseAutomation(automationID))
@@ -446,12 +472,19 @@ internal partial class AutomationRenderer : View
         }
 
         var activeAutomation = mDependency.ActiveAutomation;
+        // 激活的是画布时，背景里的画布不画：画布是一整块界面（网格、文字、把手），两层叠起来哪层都看不清。
+        // 背景里的曲线 / 数值 lane 照常画（细线，压暗后垫在画布下还看得清）；画布的可见开关不动，换回别的激活参数就又出现。
+        bool activeIsCanvas = activeAutomation is { } activeKey && (activeKey.IsNoteLane || activeKey.IsPhonemeLane)
+            && (Part.IsEffectiveNoteLane(activeKey) || Part.IsEffectivePhonemeLane(activeKey)) && !Part.IsNumberLane(activeKey);
         foreach (var automation in mDependency.VisibleAutomations)
         {
             if (automation == activeAutomation)
                 continue;
 
             if (!mDependency.IsAutomationVisible(automation))
+                continue;
+
+            if (activeIsCanvas && (Part.IsEffectiveNoteLane(automation) || Part.IsEffectivePhonemeLane(automation)) && !Part.IsNumberLane(automation))
                 continue;
 
             Draw(automation, false);
