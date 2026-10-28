@@ -22,6 +22,10 @@ internal sealed class ExtensibleObjectController : StackPanel
     // 按钮作用域（见 ButtonRoot）：由外层 creator 设好，条目里的对象按 "路径/键" 继续往下传。
     internal ButtonRoot? ButtonRoot { get; set; }
     internal string ButtonPath { get; set; } = string.Empty;
+    // 本容器在声明树里的位置（见 FieldPath）：条目按键往下接。
+    internal FieldPath FieldPath { get; set; } = FieldPath.Root(null);
+    // 折叠记忆的作用域（见 PropertyObjectController.CollapseScope）：条目里的字段按 "作用域/键" 继续往下记。null = 不可折叠。
+    internal string? CollapseScope { get; set; }
 
     public ExtensibleObjectController()
     {
@@ -93,7 +97,8 @@ internal sealed class ExtensibleObjectController : StackPanel
             }
             else
             {
-                nextByKey.Add(id, new KeyedRow(mDataObject, key, cfg, () => RemoveKey(id), ButtonRoot, ButtonPath + "/" + id));
+                nextByKey.Add(id, new KeyedRow(mDataObject, key, cfg, () => RemoveKey(id), ButtonRoot, ButtonPath + "/" + id, FieldPath.Child(id),
+                    CollapseScope == null ? null : CollapseScope + "/" + id));
                 structureChanged = true;
             }
             nextOrder.Add(id);
@@ -217,9 +222,9 @@ sealed class KeyedRow : IDisposable
     public Control Root => mRoot;
     public Type ConfigType => mWidget.ConfigType;
 
-    public KeyedRow(IDataPropertyObject dataObject, PropertyKey key, IControllerConfig config, Action onDelete, ButtonRoot? buttonRoot, string buttonPath)
+    public KeyedRow(IDataPropertyObject dataObject, PropertyKey key, IControllerConfig config, Action onDelete, ButtonRoot? buttonRoot, string buttonPath, FieldPath path, string? foldScope)
     {
-        mWidget = ElementWidget.Create(dataObject, key.Id, config, buttonRoot, buttonPath);
+        mWidget = ElementWidget.Create(dataObject, key.Id, config, buttonRoot, buttonPath, path, foldScope);
         mTitle = ArrayControlsFactory.MakeRowTitle(key.DisplayText ?? key.Id);
 
         var content = new StackPanel { Orientation = Orientation.Vertical, Margin = new(0, ArrayControlsFactory.EntryPadding) };

@@ -4,6 +4,7 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using System;
 using System.Collections.Generic;
+using TuneLab.Configs;
 using TuneLab.Data;
 using TuneLab.Extensions.Formats.TLP;
 using TuneLab.Foundation;
@@ -91,6 +92,8 @@ internal sealed class ParameterPanel : AutomationRenderer.IDependency, Parameter
         host.PartHolder.When(p => p.SoundSource.Modified).Subscribe(RefreshHeader, s);
         host.PartHolder.When(p => p.AutomationConfigsModified).Subscribe(RefreshHeader, s);
         host.PartHolder.When(p => p.Effects.MembershipModified).Subscribe(RefreshHeader, s);
+        // 标签栏隐藏集合变了：激活的那条可能刚被藏起（回落）、作背景的可能刚被藏起或放出来——重新判定、重画。
+        ParameterHiding.Changed.Subscribe(() => { ActiveAutomationChanged?.Invoke(); VisibleAutomationChanged?.Invoke(); }, s);
         RefreshHeader();
     }
 
@@ -224,19 +227,19 @@ internal sealed class ParameterPanel : AutomationRenderer.IDependency, Parameter
 
     IMidiPart? Part => mHost.PartHolder.Value;
 
-    // 激活参数：记下的那条在当前 part 里不再有效（换了声源、插件没装……）时显示回落到 Volume，记录本身保留——
-    // 它重新有效时自动恢复。
+    // 激活参数：记下的那条在当前 part 里不再有效（换了声源、插件没装……）或被从标签栏隐藏时，显示回落到标签栏上的
+    // 第一条（通常是 Volume；全藏了就没有），记录本身保留——它重新有效 / 显示出来时自动恢复。
     public AutomationKey? ActiveAutomation
     {
         get
         {
-            if (Part == null)
+            if (Part is not { } part)
                 return null;
 
             if (mActiveAutomation.HasValue && IsAutomationVisible(mActiveAutomation.Value))
                 return mActiveAutomation.Value;
 
-            return DefaultAutomation;
+            return FirstShownAutomation(part);
         }
         set
         {
@@ -251,8 +254,41 @@ internal sealed class ParameterPanel : AutomationRenderer.IDependency, Parameter
         }
     }
 
+    // 回落目标：Volume 在标签栏上就是它（老行为）；被藏了就按标签栏的顺序取第一条还在的。
+    static AutomationKey? FirstShownAutomation(IMidiPart part)
+    {
+        if (!ParameterHiding.IsHidden(part, DefaultAutomation))
+            return DefaultAutomation;
+
+        foreach (var kvp in part.SoundSource.AutomationConfigs)
+        {
+            if (!ParameterHiding.IsHidden(part, AutomationKey.Voice(kvp.Key.Id)))
+                return AutomationKey.Voice(kvp.Key.Id);
+        }
+        foreach (var kvp in part.NoteLaneConfigs)
+        {
+            if (!ParameterHiding.IsHidden(part, AutomationKey.NoteLane(kvp.Key.Id)))
+                return AutomationKey.NoteLane(kvp.Key.Id);
+        }
+        foreach (var kvp in part.PhonemeLaneConfigs)
+        {
+            if (!ParameterHiding.IsHidden(part, AutomationKey.PhonemeLane(kvp.Key.Id)))
+                return AutomationKey.PhonemeLane(kvp.Key.Id);
+        }
+        for (int i = 0; i < part.Effects.Count; i++)
+        {
+            foreach (var kvp in part.Effects[i].AutomationConfigs)
+            {
+                if (!ParameterHiding.IsHidden(part, AutomationKey.Effect(i, kvp.Key.Id)))
+                    return AutomationKey.Effect(i, kvp.Key.Id);
+            }
+        }
+        return null;
+    }
+
     public IReadOnlyList<AutomationKey> VisibleAutomations => mVisibleAutomations;
 
+    // 从标签栏隐藏的不算可见（不作背景、不能激活）；可见记录本身不动，显示回标签栏即复原。
     public bool IsAutomationVisible(AutomationKey automation)
     {
         if (Part == null)
@@ -260,6 +296,9 @@ internal sealed class ParameterPanel : AutomationRenderer.IDependency, Parameter
 
         if (!Part.IsEffectiveAutomation(automation) && !Part.IsEffectivePiecewiseAutomation(automation)
             && !Part.IsEffectiveNoteLane(automation) && !Part.IsEffectivePhonemeLane(automation))
+            return false;
+
+        if (ParameterHiding.IsHidden(Part, automation))
             return false;
 
         return mVisibleAutomations.Contains(automation);

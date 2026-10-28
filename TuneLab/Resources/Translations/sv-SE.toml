@@ -333,6 +333,9 @@
 "Clear Locked Phonemes" = "Rensa låsta fonem"
 "Edit in Parameter Panel" = "Redigera i parameterpanelen"
 "Remove from Parameter Panel" = "Ta bort från parameterpanelen"
+"Hide from Tab Bar" = "Dölj från flikfältet"
+"Show in Tab Bar" = "Visa i flikfältet"
+"Has Data" = "Har data"
 "Octave Up" = "Oktav upp"
 "Octave Down" = "Oktav ner"
 "Move Lyrics Forward" = "Flytta fram lyrics"
@@ -531,6 +534,7 @@
 "Only some of the selected items have this tag. Pick it from + to add it to all of them." = "Bara några av de markerade objekten har den här taggen. Välj den under + för att lägga till den på alla."
 
 [PropertyObjectController]
+"(Timeline canvases are not supported here)" = "(Tidslinjedukar stöds inte här)"
 "Reset to Default" = "Återställ till standard"
 "{0} items" = "{0} objekt"
 "On" = "På"

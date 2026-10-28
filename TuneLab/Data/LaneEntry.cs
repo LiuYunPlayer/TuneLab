@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using TuneLab.SDK;
 
 namespace TuneLab.Data;
@@ -23,6 +24,9 @@ internal enum LaneKind
 // tab 照常显示（lane 的存在性跟钉选意图走），面板不画段、不可编辑、不显上下界；声明可得后升级为已解析。
 internal readonly record struct LaneEntry(INormalizedScale Scale, double DefaultValue, INumberFormat? Format, string? MinLabel, string? MaxLabel, string Color, bool Resolved = true, LaneKind Kind = LaneKind.Number)
 {
+    // 字段在声明树里的路径各段的标签名（见 LanePath.Leaf）：标签栏的名字按它算（最短不重名）。null = 顶层占位条目（只有 id）。
+    public IReadOnlyList<LanePath.LabelPart>? Label { get; init; }
+
     // 量程由标度定义，沿用 config 家族同一换算（约定标度单调递增）。
     public double MinValue => Scale.ToValue(0);
     public double MaxValue => Scale.ToValue(1);

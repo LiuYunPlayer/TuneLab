@@ -20,8 +20,17 @@ sealed class TimelineDemoCanvas(ITimelineCanvasHost host, PropertyValue value, s
 {
     public static readonly PropertyValue Default = PropertyObject.Empty;
 
+    // 摘要（侧栏那一行）：点数 + 语言，声明时按值算好。
     public static TimelineCanvasConfig Config(PropertyValue value, string label)
-        => TimelineCanvasConfig.Create(Default, host => new TimelineDemoCanvas(host, value, label));
+        => TimelineCanvasConfig.Create(Default, host => new TimelineDemoCanvas(host, value, label)).WithSummary(Summary(value));
+
+    static string Summary(PropertyValue value)
+    {
+        int count = ReadCurve(value).Count;
+        string lang = ReadText(value, "lang");
+        string text = count == 0 ? "No curve" : count == 1 ? "1 point" : count + " points";
+        return lang.Length > 0 ? text + " · " + lang : text;
+    }
 
     const double Pad = 6;
     const double HandleRadius = 4;
@@ -176,13 +185,14 @@ sealed class TimelineDemoCanvas(ITimelineCanvasHost host, PropertyValue value, s
         if (e.Button != CanvasMouseButton.Primary)
             return;
 
-        if (!Compact && SymbolBounds.Contains(e.Position))
+        // 点画在符号上面，按下也先归点：压在符号区里的点照样能拖，没点中点才弹符号框。
+        int index = HitTest(e.Position);
+        if (index < 0 && !Compact && SymbolBounds.Contains(e.Position))
         {
             EditSymbol();
             return;
         }
 
-        int index = HitTest(e.Position);
         var curve = ReadCurve(Current);
         if (index < 0)
         {

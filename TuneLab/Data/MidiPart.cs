@@ -42,6 +42,8 @@ internal class MidiPart : Part, IMidiPart
     public IReadOnlyMap<int, ObjectConfig> GetPhonemePropertyConfigs(INote note) => mNoteDeclarations.PhonemeConfigs(note);
     public bool TryGetNoteLaneShape(INote note, string id, out LaneEntry shape) => mNoteDeclarations.TryGetNoteLaneShape(note, id, out shape);
     public bool TryGetPhonemeLaneShape(INote note, int index, string id, out LaneEntry shape) => mNoteDeclarations.TryGetPhonemeLaneShape(note, index, id, out shape);
+    public LanePath.Resolved? ResolveNoteLane(INote note, string path) => mNoteDeclarations.ResolveNoteLane(note, path);
+    public LanePath.Resolved? ResolvePhonemeLane(INote note, int index, string path) => mNoteDeclarations.ResolvePhonemeLane(note, index, path);
     public override DataString Name { get; }
     public override DataStruct<double> Pos { get; }
     public override DataStruct<double> StartOffset { get; }
@@ -277,7 +279,7 @@ internal class MidiPart : Part, IMidiPart
     // 常驻的时间轴画布没有钉选可短路，所以每次都要把全部 note 问一遍（按 note 缓存，part 数据一变才重问）。
     // phoneme scope：instrument 无音素（GetPhonemePropertyConfigs 恒空）→ 走真空分支出占位 tab（钉过 phoneme
     // 的 instrument 场景本就不存在）。音素级时间轴画布在合成音素产出前没有声明可问，不占位、不猜。
-    // 时间轴画布出现过就一直在（见 KeepSeenTimelineLanes），音源一换才清。
+    // 时间轴画布在声明暂时问不到时保留（见 KeepSeenTimelineLanes），音源一换才清。
     void RebuildLaneConfigs()
     {
         var previousNoteLanes = Copy(mNoteLaneConfigs);
@@ -296,8 +298,8 @@ internal class MidiPart : Part, IMidiPart
 
         foreach (var config in NoteDeclarationsOfAllNotes())
         {
-            foreach (var kvp in config.Properties)
-                TryAddLaneEntry(mNoteLaneConfigs, pinnedNote, kvp.Key, kvp.Value);
+            foreach (var leaf in LanePath.Leaves(config))
+                TryAddLaneEntry(mNoteLaneConfigs, pinnedNote, leaf);
         }
 
         bool anyPhonemeDeclaration = false;
@@ -308,8 +310,8 @@ internal class MidiPart : Part, IMidiPart
             foreach (int slot in configs.Keys.Order())
             {
                 anyPhonemeDeclaration = true;
-                foreach (var kvp in configs[slot].Properties)
-                    TryAddLaneEntry(mPhonemeLaneConfigs, pinnedPhoneme, kvp.Key, kvp.Value);
+                foreach (var leaf in LanePath.Leaves(configs[slot]))
+                    TryAddLaneEntry(mPhonemeLaneConfigs, pinnedPhoneme, leaf);
             }
         }
         if (!anyPhonemeDeclaration)
@@ -326,8 +328,29 @@ internal class MidiPart : Part, IMidiPart
         }
 
         AssignTimelineCanvasColors();
-        KeepSeenTimelineLanes(mNoteLaneConfigs, previousNoteLanes, mSeenNoteTimelineLanes);
-        KeepSeenTimelineLanes(mPhonemeLaneConfigs, previousPhonemeLanes, mSeenPhonemeTimelineLanes);
+        // note 声明随时问得到（同步），没有"暂时不知道"：问到没有就是没有。音素声明要等引擎对音素表态，有 note 还没表态
+        //（标脏 / 合成中）就有一部分声明暂时问不到。
+        KeepSeenTimelineLanes(mNoteLaneConfigs, previousNoteLanes, mSeenNoteTimelineLanes, keepAbsent: false);
+        KeepSeenTimelineLanes(mPhonemeLaneConfigs, previousPhonemeLanes, mSeenPhonemeTimelineLanes,
+            keepAbsent: mNotes.Any(note => !INote.HasPhonemeAnswer(note)));
+        AssignLaneLabels();
+    }
+
+    // 标签名 = 最短不重名（见 LanePath.ShortestLabels）：两个 scope 的 lane 同在一条标签栏上，一起判重名。
+    // 写进键的 DisplayText（标签栏、标题栏、动作面都读它）；顶层字段就是它的显示名本身。
+    void AssignLaneLabels()
+    {
+        var all = new List<(OrderedMap<PropertyKey, LaneEntry> Lanes, PropertyKey Key, LaneEntry Entry)>();
+        foreach (var lanes in new[] { mNoteLaneConfigs, mPhonemeLaneConfigs })
+        {
+            foreach (var kvp in lanes)
+                all.Add((lanes, kvp.Key, kvp.Value));
+        }
+        var labels = LanePath.ShortestLabels(all.Select(item => item.Entry.Label ?? [new LanePath.LabelPart(item.Key.DisplayText ?? item.Key.Id, null)]).ToList());
+        mNoteLaneConfigs.Clear();
+        mPhonemeLaneConfigs.Clear();
+        for (int i = 0; i < all.Count; i++)
+            all[i].Lanes.Add(new PropertyKey(all[i].Key.Id, labels[i]), all[i].Entry);
     }
 
     static OrderedMap<PropertyKey, LaneEntry> Copy(OrderedMap<PropertyKey, LaneEntry> lanes)
@@ -338,16 +361,19 @@ internal class MidiPart : Part, IMidiPart
         return copy;
     }
 
-    // 时间轴画布出现过就一直在：音源不换，出现过的字段随时可能再被声明（如全部 note 标脏、合成回来前音素声明暂时为空），
-    // 标签栏跟着声明一会儿有一会儿没有观感很差；这时哪个 note 都没声明它，面板里只是空的。
-    // 不在的那些放回上次显示时的位置（排在它前面、此刻仍在的那个条目之后），颜色沿用上次的。
-    static void KeepSeenTimelineLanes(OrderedMap<PropertyKey, LaneEntry> lanes, OrderedMap<PropertyKey, LaneEntry> previous, OrderedMap<PropertyKey, LaneEntry> seen)
+    // 时间轴画布只在声明暂时问不到时保留（keepAbsent）：如全部 note 标脏、合成回来前音素声明暂时为空，标签栏跟着声明
+    // 一会儿有一会儿没有观感很差；这时面板里只是空的。问得到却没人声明（删了列表元素、换了引擎选项）就真的去掉——
+    // 列表长度是用户在增删，"出现过就留"会越积越多。
+    // 留下的放回上次显示时的位置（排在它前面、此刻仍在的那个条目之后），颜色沿用上次的。
+    static void KeepSeenTimelineLanes(OrderedMap<PropertyKey, LaneEntry> lanes, OrderedMap<PropertyKey, LaneEntry> previous, OrderedMap<PropertyKey, LaneEntry> seen, bool keepAbsent)
     {
         foreach (var kvp in lanes)
         {
             if (kvp.Value.Kind == LaneKind.TimelineCanvas)
                 seen[kvp.Key] = kvp.Value;
         }
+        if (!keepAbsent)
+            return;
 
         var result = new List<(PropertyKey Key, LaneEntry Entry)>();
         foreach (var kvp in lanes)
@@ -429,10 +455,10 @@ internal class MidiPart : Part, IMidiPart
         var seenNote = new HashSet<string>();
         foreach (var config in NoteDeclarationsOfAllNotes())
         {
-            foreach (var kvp in config.Properties)
+            foreach (var leaf in LanePath.Leaves(config))
             {
-                if (LaneEntry.IsPinnable(kvp.Value) && seenNote.Add(kvp.Key.Id))
-                    result.Add((ParameterPinKind.NoteProperty, kvp.Key));
+                if (LaneEntry.IsPinnable(leaf.Config) && seenNote.Add(leaf.Path))
+                    result.Add((ParameterPinKind.NoteProperty, new PropertyKey(leaf.Path, LanePath.FullLabel(leaf.Label))));
             }
         }
 
@@ -441,10 +467,10 @@ internal class MidiPart : Part, IMidiPart
         {
             foreach (int slot in phonemeConfigs.Keys.Order())
             {
-                foreach (var kvp in phonemeConfigs[slot].Properties)
+                foreach (var leaf in LanePath.Leaves(phonemeConfigs[slot]))
                 {
-                    if (LaneEntry.IsPinnable(kvp.Value) && seenPhoneme.Add(kvp.Key.Id))
-                        result.Add((ParameterPinKind.PhonemeProperty, kvp.Key));
+                    if (LaneEntry.IsPinnable(leaf.Config) && seenPhoneme.Add(leaf.Path))
+                        result.Add((ParameterPinKind.PhonemeProperty, new PropertyKey(leaf.Path, LanePath.FullLabel(leaf.Label))));
                 }
             }
         }
@@ -471,20 +497,22 @@ internal class MidiPart : Part, IMidiPart
     }
 
     // 时间轴画布常驻（轨色取声明，未指定的稍后由 AssignTimelineCanvasColors 分）；其余可钉字段要钉了才进（轨色取钉选）。
-    static void TryAddLaneEntry(OrderedMap<PropertyKey, LaneEntry> lanes, Dictionary<string, string> pinned, PropertyKey key, IControllerConfig config)
+    // 字段在声明树里的任何位置都行（按路径，见 LanePath）：lane 的键 = 路径，标签名稍后统一算（AssignLaneLabels）。
+    static void TryAddLaneEntry(OrderedMap<PropertyKey, LaneEntry> lanes, Dictionary<string, string> pinned, LanePath.Leaf leaf)
     {
-        if (lanes.ContainsKey(key.Id))
+        if (lanes.ContainsKey(leaf.Path))
             return;
-        if (config is TimelineCanvasConfig timeline)
+        var key = new PropertyKey(leaf.Path, LanePath.FullLabel(leaf.Label));
+        if (leaf.Config is TimelineCanvasConfig timeline)
         {
-            lanes.Add(key, LaneEntry.Canvas(LaneKind.TimelineCanvas, timeline.Color));
+            lanes.Add(key, LaneEntry.Canvas(LaneKind.TimelineCanvas, timeline.Color) with { Label = leaf.Label });
             return;
         }
-        if (!pinned.TryGetValue(key.Id, out var color))
+        if (!pinned.TryGetValue(leaf.Path, out var color))
             return;
-        if (!LaneEntry.TryGetPinnable(config, out var shape))
+        if (!LaneEntry.TryGetPinnable(leaf.Config, out var shape))
             return;
-        lanes.Add(key, shape with { Color = color });
+        lanes.Add(key, shape with { Color = color, Label = leaf.Label });
     }
 
     // 链结构变化（增删/重排）：各段弃处理器、从头重建效果链（voice 输出已缓存，不重跑 voice）。

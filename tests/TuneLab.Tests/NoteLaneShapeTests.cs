@@ -24,7 +24,9 @@ public class NoteLaneShapeTests
     {
         TestVoices.EnsureBuiltIn();
         VoicesManager.RegisterEngine("tests.lane-shape", EngineType, "Lane Shape Test", new ShapeEngine());
-        ParameterPinning.Init(Path.Combine(Path.GetTempPath(), "TuneLab.Tests", Guid.NewGuid().ToString("N"), "ParameterPins.json"));
+        var configs = Path.Combine(Path.GetTempPath(), "TuneLab.Tests", Guid.NewGuid().ToString("N"));
+        ParameterPinning.Init(Path.Combine(configs, "ParameterPins.json"));
+        ParameterHiding.Init(Path.Combine(configs, "ParameterHidden.json"));
     }
 
     sealed class ShapeEngine : IVoiceSynthesisEngine
@@ -36,7 +38,14 @@ public class NoteLaneShapeTests
         public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IVoiceSynthesisPartPropertyContext context) => new OrderedMap<PropertyKey, AutomationConfig>();
         public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IVoiceSynthesisPartPropertyContext context) => new OrderedMap<PropertyKey, AutomationConfig>();
         public ObjectConfig GetPartPropertyConfig(IVoiceSynthesisPartPropertyContext context) => ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>());
-        public IReadOnlyMap<int, ObjectConfig> GetPhonemePropertyConfigs(IVoiceSynthesisNotePropertyContext context) => [];
+        // 高音 note 的核音素（slot 0）声明一个时间轴画布。
+        public IReadOnlyMap<int, ObjectConfig> GetPhonemePropertyConfigs(IVoiceSynthesisNotePropertyContext context)
+        {
+            var map = new Map<int, ObjectConfig>();
+            if (context.Notes.Count > 0 && context.Notes.All(n => n.Pitch >= 62))
+                map.Add(0, ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig> { { "ptimeline", TimelineCanvasConfig.Create(PropertyObject.Empty, _ => new NullControl()) } }));
+            return map;
+        }
 
         public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext context)
         {
@@ -194,9 +203,9 @@ public class NoteLaneShapeTests
         });
     }
 
-    // 时间轴画布出现过就一直在：哪个 note 都不再声明它时标签仍在（颜色不变），音源一换才清。
+    // note 声明随时问得到：哪个 note 都不再声明时间轴画布，标签就去掉；再被声明时回来，颜色沿用上次的。
     [Fact]
-    public void SeenTimelineCanvasStaysUntilTheSourceChanges()
+    public void NoteTimelineCanvasGoesWhenNoNoteDeclaresIt_AndComesBackInTheSameColor()
     {
         OnDataThread(() =>
         {
@@ -204,12 +213,65 @@ public class NoteLaneShapeTests
             var color = part.NoteLaneConfigs["timeline"].Color;
             part.Notes.Last().Pitch.Set(60);   // 两个 note 都是低音了：谁都不声明 timeline
             part.RefreshPinnedLaneConfigs();
-            Assert.True(part.NoteLaneConfigs.TryGetValue("timeline", out var kept));
+            Assert.False(part.NoteLaneConfigs.ContainsKey("timeline"));
+
+            part.Notes.Last().Pitch.Set(64);
+            part.RefreshPinnedLaneConfigs();
+            Assert.True(part.NoteLaneConfigs.TryGetValue("timeline", out var back));
+            Assert.Equal(color, back.Color);
+        });
+    }
+
+    // 音素声明要等引擎对音素表态：还有 note 没表态（这里从没合成过）时，出现过的音素级时间轴画布保留，音源一换才清。
+    [Fact]
+    public void PhonemeTimelineCanvasStaysWhileSomeNoteHasNoPhonemeAnswer()
+    {
+        OnDataThread(() =>
+        {
+            var part = SamplePart();
+            var color = part.PhonemeLaneConfigs["ptimeline"].Color;
+            part.Notes.Last().Pitch.Set(60);
+            part.RefreshPinnedLaneConfigs();
+            Assert.True(part.PhonemeLaneConfigs.TryGetValue("ptimeline", out var kept));
             Assert.Equal(color, kept.Color);
 
             part.SoundSource.SetInfo(new SoundSourceInfo());   // 换成空音源
             part.RefreshPinnedLaneConfigs();
-            Assert.False(part.NoteLaneConfigs.ContainsKey("timeline"));
+            Assert.False(part.PhonemeLaneConfigs.ContainsKey("ptimeline"));
+        });
+    }
+
+    // 常驻的（自动化轨、时间轴画布）能从标签栏隐藏，按声源记、终态幂等；钉选的 lane 不归隐藏管（不想要就解钉）。
+    [Fact]
+    public void ResidentParametersCanBeHidden_PinnedLanesCannot()
+    {
+        OnDataThread(() =>
+        {
+            var part = SamplePart();
+            var volume = AutomationKey.Voice(ConstantDefine.PreCommonAutomationConfigs[0].Key.Id);
+            var timeline = AutomationKey.NoteLane("timeline");
+            try
+            {
+                Assert.True(ParameterHiding.SetHidden(part, volume, true));
+                Assert.False(ParameterHiding.SetHidden(part, volume, true));   // 已在目标态：什么都不做
+                Assert.True(ParameterHiding.IsHidden(part, volume));
+                Assert.True(ParameterHiding.IsHidden(SamplePart(), volume));   // 同一个声源的别的 part 也藏着
+
+                Assert.True(ParameterHiding.SetHidden(part, timeline, true));
+                Assert.True(ParameterHiding.IsHidden(part, timeline));
+
+                WithPinned(part, "side", () =>
+                {
+                    Assert.False(ParameterHiding.IsHideable(part, AutomationKey.NoteLane("side")));
+                    Assert.False(ParameterHiding.SetHidden(part, AutomationKey.NoteLane("side"), true));
+                });
+            }
+            finally
+            {
+                ParameterHiding.SetHidden(part, volume, false);
+                ParameterHiding.SetHidden(part, timeline, false);
+            }
+            Assert.False(ParameterHiding.IsHidden(part, volume));
         });
     }
 }

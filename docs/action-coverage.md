@@ -86,7 +86,8 @@
 - 音频导入进了 `track.addPart`（不给 `endOffset` 就按文件时长）；
 - 打开工程与扩展装卸各成了命令（`project open` / `extension install` / `uninstall` / `cancel-uninstall`）；
 - `selector-params` 那两条（外加侧栏那个钉选菜单项）由 `run_action` 的**选择器参数**接住：
-  `parameter.showSynthesizedTrack` / `hideSynthesizedTrack` / `pinProperty` / `unpinProperty` 各带一个
+  `parameter.showSynthesizedTrack` / `hideSynthesizedTrack` / `pinProperty` / `unpinProperty`（后来又加了
+  `hideFromTabBar` / `showInTabBar`）各带一个
   成员参数，`list_actions` 报出此刻的合法值（见 command-surface.md §5.6）；
 - `preset` 那 5 条成了 `preset list` / `apply` / `save` / `delete` / `rename`。**没等 effect preset**——
   它的实现暂缓（issue #141），但那不构成挡住现役功能的理由：三种 preset 同住一个 `Presets\` 文件夹、
@@ -216,7 +217,7 @@
 |---|---|---|---|
 | mWaveformToggle | toggle | `action:view.toggleWaveform` | 开关与动作都是切换：波形带显隐是一件事，人心里也是一件事 |
 | mAddPanelButton | button | `action:view.addParameterPanel` | 「+」加一块参数面板（照着焦点面板、插在它下方）；右键「+」关掉焦点面板 = view.closeParameterPanel 不给参数。藏着时点「+」只唤醒参数区，动作则唤醒并真加一块（动作说的是「加一块」） |
-| label | menu | `action:parameter.pinProperty` | 标签栏空白处右键弹出的勾选列表的一项：打勾 = 已钉，点一下在钉 / 解钉间切换，对应 `parameter.pinProperty` / `unpinProperty` 那一对终态动作（标签按钮自己的右键是开关可见，不弹菜单）。列表 = 能钉的 + 引擎不再声明的孤儿钉选；与侧栏属性右键共用 `ParameterPinning.SetPinned`；钉哪一个是它的选择器参数 |
+| label | menu | `action:parameter.pinProperty` | 标签栏空白处右键弹出的勾选列表的一项：打勾 = 在标签栏上，点一下切换（标签按钮自己的右键是开关可见，不弹菜单）。同一个构造出两类项：可钉属性的项对应 `parameter.pinProperty` / `unpinProperty`（列表 = 能钉的 + 引擎不再声明的孤儿钉选；与侧栏属性右键共用 `ParameterPinning.SetPinned`）；常驻参数（声源 / 效果器的自动化轨、时间轴画布）的项对应 `parameter.hideFromTabBar` / `showInTabBar`（`ParameterHiding.SetHidden`）。作用在哪一个是它们的选择器参数 |
 
 #### TuneLab/UI/MainWindow/Editor/PianoWindow/PianoScrollView/PianoScrollViewOperation.cs
 

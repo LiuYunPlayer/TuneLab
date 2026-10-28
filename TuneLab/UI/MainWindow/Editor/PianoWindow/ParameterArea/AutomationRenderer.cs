@@ -323,7 +323,9 @@ internal partial class AutomationRenderer : View
                 if (right <= left)
                     right = left + 1;
 
-                note.Properties.GetValue(automationID.Id, PropertyValue.Create(shape.DefaultValue)).ToDouble(out double value);
+                // 字段可以在声明树的任何位置（按路径读，见 LanePath）；路径上缺的节点 = 默认值。
+                var steps = Part.ResolveNoteLane(note, automationID.Id)!.Steps;
+                LanePath.Read(note.Properties, steps, PropertyValue.Create(shape.DefaultValue)).ToDouble(out double value);
                 double y = ValueToY(value, shape.Scale);
                 if (isActive)
                     context.FillRectangle(fillBrush, new Rect(left, y, right - left, Bounds.Height - y));
@@ -378,7 +380,7 @@ internal partial class AutomationRenderer : View
 
                     double value = shape.DefaultValue;
                     if (pinned && i < note.Phonemes.Count && note.Phonemes[i].HasProperties)
-                        note.Phonemes[i].Properties.GetValue(automationID.Id, PropertyValue.Create(shape.DefaultValue)).ToDouble(out value);
+                        LanePath.Read(note.Phonemes[i].Properties, Part.ResolvePhonemeLane(note, i, automationID.Id)!.Steps, PropertyValue.Create(shape.DefaultValue)).ToDouble(out value);
                     double y = ValueToY(value, shape.Scale);
                     if (isActive)
                         context.FillRectangle(fillBrush, new Rect(left, y, right - left, Bounds.Height - y));

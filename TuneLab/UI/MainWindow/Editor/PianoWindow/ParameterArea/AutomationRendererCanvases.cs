@@ -66,8 +66,8 @@ internal partial class AutomationRenderer
                     continue;
                 if (startTick >= maxVisibleTick)
                     break;
-                if (part.GetNotePropertyConfig(note).Properties.TryGetValue(key.Id, out var config))
-                    DrawCanvas(context, new CanvasSlot(key.Id, false, note, -1), config, startTick, endTick, isActive);
+                if (part.ResolveNoteLane(note, key.Id) is { } resolved)
+                    DrawCanvas(context, new CanvasSlot(key.Id, false, note, -1), resolved, startTick, endTick, isActive);
             }
             return;
         }
@@ -82,23 +82,20 @@ internal partial class AutomationRenderer
             var phonemes = note.DisplayPhonemes;
             if (phonemes.Count == 0 || phonemes[^1].EndTime <= minVisibleSec)
                 continue;
-            int leadCount = note.PhonemeLeadCount();
-            var slots = part.GetPhonemePropertyConfigs(note);
             for (int i = 0; i < phonemes.Count; i++)
             {
                 var phonemeItem = phonemes[i];
                 if (phonemeItem.EndTime <= minVisibleSec || phonemeItem.StartTime >= maxVisibleSec)
                     continue;
-                if (slots.GetValue(i - leadCount, out bool found) is not { } slotConfig || !found)
-                    continue;
-                if (slotConfig.Properties.TryGetValue(key.Id, out var config))
-                    DrawCanvas(context, new CanvasSlot(key.Id, true, note, i), config, tempo.GetTick(phonemeItem.StartTime), tempo.GetTick(phonemeItem.EndTime), isActive);
+                if (part.ResolvePhonemeLane(note, i, key.Id) is { } resolved)
+                    DrawCanvas(context, new CanvasSlot(key.Id, true, note, i), resolved, tempo.GetTick(phonemeItem.StartTime), tempo.GetTick(phonemeItem.EndTime), isActive);
             }
         }
     }
 
-    void DrawCanvas(DrawingContext context, CanvasSlot slot, IControllerConfig config, double startTick, double endTick, bool isActive)
+    void DrawCanvas(DrawingContext context, CanvasSlot slot, LanePath.Resolved resolved, double startTick, double endTick, bool isActive)
     {
+        var config = resolved.Leaf;
         if (config is not (CanvasConfig or TimelineCanvasConfig))
             return;
         // 不留缝（数值 lane 留 1px 缝是因为段由宿主画）：画布正好覆盖对象的时间段，XToTime(0) / XToTime(Width) 就是它的起止，
@@ -111,7 +108,7 @@ internal partial class AutomationRenderer
         mCanvasesShown.Add(slot);
         if (!mCanvases.TryGetValue(slot, out var canvas))
         {
-            mCanvasesToCreate[slot] = config;
+            mCanvasesToCreate[slot] = resolved;
             return;
         }
 
@@ -120,7 +117,7 @@ internal partial class AutomationRenderer
         canvas.Active = isActive;
         canvas.Axis.Left = left;
         if (!ReferenceEquals(canvas.Config, config) && !canvas.View.IsInUse)
-            ApplyConfig(canvas, slot, config);
+            ApplyConfig(canvas, slot, resolved);
 
         var visible = rect.Intersect(new Rect(Bounds.Size));
         canvas.View.SetHostedGeometry(rect.Size, visible.Width > 0 && visible.Height > 0 ? visible.Translate(new(-left, 0)) : default);
@@ -129,14 +126,13 @@ internal partial class AutomationRenderer
             canvas.View.RenderInto(context);
     }
 
-    // 换上这份声明的工厂（连同字段绑定：默认值随声明）。
-    void ApplyConfig(LaneCanvas canvas, CanvasSlot slot, IControllerConfig config)
+    // 换上这份声明的工厂（连同字段绑定：路径与默认值随声明）。
+    void ApplyConfig(LaneCanvas canvas, CanvasSlot slot, LanePath.Resolved resolved)
     {
+        var config = resolved.Leaf;
         canvas.Config = config;
         var defaultValue = config is TimelineCanvasConfig timeline ? timeline.DefaultValue : ((CanvasConfig)config).DefaultValue;
-        IDataProperty<PropertyValue> field = slot.Phoneme
-            ? new PhonemePropertyField(slot.Note, slot.Index, slot.LaneId, defaultValue)
-            : slot.Note.Properties.ValueField(slot.LaneId, defaultValue);
+        IDataProperty<PropertyValue> field = new LanePathField(slot.Note, slot.Phoneme ? slot.Index : -1, resolved.Steps, defaultValue);
         canvas.View.Bind(field);
         if (config is TimelineCanvasConfig t)
             canvas.View.SetTimelineFactory(t.CreateControl, canvas.Axis);
@@ -159,7 +155,7 @@ internal partial class AutomationRenderer
         mCanvasSyncPosted = false;
         var part = Part;
         bool created = false;
-        foreach (var (slot, config) in mCanvasesToCreate)
+        foreach (var (slot, _) in mCanvasesToCreate)
         {
             if (part == null || mCanvases.ContainsKey(slot))
                 continue;
@@ -247,28 +243,42 @@ internal partial class AutomationRenderer
     }
 
     readonly Dictionary<CanvasSlot, LaneCanvas> mCanvases = new();
-    readonly Dictionary<CanvasSlot, IControllerConfig> mCanvasesToCreate = new();
+    readonly Dictionary<CanvasSlot, LanePath.Resolved> mCanvasesToCreate = new();
     readonly HashSet<CanvasSlot> mCanvasesShown = new();            // 正在画的这一帧画到的
     readonly HashSet<CanvasSlot> mCanvasesShownLastFrame = new();   // 画完的上一帧画到的（同步按它定显隐）
     bool mCanvasSyncPosted;
     bool mInRender;
 
-    // 音素属性字段：读 = 该位钉死音素上存的值（合成音素没有属性，读默认值）；写 = 先把这个 note 的音素钉死（合成 → 固定，
-    // 保几何，同属性 lane 的写回范式）再写该位音素属性。撤销根、提交、通知都借 note 的（钉死与写值同在一个撤销步）。
-    sealed class PhonemePropertyField(INote note, int index, string key, PropertyValue defaultValue) : IDataProperty<PropertyValue>, IRawValueProperty
+    // 画布字段：沿路径（见 LanePath）读写 note 的属性（phonemeIndex >= 0 时是该位音素的属性）。
+    // 读 = 路径上存的值，缺的节点读默认值（合成音素没有属性，也读默认值）；写 = 音素级先把这个 note 的音素钉死（合成 → 固定，
+    // 保几何，同属性 lane 的写回范式），再沿路径写——没存过的数组 / 列表元素按元素默认值补齐。撤销根、提交、通知都借 note 的
+    //（钉死与写值同在一个撤销步）。
+    sealed class LanePathField(INote note, int phonemeIndex, IReadOnlyList<LanePath.Step> steps, PropertyValue defaultValue) : IDataProperty<PropertyValue>, IRawValueProperty
     {
-        public PropertyValue RawValue
-            => note.HasPinnedPhonemes && index < note.PhonemeCount && note.Phonemes[index].HasProperties
-                ? note.Phonemes[index].Properties.GetValue(key, defaultValue)
-                : defaultValue;
+        public PropertyValue RawValue => ReadRoot() is { } root ? LanePath.Read(root, steps, defaultValue) : defaultValue;
         public PropertyValue Value => RawValue;
         public PropertyValue GetInfo() => RawValue;
         public void SetInfo(PropertyValue value) => Set(value);
         public void Set(PropertyValue value)
         {
+            if (WriteRoot() is { } root)
+                LanePath.Write(root, steps, value);
+        }
+
+        IDataPropertyObject? ReadRoot()
+        {
+            if (phonemeIndex < 0)
+                return note.Properties;
+            return note.HasPinnedPhonemes && phonemeIndex < note.PhonemeCount && note.Phonemes[phonemeIndex].HasProperties
+                ? note.Phonemes[phonemeIndex].Properties : null;
+        }
+
+        IDataPropertyObject? WriteRoot()
+        {
+            if (phonemeIndex < 0)
+                return note.Properties;
             note.LockPhonemes();   // 幂等
-            if (index < note.PhonemeCount)
-                note.Phonemes[index].Properties.SetValue(key, value);
+            return phonemeIndex < note.PhonemeCount ? note.Phonemes[phonemeIndex].Properties : null;
         }
 
         public IModifiedEvent Modified => note.Modified;

@@ -8,6 +8,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TuneLab.Configs;
+using TuneLab.Extensions.Effect;
 using TuneLab.Foundation;
 using TuneLab.GUI;
 using TuneLab.GUI.Components;
@@ -93,9 +94,10 @@ internal class ParameterTabBar : Panel
         };
         Children.Add(mAddPanelButton);
 
-        // 标签栏空白处右键：钉选管理（按音源记、跨所有面板生效，所以挂在标签栏而不是某块面板上，见 OnContextRequested）。
-        // 标签按钮自己的右键是开关可见（小眼睛），不在这里弹菜单。
+        // 标签栏空白处右键：标签栏上显示哪些参数（隐藏常驻的 / 钉可钉的；按音源记、跨所有面板生效，所以挂在标签栏而不是
+        // 某块面板上，见 OnContextRequested）。标签按钮自己的右键是开关可见（小眼睛），不在这里弹菜单。
         ContextRequested += OnContextRequested;
+        ParameterHiding.Changed.Subscribe(OnAutomationConfigsChanged, s);
 
         mDependency.PartHolder.Modified.Subscribe(OnPartChanged, s);
         mDependency.PartHolder.When(p => p.SoundSource.Modified).Subscribe(OnAutomationConfigsChanged, s);
@@ -138,10 +140,15 @@ internal class ParameterTabBar : Panel
         return finalSize;
     }
 
-    // 钉选管理：右键直接弹出一张勾选列表，打勾 = 已钉进参数栏，点一下切换、菜单不关（可连续勾选）。只认空白处（标签栏本身或按钮行的空隙）：按钮上的右键冒泡上来时不弹。
-    // 列表 = 此刻能钉的（各 note 声明的并集，与 parameter.pinProperty 同一份口径）+ 已钉但引擎不再声明的孤儿（取自钉选存储，
-    // 标签栏里连按钮都没有，只能在这里清掉）。时间轴画布常驻、不用钉，不在列表里。
-    // 钉 / 解钉收口在 ParameterPinning.SetPinned（同侧栏属性右键、同命令面的 parameter.pin / unpinProperty）。
+    // 标签栏上显示哪些参数：右键直接弹出一张勾选列表，打勾 = 在标签栏上，点一下切换、菜单不关（可连续勾选）。只认空白处
+    //（标签栏本身或按钮行的空隙）：按钮上的右键冒泡上来时不弹。勾选的含义统一，背后是两类存储（见 ParameterHiding）：
+    // · 原本常驻的——音源的自动化轨、各效果器的自动化轨、时间轴画布：取消勾选 = 隐藏（ParameterHiding.SetHidden）。
+    //   有数据的标一句「有数据」：藏起来它照样参与合成，别让人忘了它还在起作用。
+    // · 原本不显示的——可钉属性：勾上 = 钉选（ParameterPinning.SetPinned，同侧栏属性右键、同命令面的 parameter.pin / unpinProperty）。
+    //   列表 = 此刻能钉的（各 note 声明的并集，与 parameter.pinProperty 同一份口径）+ 已钉但引擎不再声明的孤儿（取自钉选存储，
+    //   标签栏里连按钮都没有，只能在这里清掉）。
+    // 按参数属于谁分组，组前一条写着组名的分隔线（MenuSeparators.Labeled）：声源名 / 音符 / 音素 / 各效果器名——与标签栏的分组、顺序一致。
+    // 画布还是数值对用户不重要；音符、音素组里常驻的时间轴画布在前，可钉属性（按声明序）随后，孤儿钉选垫底。
     void OnContextRequested(object? sender, ContextRequestedEventArgs e)
     {
         if (!ReferenceEquals(e.Source, this) && !ReferenceEquals(e.Source, mAutomationLayout))
@@ -150,43 +157,129 @@ internal class ParameterTabBar : Panel
         if (part == null)
             return;
 
-        var entries = new List<(ParameterPinKind Kind, string Id, string Name)>();
-        var listed = new HashSet<(ParameterPinKind, string)>();
-        foreach (var (kind, key) in part.PinnableProperties())
+        var groups = new List<(string Name, List<MenuItem> Items)>();
+
+        MenuItem HideableItem(AutomationKey key, string name)
         {
-            if (listed.Add((kind, key.Id)))
-                entries.Add((kind, key.Id, key.DisplayText ?? key.Id));
+            var label = HasData(part, key) ? name + " (" + "Has Data".Tr(TC.Menu) + ")" : name;
+            return CheckItem(label, () => !ParameterHiding.IsHidden(part, key), () => ParameterHiding.SetHidden(part, key, !ParameterHiding.IsHidden(part, key)));
         }
+
+        var voice = new List<MenuItem>();
+        foreach (var kvp in part.SoundSource.AutomationConfigs)
+            voice.Add(HideableItem(AutomationKey.Voice(kvp.Key.Id), kvp.Key.DisplayText ?? kvp.Key.Id));
+        groups.Add((string.IsNullOrEmpty(part.SoundSource.Name) ? part.SoundSource.Type : part.SoundSource.Name, voice));
+
+        var note = new List<MenuItem>();
+        var phoneme = new List<MenuItem>();
+        foreach (var kvp in part.NoteLaneConfigs)
+        {
+            if (kvp.Value.Kind == LaneKind.TimelineCanvas)
+                note.Add(HideableItem(AutomationKey.NoteLane(kvp.Key.Id), kvp.Key.DisplayText ?? kvp.Key.Id));
+        }
+        foreach (var kvp in part.PhonemeLaneConfigs)
+        {
+            if (kvp.Value.Kind == LaneKind.TimelineCanvas)
+                phoneme.Add(HideableItem(AutomationKey.PhonemeLane(kvp.Key.Id), kvp.Key.DisplayText ?? kvp.Key.Id));
+        }
+
+        var listed = new HashSet<(ParameterPinKind, string)>();
+        void AddPinnable(ParameterPinKind kind, string id, string name)
+        {
+            if (listed.Add((kind, id)))
+                (kind == ParameterPinKind.PhonemeProperty ? phoneme : note).Add(CheckItem(name,
+                    () => ParameterPinning.IsPinned(part.SoundSource, kind, id),
+                    () => ParameterPinning.SetPinned(part, kind, id, !ParameterPinning.IsPinned(part.SoundSource, kind, id))));
+        }
+        foreach (var (kind, key) in part.PinnableProperties())
+            AddPinnable(kind, key.Id, key.DisplayText ?? key.Id);
         foreach (var kind in Enum.GetValues<ParameterPinKind>())
         {
             foreach (var id in ParameterPinning.GetPinned(part.SoundSource, kind).Keys)
-            {
-                if (listed.Add((kind, id)))
-                    entries.Add((kind, id, id));
-            }
+                AddPinnable(kind, id, id);
         }
-        if (entries.Count == 0)
-            return;
+        groups.Add(("Note".Tr(TC.Property), note));
+        groups.Add(("Phoneme".Tr(TC.Property), phoneme));
+
+        for (int i = 0; i < part.Effects.Count; i++)
+        {
+            var effect = new List<MenuItem>();
+            foreach (var kvp in part.Effects[i].AutomationConfigs)
+                effect.Add(HideableItem(AutomationKey.Effect(i, kvp.Key.Id), kvp.Key.DisplayText ?? kvp.Key.Id));
+            groups.Add((EffectManager.GetDisplayName(part.Effects[i].Type), effect));
+        }
 
         var menu = new ContextMenu();
-        foreach (var (kind, id, name) in entries)
+        foreach (var (name, items) in groups)
         {
-            bool pinned = ParameterPinning.IsPinned(part.SoundSource, kind, id);
-            var label = kind == ParameterPinKind.PhonemeProperty ? name + " (" + "Phoneme".Tr(TC.Property) + ")" : name;
-            MenuItem? item = null;
-            item = new MenuItem() { ToggleType = MenuItemToggleType.CheckBox, IsChecked = pinned, StaysOpenOnClick = true }.SetName(label).SetAction(() => TogglePinned(part, kind, id, item!));
-            menu.Items.Add(item);
+            if (items.Count == 0)
+                continue;
+            menu.Items.Add(MenuSeparators.Labeled(name));
+            foreach (var item in items)
+                menu.Items.Add(item);
         }
+        if (menu.Items.Count == 0)
+            return;
         menu.Open(this);
         e.Handled = true;
     }
 
-    // 点一项不关菜单、可以连续勾选，所以按钉选存储此刻的状态切换（不用打开菜单那一刻的），勾选态也按它回填——
+    // 点一项不关菜单、可以连续勾选，所以按存储此刻的状态切换（不用打开菜单那一刻的），勾选态也按它回填——
     // 推迟到这次点击处理完再填：菜单项自己在点击时也会翻转勾选态，两者先后不定，以最后回填的为准。
-    static void TogglePinned(IMidiPart part, ParameterPinKind kind, string id, MenuItem item)
+    static MenuItem CheckItem(string label, Func<bool> isChecked, Action toggle)
     {
-        ParameterPinning.SetPinned(part, kind, id, !ParameterPinning.IsPinned(part.SoundSource, kind, id));
-        Avalonia.Threading.Dispatcher.UIThread.Post(() => item.IsChecked = ParameterPinning.IsPinned(part.SoundSource, kind, id));
+        MenuItem? item = null;
+        item = new MenuItem() { ToggleType = MenuItemToggleType.CheckBox, IsChecked = isChecked(), StaysOpenOnClick = true }.SetName(label).SetAction(() =>
+        {
+            toggle();
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => item!.IsChecked = isChecked());
+        });
+        return item;
+    }
+
+    // 这条参数此刻有没有用户写的数据（隐藏了也照样参与合成）：自动化轨 = 有点 / 基线改过，分段轨 = 有段，
+    // 时间轴画布 = 有哪个 note / 钉死的音素写过它。
+    static bool HasData(IMidiPart part, AutomationKey key)
+    {
+        switch (key.Source)
+        {
+            case AutomationSource.Voice:
+                return part.SoundSource.AutomationConfigs.TryGetValue(key.Id, out var voiceConfig)
+                    && HasAutomationData(part.Automations, part.PiecewiseAutomations, key.Id, voiceConfig);
+            case AutomationSource.Effect:
+                if (key.EffectIndex < 0 || key.EffectIndex >= part.Effects.Count)
+                    return false;
+                var effect = part.Effects[key.EffectIndex];
+                return effect.AutomationConfigs.TryGetValue(key.Id, out var effectConfig)
+                    && HasAutomationData(effect.Automations, effect.PiecewiseAutomations, key.Id, effectConfig);
+            case AutomationSource.NoteLane:
+                foreach (var note in part.Notes)
+                {
+                    if (part.ResolveNoteLane(note, key.Id) is { } resolved && !LanePath.Read(note.Properties, resolved.Steps, PropertyValue.Null).IsNull())
+                        return true;
+                }
+                return false;
+            case AutomationSource.PhonemeLane:
+                foreach (var note in part.Notes)
+                {
+                    for (int i = 0; i < note.Phonemes.Count; i++)
+                    {
+                        if (note.Phonemes[i].HasProperties && part.ResolvePhonemeLane(note, i, key.Id) is { } resolved
+                            && !LanePath.Read(note.Phonemes[i].Properties, resolved.Steps, PropertyValue.Null).IsNull())
+                            return true;
+                    }
+                }
+                return false;
+            default:
+                return false;
+        }
+    }
+
+    static bool HasAutomationData(IReadOnlyDataObjectMap<string, IAutomation> automations, IReadOnlyDataObjectMap<string, IPiecewiseAutomation> piecewise, string id, AutomationConfig config)
+    {
+        if (config.IsPiecewise)
+            return piecewise.TryGetValue(id, out var segments) && segments.AnchorGroups.Count > 0;
+        return automations.TryGetValue(id, out var automation) && (automation.Points.Count > 0 || automation.DefaultValue.Value != config.DefaultValue);
     }
 
     // voice 与各 effect 的自动化轨统一汇入这一栏。voice 一组，每个 effect 一组，组间插竖向分隔符让用户看出分组。
@@ -201,19 +294,29 @@ internal class ParameterTabBar : Panel
 
         bool firstGroup = true;
         AddAutomationGroup(Part.SoundSource.AutomationConfigs, -1, ref firstGroup);
-        AddLaneButtons(Part.NoteLaneConfigs, AutomationKey.NoteLane);
-        AddLaneButtons(Part.PhonemeLaneConfigs, AutomationKey.PhonemeLane);
+        AddLaneButtons(Part.NoteLaneConfigs, AutomationKey.NoteLane, ref firstGroup);
+        AddLaneButtons(Part.PhonemeLaneConfigs, AutomationKey.PhonemeLane, ref firstGroup);
         for (int i = 0; i < Part.Effects.Count; i++)
             AddAutomationGroup(Part.Effects[i].AutomationConfigs, i, ref firstGroup);
     }
 
-    // 属性 lane 按钮（note 组在前、phoneme 组随后）：与 voice 轨同源（钉选的声源属性），故并入 voice 组尾部、不插分隔符。
+    // 属性 lane 按钮：音符一组、音素一组，按参数属于谁分组（同右键菜单），组间插分隔符。
     // 轨色：钉选的是钉选时分配的，时间轴画布取声明（未指定的由宿主分配）；名字沿用属性声明的 DisplayText。
-    void AddLaneButtons(IReadOnlyOrderedMap<PropertyKey, LaneEntry> lanes, Func<string, AutomationKey> makeKey)
+    void AddLaneButtons(IReadOnlyOrderedMap<PropertyKey, LaneEntry> lanes, Func<string, AutomationKey> makeKey, ref bool firstGroup)
     {
+        bool separated = false;
         foreach (var kvp in lanes)
         {
             var key = makeKey(kvp.Key.Id);
+            if (ParameterHiding.IsHidden(Part!, key))
+                continue;
+            if (!separated)
+            {
+                if (!firstGroup)
+                    mAutomationLayout.Children.Add(CreateSeparator());
+                firstGroup = false;
+                separated = true;
+            }
             if (!mCacheParameterButtons.TryGetValue(key, out var button))
             {
                 button = new ParameterButton(ColorUtils.ParseOrFallback(kvp.Value.Color), kvp.Key.DisplayText ?? kvp.Key.Id) { Margin = new(6, 0) };
@@ -227,28 +330,37 @@ internal class ParameterTabBar : Panel
                 button.Color = ColorUtils.ParseOrFallback(kvp.Value.Color);
                 button.Text = kvp.Key.DisplayText ?? kvp.Key.Id;
             }
+            // 标签名是最短不重名的（嵌套字段只显示末段 + 序号），悬停给完整路径。
+            if (kvp.Value.Label is { } label && LanePath.FullLabel(label) is var full && full != (kvp.Key.DisplayText ?? kvp.Key.Id))
+                button.SetupToolTip(full);
             mAutomationButtons.Add(key, button);
             mAutomationLayout.Children.Add(button);
         }
     }
 
     // 一个来源（voice / 某 effect）一组（连续轨与分段轨同在此 map、按声明序），组间插分隔符。按钮形态与 kind 无关（读 config 色/名）。
+    // 从标签栏隐藏的不出按钮；一组全藏了，连分隔符也不留。
     void AddAutomationGroup(IReadOnlyOrderedMap<PropertyKey, AutomationConfig> configs, int effectIndex, ref bool firstGroup)
     {
-        if (configs.Count == 0)
+        var shown = new List<(AutomationKey Key, PropertyKey Name, AutomationConfig Config)>();
+        foreach (var kvp in configs)
+        {
+            var key = effectIndex < 0 ? AutomationKey.Voice(kvp.Key.Id) : AutomationKey.Effect(effectIndex, kvp.Key.Id);
+            if (!ParameterHiding.IsHidden(Part!, key))
+                shown.Add((key, kvp.Key, kvp.Value));
+        }
+        if (shown.Count == 0)
             return;
 
         if (!firstGroup)
             mAutomationLayout.Children.Add(CreateSeparator());
         firstGroup = false;
 
-        foreach (var kvp in configs)
+        foreach (var (key, name, config) in shown)
         {
-            var config = kvp.Value;
-            var key = effectIndex < 0 ? AutomationKey.Voice(kvp.Key.Id) : AutomationKey.Effect(effectIndex, kvp.Key.Id);
             if (!mCacheParameterButtons.TryGetValue(key, out var button))
             {
-                button = new ParameterButton(ColorUtils.ParseOrFallback(config.Color), kvp.Key.DisplayText ?? kvp.Key.Id) { Margin = new(6, 0) };
+                button = new ParameterButton(ColorUtils.ParseOrFallback(config.Color), name.DisplayText ?? name.Id) { Margin = new(6, 0) };
                 var captured = key;
                 button.StateChangeAsked += (state) => StateChangeAsked?.Invoke(captured, state);
                 mCacheParameterButtons.Add(key, button);

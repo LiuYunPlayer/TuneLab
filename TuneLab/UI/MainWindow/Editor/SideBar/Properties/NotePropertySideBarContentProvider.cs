@@ -32,7 +32,11 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
 
         // note 属性右键菜单（钉选到参数面板）：只挂 note 面板顶层属性——lane 值按顶层 id 直取 note.Properties，
         // 嵌套属性无 lane 寻址形；part / 音素面板不挂（lane 语义 = per-note 值）。
-        mNotePropertiesController.ItemContextMenuProvider = BuildNotePropertyContextMenu;
+        mNotePropertiesController.Hooks = new FieldHooks
+        {
+            ItemMenu = (path, config) => TryBuildLanePinMenuItem(ParameterPinKind.NoteProperty, path, config) is { } pin ? [pin] : null,
+            EditTimelineCanvas = path => EditInParameterPanel?.Invoke(AutomationKey.NoteLane(LanePath.Encode(path))),
+        };
         // 插件按钮执行完 → 重新询问 note 声明（按钮动的是插件状态，面板选项可能随之变）。
         mNotePropertiesController.ButtonActionCompleted += mNoteScheduler.InvalidateValues;
         // 所在窗口有编辑进行中（拖动 / 键入，任一面板，见 EditGate）时挂起两面板的刷新：值级重算本就由控制器推迟，
@@ -163,29 +167,26 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         => new(new PartContext(mPart!),
             mPart!.Notes.AllSelectedItems().Select(n => new PartContext.PartNote(n)).ToList());
 
-    // note 属性右键菜单：有界数值属性给「在参数面板编辑 / 从参数面板移除」钉选项。钉选是用户偏好
-    //（跟声源身份走、自管持久化，见 ParameterPinning）——SDK 声明面零变动，所有引擎的属性即刻可钉。
-    // 菜单项每次右键现建，钉选态随点随变；钉/解钉后就地驱动 part 重算 lane 集合（tabbar/渲染器经
-    // AutomationConfigsModified 刷新）。
-    IReadOnlyList<Avalonia.Controls.MenuItem>? BuildNotePropertyContextMenu(PropertyKey key, IControllerConfig config)
-    {
-        var item = TryBuildLanePinMenuItem(ParameterPinKind.NoteProperty, key, config);
-        return item == null ? null : [item];
-    }
+    // 时间轴画布那一行的编辑按钮：去参数面板编辑这条 lane（宿主注入：显示参数区、让焦点面板激活它）。
+    public Action<AutomationKey>? EditInParameterPanel { get; set; }
 
-    // 钉选菜单项（note / phoneme 两 scope 共用）：不能钉（既非有界数值、也非侧栏画布）返回 null。
-    Avalonia.Controls.MenuItem? TryBuildLanePinMenuItem(ParameterPinKind scope, PropertyKey key, IControllerConfig config)
+    // 属性右键菜单里的钉选项：有界数值与侧栏画布给「在参数面板编辑 / 从参数面板移除」。钉选是用户偏好
+    //（跟声源身份走、自管持久化，见 ParameterPinning）——SDK 声明面零变动，所有引擎的属性即刻可钉。字段在声明树里的
+    // 任何位置都行，钉选按路径记（见 LanePath）。菜单项每次右键现建，钉选态随点随变；钉/解钉后就地驱动 part 重算 lane 集合
+    //（tabbar/渲染器经 AutomationConfigsModified 刷新）。不能钉返回 null。note / phoneme 两 scope 共用。
+    Avalonia.Controls.MenuItem? TryBuildLanePinMenuItem(ParameterPinKind scope, IReadOnlyList<string> path, IControllerConfig config)
     {
         var part = mPart;
         if (part == null || !LaneEntry.IsPinnable(config))
             return null;
 
-        bool pinned = ParameterPinning.IsPinned(part.SoundSource, scope, key.Id);
+        string id = LanePath.Encode(path);
+        bool pinned = ParameterPinning.IsPinned(part.SoundSource, scope, id);
         string name = (pinned ? "Remove from Parameter Panel" : "Edit in Parameter Panel").Tr(TC.Menu);
         // 钉/解钉这一件事收口在 ParameterPinning.SetPinned：这个入口、参数栏 tab 的右键、命令面的
         // parameter.pin/unpinProperty（带参动作）按下去是同一件事，判据与轨色分配不各写一遍。
         return new Avalonia.Controls.MenuItem().SetName(name).SetAction(
-            () => ParameterPinning.SetPinned(part, scope, key.Id, !pinned));
+            () => ParameterPinning.SetPinned(part, scope, id, !pinned));
     }
 
     void OnConfigChnaged()
@@ -346,12 +347,15 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
                 // 按钮作用域 = part + 本行成员 note + slot；执行完重建音素面板（音素 schema 可能随插件状态变）。
                 poc.ButtonScope = "phoneme/" + mPart!.RuntimeId + "/" + string.Join(",", members.Select(m => m.Note.Note.RuntimeId)) + "/" + a;
                 poc.ButtonActionCompleted += mPhonemeScheduler.InvalidateStructure;
-                // 属性行右键 = 钉选项（phoneme scope，只给本层直属字段：钉选按顶层键）+ slot 动作（拆分/删除，整块公共项、
+                // 属性行右键 = 钉选项（phoneme scope，任何位置的字段都行：钉选按路径）+ slot 动作（拆分/删除，整块公共项、
                 // 嵌套对象的子字段也继承）——属性行的右键被这两个钩子接管后不再冒泡到行容器的 ContextMenu，故 slot 项并进来，
-                // 避免"点在属性上就丢拆分/删除"。
+                // 避免"点在属性上就丢拆分/删除"。时间轴画布那一行的编辑按钮跳到参数面板的音素 lane。
                 var menuMembers = members;
-                poc.ItemContextMenuProvider = (key, cfg) =>
-                    TryBuildLanePinMenuItem(ParameterPinKind.PhonemeProperty, key, cfg) is { } pin ? [pin] : null;
+                poc.Hooks = new FieldHooks
+                {
+                    ItemMenu = (path, cfg) => TryBuildLanePinMenuItem(ParameterPinKind.PhonemeProperty, path, cfg) is { } pin ? [pin] : null,
+                    EditTimelineCanvas = path => EditInParameterPanel?.Invoke(AutomationKey.PhonemeLane(LanePath.Encode(path))),
+                };
                 poc.ContainerContextMenuProvider = () => BuildSlotMenuItems(menuMembers);
                 controller = poc;
                 if (propMembers.All(m => m.Note.Pinned))

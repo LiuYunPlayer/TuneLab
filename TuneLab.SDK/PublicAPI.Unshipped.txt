@@ -267,4 +267,6 @@ TuneLab.SDK.TimelineCanvasConfig
 TuneLab.SDK.TimelineCanvasConfig.Color.get -> string!
 TuneLab.SDK.TimelineCanvasConfig.CreateControl.get -> System.Func<TuneLab.SDK.ITimelineCanvasHost!, TuneLab.SDK.ICanvasControl!>!
 TuneLab.SDK.TimelineCanvasConfig.DefaultValue.get -> TuneLab.Foundation.PropertyValue
+TuneLab.SDK.TimelineCanvasConfig.Summary.get -> string?
 TuneLab.SDK.TimelineCanvasConfig.WithColor(string! color) -> TuneLab.SDK.TimelineCanvasConfig!
+TuneLab.SDK.TimelineCanvasConfig.WithSummary(string! summary) -> TuneLab.SDK.TimelineCanvasConfig!

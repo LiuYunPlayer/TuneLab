@@ -334,6 +334,9 @@
 "Clear Locked Phonemes" = "清除锁定音素"
 "Edit in Parameter Panel" = "在参数栏编辑"
 "Remove from Parameter Panel" = "从参数栏移除"
+"Hide from Tab Bar" = "从标签栏隐藏"
+"Show in Tab Bar" = "在标签栏显示"
+"Has Data" = "有数据"
 "Octave Up" = "升八度"
 "Octave Down" = "降八度"
 "Move Lyrics Forward" = "由此前置歌词"
@@ -531,6 +534,7 @@
 "Only some of the selected items have this tag. Pick it from + to add it to all of them." = "选中的对象里只有一部分带这个标签。从 + 里选它，即可补给全部对象。"
 
 [PropertyObjectController]
+"(Timeline canvases are not supported here)" = "（此处不支持时间轴画布）"
 "Reset to Default" = "重置为默认"
 "{0} items" = "{0} 项"
 "On" = "开"

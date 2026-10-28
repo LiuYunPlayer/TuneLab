@@ -328,8 +328,9 @@ internal interface IEditorStateAccess
 ### 5.6 选择器参数：动作面上唯一的带参形状
 
 `run_action` 收一个可选的 `argument`，被触发动作用 `EditorAction.Parameter`（`ActionParameter`）声明它接什么。
-今天有四条：`parameter.showSynthesizedTrack` / `hideSynthesizedTrack`（作用在一条合成参数轨上）与
-`parameter.pinProperty` / `unpinProperty`（作用在一个 note / phoneme 属性上）。四条口径：
+今天有六条：`parameter.showSynthesizedTrack` / `hideSynthesizedTrack`（作用在一条合成参数轨上）、
+`parameter.pinProperty` / `unpinProperty`（作用在一个 note / phoneme 属性上）与
+`parameter.hideFromTabBar` / `showInTabBar`（作用在一条常驻标签栏的参数上：声源 / 效果器的自动化轨、时间轴画布）。六条口径：
 
 - **值域必须能自省**。动态成员集意味着调用方不可能预先知道合法值，故 `Values` 是闭包、`list_actions`
   把**此刻的合法值**连同每个值的当下状态（`shown` / `hidden` / `pinned`…）一起报出去（同 `setting list`
@@ -340,7 +341,7 @@ internal interface IEditorStateAccess
   （加性）。真出现"值在集合里、但这一个值还是不能跑"的动作时再加一个接值的判据委托。
 - **闸门要点名成员**。授权卡片上"跑一下隐藏合成参数轨"没说清隐藏的是哪一条，故 `WriteKind.EditorAction`
   / `EditorActionDestructive` 的措辞带上那个值的 label（同 `ExtensionActivationChange` 要点名包）。
-  今天这四条都是 `AppState`、不过闸门，但机制在那儿——将来带参的 `ProjectEdit` 动作不必回头再补。
+  今天这六条都是 `AppState`、不过闸门，但机制在那儿——将来带参的 `ProjectEdit` 动作不必回头再补。
 - **带必填参数的动作不可绑**。一条绑定只有手势、没有参数，按下去无从知道作用在哪个成员上；v1 刻意不做
   "绑定携带参数"（keybinding-system.md §10 把它留给 v2），故这批动作只从命令面与界面入口触发，
   `list_actions` 里 `bindable` 恒 false。**可选**参数的动作不在此列，见 §5.7。

@@ -333,6 +333,9 @@
 "Clear Locked Phonemes" = "Очистить заблокированные фонемы"
 "Edit in Parameter Panel" = "Редактировать в панели параметров"
 "Remove from Parameter Panel" = "Убрать из панели параметров"
+"Hide from Tab Bar" = "Скрыть с панели вкладок"
+"Show in Tab Bar" = "Показать на панели вкладок"
+"Has Data" = "Есть данные"
 "Octave Up" = "На октаву вверх"
 "Octave Down" = "На октаву вниз"
 "Move Lyrics Forward" = "Подвинуть текст вперёд"
@@ -531,6 +534,7 @@
 "Only some of the selected items have this tag. Pick it from + to add it to all of them." = "Этот тег есть только у части выбранных элементов. Выберите его в + , чтобы добавить всем."
 
 [PropertyObjectController]
+"(Timeline canvases are not supported here)" = "(Холсты на временной шкале здесь не поддерживаются)"
 "Reset to Default" = "Сбросить до умолчания"
 "{0} items" = "Элементов: {0}"
 "On" = "Вкл"

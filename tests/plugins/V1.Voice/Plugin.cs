@@ -122,6 +122,8 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
         var properties = With(mPartProperties, ("analysis_summary", "Analysis"), ButtonConfig.Create("Summary", click => ShowPartSummary(click, partIds)));
         // 显示名给空串 = 无标题、按钮铺满整行（验证整行按钮形态）。
         properties = With(properties, ("analysis_run", ""), ButtonConfig.Create("Run Analysis", click => ShowPartSummary(click, partIds)));
+        // 反例：时间轴画布放在 part 声明里——这里没有时间轴，宿主应显示"此处不支持"并记一条警告，而不是一行改不了的摘要。
+        properties = With(properties, ("part_timeline", "Part Timeline"), TimelineDemoCanvas.Config(TimelineDemoCanvas.Default, "part"));
         if (context.Parts.Any(p => IsBlinkVisible(p.PartId)))
             properties = With(properties, ("blink", "Blinking Slider"), mBlinkConfig);
         if (!context.Parts.Any(p => mAnalyses.TryGetValue(p.PartId, out var analysis) && analysis.HasTones))
@@ -149,6 +151,19 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
         properties = With(properties, ("image_demo", "Canvas Images"), ImageDemoCanvas.Config(ValuesOf(notes, "image_demo", ImageDemoCanvas.Default)));
         // 时间轴画布：侧栏不显示，参数面板里每个 note 一块（见 TimelineDemoCanvas）。参数面板里 context 只有这一个 note。
         properties = With(properties, ("timeline_demo", "Timeline Demo"), TimelineDemoCanvas.Config(ValuesOf(notes, "timeline_demo", TimelineDemoCanvas.Default)[0], "note"));
+        // 嵌套位置的时间轴画布（参数面板里按路径各成一条 lane，侧栏在它的位置只有一行摘要 + 编辑按钮）：
+        // · Layers = 定长数组，元素是对象 { Curve: 时间轴画布, Gain: 滑条 }——画布是元素里的一个成员，Gain 照常在侧栏批量改；
+        // · Takes = 列表，元素本身就是时间轴画布，侧栏里增删、调序（没存过时给 2 项）。
+        var first = notes.Count > 0 ? notes[0] : PropertyObject.Empty;
+        var layers = Enumerable.Range(0, 2).Select(i => (IControllerConfig)ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>
+        {
+            { ("curve", "Curve"), TimelineDemoCanvas.Config(Member(Element(first, "timeline_layers", i), "curve"), "layer " + (i + 1)) },
+            { ("gain", "Gain"), mLayerGainConfig },
+        })).ToList();
+        properties = With(properties, ("timeline_layers", "Layers"), ArrayConfig.Create(layers));
+        int takeCount = first.Map.TryGetValue("timeline_takes", out var stored) && stored.ToArray(out var takesArray) ? takesArray.Count : 2;
+        var takes = Enumerable.Range(0, takeCount).Select(i => (IControllerConfig)TimelineDemoCanvas.Config(Element(first, "timeline_takes", i), "take " + (i + 1))).ToList();
+        properties = With(properties, ("timeline_takes", "Takes"), ListConfig.Create(takes, [new AddableElement(TimelineDemoCanvas.Config(TimelineDemoCanvas.Default, "take"))]));
         properties = With(properties, ("inspect", "Inspect"), ButtonConfig.Create("Show Tones", click => ShowNoteTones(click, partId, noteIds)));
         if (IsBlinkVisible(partId))
             properties = With(properties, ("blink", "Blinking Slider"), mBlinkConfig);
@@ -168,6 +183,16 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
     }
 
     bool IsBlinkVisible(string partId) => mAnalyses.TryGetValue(partId, out var analysis) && analysis.BlinkVisible;
+
+    static readonly IControllerConfig mLayerGainConfig = SliderConfig.Linear(0.5, 0, 1);
+
+    // 数组字段 key 的第 i 个元素（存过才有；没存过给 Null，读的一方按默认值处理）。
+    static PropertyValue Element(PropertyObject owner, string key, int index)
+        => owner.Map.TryGetValue(key, out var value) && value.ToArray(out var array) && index < array.Count ? array[index] : PropertyValue.Null;
+
+    // 对象值的一个成员（不是对象 / 没这个成员给 Null）。
+    static PropertyValue Member(PropertyValue value, string key)
+        => value.ToObject(out var obj) && obj.Map.TryGetValue(key, out var member) ? member : PropertyValue.Null;
 
     // 一个字段在各对象上的值：读不到（未设过）给默认值；没有对象带它（如音素未钉死）时只给一个默认值。
     static IReadOnlyList<PropertyValue> ValuesOf(IEnumerable<PropertyObject?> owners, string key, PropertyValue unset)

@@ -1266,7 +1266,7 @@ Reference implementation: `tests/plugins/V1.Voice/StretchCurveCanvas.cs` (a stre
 ### 10.6 Timeline canvas (TimelineCanvasConfig)
 
 An editor that must line up with the timeline and is edited one object at a time (e.g. a phoneme mix: a curve over time plus a
-symbol and a language) is declared as a **timeline canvas**. It is not in the side panel; it lives in the parameter panel under
+symbol and a language) is declared as a **timeline canvas**. It is not edited in the side panel (which only shows a summary row, see below); it lives in the parameter panel under
 the piano roll — every object that declares it (note-level field = each note, phoneme-level field = each phoneme) gets a block
 over its own time span: width = that object's time span, height = the panel height. It shows in the tab bar whenever some note's
 declaration has it; the user does not pin it.
@@ -1281,10 +1281,19 @@ props.Add(("mix", "Mix"), TimelineCanvasConfig.Create(MixCanvas.Default, host =>
   multi-select, and several objects have no single time span, so only the timeline canvas has a time mapping.
 - **Everything else is the same as the side-panel canvas**: the same `ICanvasControl`, drawing / events / drafts / commits /
   popups / dialogs (§10.1–10.5), value semantics and instance lifetime. Top-level members of note / phoneme property
-  declarations only. No preferred size: the width comes from the object's duration, the height is the panel height the user set.
-  Layered or list-shaped data (say one canvas per layer) can reach the parameter panel only as several top-level keys (such as
-  `mix:0`, `mix:1`, …, declared as needed); a canvas inside an array or object does not — the side panel's array style does not
-  carry over.
+  declarations, or anywhere below them. No preferred size: the width comes from the object's duration, the height is the panel
+  height the user set.
+- **Anywhere in the tree**: it can be a top-level member of a note / phoneme property declaration or sit inside objects, fixed
+  arrays, lists or keyed containers, nested to any depth (say one canvas per layer: `mixes: [{ curve: timeline canvas, … }]`). In
+  the parameter panel each one becomes a lane by its path; the tab shows the last segment's display name plus the indexes on the
+  path ("Curve 2") and adds ancestor names only when it would clash with another tab ("Mix 2 · Curve" — the number stays with the segment it belongs to); hovering shows the full
+  path — **avoid duplicate display names on leaf fields** and the tabs stay short. List indexes move as the user adds, removes or
+  reorders elements; lanes go by index.
+- **Its row in the side panel**: every timeline canvas position (inside each array / list element too) takes one row in the side
+  panel — field name, summary and an edit button that jumps to the parameter panel. Compute the summary at declaration time with
+  `.WithSummary(text)` (what to show for a multi-selection is up to you); without it the host shows "Default / Modified /
+  Multiple". Lists keep their add / remove / reorder in the side panel, and other plain fields in the element objects still show
+  and still edit across a multi-selection.
 - **Time mapping**: the factory receives an `ITimelineCanvasHost` with a `TimeAxis` — `TimeToX(seconds)` / `XToTime(x)`, in
   global seconds (the same as the declaration view's `IVoiceSynthesisNoteView.StartTime`) and canvas coordinates. It follows the
   piano roll's time axis (uneven across tempo changes); **do not assume it is linear**. The block covers `XToTime(0)` to

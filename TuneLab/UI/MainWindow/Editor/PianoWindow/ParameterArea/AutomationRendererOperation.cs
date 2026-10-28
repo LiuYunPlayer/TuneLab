@@ -662,7 +662,11 @@ internal partial class AutomationRenderer
 
             mPart!.DiscardTo(mHead);
             foreach (var kvp in mValues)
-                kvp.Key.Properties.SetValue(mId, PropertyValue.Create(kvp.Value));
+            {
+                // 按路径写（字段可以在声明树的任何位置；没存过的数组元素先按默认值补齐，见 LanePath）。
+                if (mPart.ResolveNoteLane(kvp.Key, mId) is { } resolved)
+                    LanePath.Write(kvp.Key.Properties, resolved.Steps, PropertyValue.Create(kvp.Value));
+            }
         }
 
         // 一次拖动内每个 note 的形状只取一次：写进去的值可能让插件改声明（条件字段），拖到一半量程跟着变会让值乱跳。
@@ -749,8 +753,8 @@ internal partial class AutomationRenderer
                     break;
 
                 // 没声明这个字段的 note 在 lane 上没有段，它存着的值（字段被条件藏起来时）不归这次清除管。
-                if (mPart.TryGetNoteLaneShape(note, mId, out _))
-                    note.Properties.RemoveValue(mId);
+                if (mPart.TryGetNoteLaneShape(note, mId, out _) && mPart.ResolveNoteLane(note, mId) is { } resolved)
+                    LanePath.Remove(note.Properties, resolved.Steps);
             }
         }
 
@@ -845,8 +849,8 @@ internal partial class AutomationRenderer
             {
                 var note = target.Key.Note;
                 note.LockPhonemes();   // 幂等：同 note 多目标重复调用无害
-                if (target.Key.Index < note.Phonemes.Count)
-                    note.Phonemes[target.Key.Index].Properties.SetValue(mId, PropertyValue.Create(target.Value));
+                if (target.Key.Index < note.Phonemes.Count && mPart.ResolvePhonemeLane(note, target.Key.Index, mId) is { } resolved)
+                    LanePath.Write(note.Phonemes[target.Key.Index].Properties, resolved.Steps, PropertyValue.Create(target.Value));
             }
         }
 
@@ -938,8 +942,8 @@ internal partial class AutomationRenderer
                     if (phonemes[i].EndTime <= mStart || phonemes[i].StartTime > mEnd)
                         continue;
 
-                    if (note.Phonemes[i].HasProperties && mPart.TryGetPhonemeLaneShape(note, i, mId, out _))
-                        note.Phonemes[i].Properties.RemoveValue(mId);
+                    if (note.Phonemes[i].HasProperties && mPart.TryGetPhonemeLaneShape(note, i, mId, out _) && mPart.ResolvePhonemeLane(note, i, mId) is { } resolved)
+                        LanePath.Remove(note.Phonemes[i].Properties, resolved.Steps);
                 }
             }
         }

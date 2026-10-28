@@ -65,9 +65,13 @@ internal class PropertyObjectController : StackPanel
         return more ? lines[first] + " …" : lines[first];
     }
 
-    // 宿主注入的逐属性右键菜单项（返回 null/空 = 不加）：菜单项在每次右键时现取，随宿主状态（如钉选态）即时变化，
-    // 排在通用项「恢复默认值」之前。嵌套 ObjectConfig 的子控制器不继承本钩子（作用面 = 本层直属属性）。
-    public Func<PropertyKey, IControllerConfig, IReadOnlyList<MenuItem>?>? ItemContextMenuProvider { get; set; }
+    // 宿主注入的逐字段钩子（右键菜单项、时间轴画布跳到参数面板，见 FieldHooks）：在根控制器上设，嵌套的控制器（对象、
+    // 数组 / 列表 / 键控容器的元素）共享同一份，各字段按它在声明树里的路径调用。菜单项在每次右键时现取，排在「恢复默认值」之前。
+    public FieldHooks? Hooks { get => mFieldPath.Hooks; set => mFieldPath = FieldPath.Root(value); }
+
+    // 本层在声明树里的位置（嵌套控制器由外层设）。
+    internal FieldPath FieldPath { get => mFieldPath; set => mFieldPath = value; }
+    FieldPath mFieldPath = FieldPath.Root(null);
 
     // 宿主注入的整面板公共右键项（如音素面板的拆分 / 删除：属于整块，与点在哪个字段上无关）。与 ItemContextMenuProvider
     // 相反，嵌套 ObjectConfig 的子控制器继承本钩子——点在子字段上也该有这些项。排在字段专属项之后、「恢复默认值」之前。
@@ -147,8 +151,6 @@ internal class PropertyObjectController : StackPanel
             var cfg = kvp.Value;
             if (nextByKey.ContainsKey(id))
                 continue; // ObjectConfig 是 map，key 本应唯一；防御重复
-            if (cfg is TimelineCanvasConfig)
-                continue; // 时间轴画布只在参数面板里（见 TimelineCanvasConfig）：侧栏不显示它
 
             if (mCreatorsByKey.TryGetValue(id, out var existing) && existing.ConfigType == cfg.GetType())
             {
@@ -305,7 +307,7 @@ internal class PropertyObjectController : StackPanel
                 void OnContextRequested(object? sender, ContextRequestedEventArgs e)
                 {
                     var menu = new ContextMenu();
-                    foreach (var items in new[] { Parent.ItemContextMenuProvider?.Invoke(key, currentConfig()), Parent.ContainerContextMenuProvider?.Invoke() })
+                    foreach (var items in new[] { Parent.mFieldPath.Hooks?.ItemMenu?.Invoke(Parent.mFieldPath.Of(key.Id), currentConfig()), Parent.ContainerContextMenuProvider?.Invoke() })
                     {
                         if (items == null || items.Count == 0)
                             continue;
@@ -345,7 +347,8 @@ internal class PropertyObjectController : StackPanel
             mController = ObjectPoolManager.Get<PropertyObjectController>();
             mController.AttachButtonRoot(parent.mButtonRoot, parent.mButtonPath + "/" + key.Id);
             mController.CollapseScope = parent.FoldKey(key);
-            mController.ContainerContextMenuProvider = parent.ContainerContextMenuProvider;   // 整块公共项往下传（字段专属项不传）
+            mController.ContainerContextMenuProvider = parent.ContainerContextMenuProvider;   // 整块公共项往下传
+            mController.FieldPath = parent.mFieldPath.Child(key.Id);                          // 逐字段钩子按路径往下传
             mController.SetConfig(config, parent.DataObject.Object(key.Id));
 
             // 子字段的标签左缘 = 引导线右侧再缩进 24（与顶层字段同一套边距），故整体缩进 = 引导线位置 + 1。
@@ -376,6 +379,7 @@ internal class PropertyObjectController : StackPanel
             mController.DetachButtonRoot();
             mController.CollapseScope = null;
             mController.ContainerContextMenuProvider = null;
+            mController.FieldPath = FieldPath.Root(null);
             ObjectPoolManager.Return(mController);
             ObjectPoolManager.Return(mTitle);
         }
@@ -739,7 +743,7 @@ internal class PropertyObjectController : StackPanel
         public ArrayCreator(PropertyObjectController parent, PropertyKey key, ArrayConfig config) : base(parent)
         {
             mTitle = CreateTitle(key.DisplayText ?? key.Id, 30, FieldGap);
-            mController = new ArrayController { ButtonRoot = parent.mButtonRoot, ButtonPath = parent.mButtonPath + "/" + key.Id };
+            mController = new ArrayController { ButtonRoot = parent.mButtonRoot, ButtonPath = parent.mButtonPath + "/" + key.Id, FieldPath = parent.mFieldPath.Child(key.Id), CollapseScope = parent.FoldKey(key) };
             mController.Bind(parent.DataObject.Array(key.Id));
             mController.Apply(config);
             mCount = config.Elements.Count;
@@ -777,7 +781,7 @@ internal class PropertyObjectController : StackPanel
         public ListCreator(PropertyObjectController parent, PropertyKey key, ListConfig config) : base(parent)
         {
             mTitle = CreateTitle(key.DisplayText ?? key.Id, 30, FieldGap);
-            mController = new ListController { ButtonRoot = parent.mButtonRoot, ButtonPath = parent.mButtonPath + "/" + key.Id };
+            mController = new ListController { ButtonRoot = parent.mButtonRoot, ButtonPath = parent.mButtonPath + "/" + key.Id, FieldPath = parent.mFieldPath.Child(key.Id), CollapseScope = parent.FoldKey(key) };
             mController.Bind(parent.DataObject.Array(key.Id));
             mController.Apply(config);
             mCount = config.Elements.Count;   // 显示的行数（含尚未物化的 seed 行）
@@ -858,7 +862,7 @@ internal class PropertyObjectController : StackPanel
         public ExtensibleObjectCreator(PropertyObjectController parent, PropertyKey key, ExtensibleObjectConfig config) : base(parent)
         {
             mTitle = CreateTitle(key.DisplayText ?? key.Id, 30, FieldGap);
-            mController = new ExtensibleObjectController { ButtonRoot = parent.mButtonRoot, ButtonPath = parent.mButtonPath + "/" + key.Id };
+            mController = new ExtensibleObjectController { ButtonRoot = parent.mButtonRoot, ButtonPath = parent.mButtonPath + "/" + key.Id, FieldPath = parent.mFieldPath.Child(key.Id), CollapseScope = parent.FoldKey(key) };
             mController.Bind(parent.DataObject.Object(key.Id));
             mController.Apply(config);
             mConfig = config;
@@ -1087,6 +1091,33 @@ internal class PropertyObjectController : StackPanel
         CanvasConfig mConfig;
     }
 
+    // 时间轴画布（TimelineCanvasConfig）：编辑界面在参数面板里，侧栏只占一行——字段名 + 摘要 + 编辑按钮（跳到参数面板），
+    // 标出它在属性树里的位置、给一个入口。不折叠（没有内容可收）。右键菜单同普通字段（恢复默认值等）。
+    class TimelineCanvasCreator : Creator
+    {
+        public TimelineCanvasCreator(PropertyObjectController parent, PropertyKey key, TimelineCanvasConfig config) : base(parent)
+        {
+            mConfig = config;
+            mKey = key;
+            mRow = new TimelineCanvasRow(key.DisplayText ?? key.Id, () => parent.DataObject.GetRawValue(key.Id), parent.mFieldPath.Hooks, () => parent.mFieldPath.Of(key.Id));
+            mRow.Apply(config);
+            parent.DataObject.Modified.Subscribe(mRow.RefreshSummary, s);
+            AttachContextMenu(key, () => mConfig, mRow.View);
+        }
+
+        public override Type ConfigType => typeof(TimelineCanvasConfig);
+        public override IEnumerable<Control> Views => [mRow.View];
+        public override void Update(IControllerConfig config)
+        {
+            mConfig = (TimelineCanvasConfig)config;
+            mRow.Apply(mConfig);
+        }
+
+        readonly TimelineCanvasRow mRow;
+        readonly PropertyKey mKey;
+        TimelineCanvasConfig mConfig;
+    }
+
     // bottomGap：标题下方留白。容器字段（数组/列表/键控容器）的内容紧接标题、自身不带上边距，需要它隔开；
     // 其余字段的控件自带上边距，取 0。标题出自对象池，故每次都显式重设，不继承上一任主人的值。
     static Label CreateTitle(string title, double height, double bottomGap = 0)
@@ -1117,6 +1148,7 @@ internal class PropertyObjectController : StackPanel
         { typeof(ExtensibleObjectConfig), (parent, key, config) => new ExtensibleObjectCreator(parent, key, (ExtensibleObjectConfig)config) },
         { typeof(ButtonConfig), (parent, key, config) => new ButtonCreator(parent, key, (ButtonConfig)config) },
         { typeof(CanvasConfig), (parent, key, config) => new CanvasCreator(parent, key, (CanvasConfig)config) },
+        { typeof(TimelineCanvasConfig), (parent, key, config) => new TimelineCanvasCreator(parent, key, (TimelineCanvasConfig)config) },
     };
 
     ButtonRoot mButtonRoot = new();

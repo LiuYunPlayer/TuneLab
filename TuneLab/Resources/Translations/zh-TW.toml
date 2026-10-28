@@ -334,6 +334,9 @@
 "Clear Locked Phonemes" = "清除已鎖定的音素"
 "Edit in Parameter Panel" = "在參數面板中編輯"
 "Remove from Parameter Panel" = "從參數面板中移除"
+"Hide from Tab Bar" = "從標籤列隱藏"
+"Show in Tab Bar" = "在標籤列顯示"
+"Has Data" = "有資料"
 "Octave Up" = "升八度"
 "Octave Down" = "降八度"
 "Move Lyrics Forward" = "由此前移歌詞"
@@ -531,6 +534,7 @@
 "Only some of the selected items have this tag. Pick it from + to add it to all of them." = "選取的物件裡只有一部分帶這個標籤。從 + 裡選它，即可補給全部物件。"
 
 [PropertyObjectController]
+"(Timeline canvases are not supported here)" = "（此處不支援時間軸畫布）"
 "Reset to Default" = "重設為預設"
 "{0} items" = "{0} 項"
 "On" = "開"

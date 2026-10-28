@@ -246,7 +246,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         },
     };
 
-    // 参数面板里「有哪些轨」这四条：动作面上唯一的一批【带选择器参数】的动作（见 TuneLab.Input.ActionParameter）。
+    // 参数面板里「有哪些轨」这六条：动作面上唯一的一批【带选择器参数】的动作（见 TuneLab.Input.ActionParameter）。
     // 成员随 part 的声源与效果器链、随属性声明面而变（动态集）——逐成员开 id 会爆，而且那些 id 明天就不在了，
     // 「一经发布不改」无从保证。故一个动词 + 一个闭集里的成员：加一条轨是加一个**值**，不是加一条动作。
     //
@@ -320,6 +320,98 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
                 Execute = token => SetPinned(token, false),
             },
         });
+
+        // ── 标签栏上常驻参数（音源 / 效果器的自动化轨、时间轴画布）的隐藏 / 显示：与标签栏空白处右键那张勾选列表里
+        // 这几类的勾是同一件事（同一个 ParameterHiding.SetHidden）。可钉属性不在这对里——它们走 pin / unpinProperty。
+        // AppState 的理由同钉选：写的是界面偏好（Configs/ParameterHidden.json），一眼看得见、自己就能改回来。
+        ActionRegistry.Register(new()
+        {
+            Id = "parameter.hideFromTabBar",
+            DisplayName = () => "Hide from Tab Bar".Tr(TC.Menu),
+            Kind = ActionKind.AppState,
+            Unavailable = HideableUnavailable,
+            Parameter = new()
+            {
+                Name = "parameter",
+                Description = HideableParameterDescription,
+                Values = HideableValues,
+                Execute = token => SetHiddenFromTabBar(token, true),
+            },
+        });
+        ActionRegistry.Register(new()
+        {
+            Id = "parameter.showInTabBar",
+            DisplayName = () => "Show in Tab Bar".Tr(TC.Menu),
+            Kind = ActionKind.AppState,
+            Unavailable = HideableUnavailable,
+            Parameter = new()
+            {
+                Name = "parameter",
+                Description = HideableParameterDescription,
+                Values = HideableValues,
+                Execute = token => SetHiddenFromTabBar(token, false),
+            },
+        });
+    }
+
+    const string HideableParameterDescription =
+        "Which parameter, written \"source:<id>\" for an automation track of the part's sound source, \"effect<n>:<id>\" for one of the n-th effect in the chain (0-based, the same position as in part.effects()), "
+        + "or \"note:<path>\" / \"phoneme:<path>\" for a timeline canvas. Each value says whether it is shown or hidden right now; hiding only takes it off the tab bar, its data still takes part in synthesis. "
+        + "Pinnable properties are not in this list: they are added and removed with parameter.pinProperty / unpinProperty. The label works too.";
+
+    string? HideableUnavailable()
+        => Part == null ? "no part is open in the piano roll, so there is no parameter tab bar" : null;
+
+    // 值域 = 标签栏上能常驻的全集（含已藏的：终态动作幂等），序同标签栏（音源轨、时间轴画布、各效果器轨）。
+    IReadOnlyList<ActionArgument> HideableValues()
+    {
+        var part = Part;
+        var values = new List<ActionArgument>();
+        if (part == null)
+            return values;
+
+        void Add(AutomationKey key, string token, string label)
+            => values.Add(new ActionArgument(token, label, ParameterHiding.IsHidden(part, key) ? "hidden" : "shown"));
+
+        foreach (var kvp in part.SoundSource.AutomationConfigs)
+            Add(AutomationKey.Voice(kvp.Key.Id), "source:" + kvp.Key.Id, (kvp.Key.DisplayText ?? kvp.Key.Id) + " (sound source)");
+        foreach (var kvp in part.NoteLaneConfigs)
+        {
+            if (kvp.Value.Kind == LaneKind.TimelineCanvas)
+                Add(AutomationKey.NoteLane(kvp.Key.Id), "note:" + kvp.Key.Id, (kvp.Key.DisplayText ?? kvp.Key.Id) + " (timeline canvas)");
+        }
+        foreach (var kvp in part.PhonemeLaneConfigs)
+        {
+            if (kvp.Value.Kind == LaneKind.TimelineCanvas)
+                Add(AutomationKey.PhonemeLane(kvp.Key.Id), "phoneme:" + kvp.Key.Id, (kvp.Key.DisplayText ?? kvp.Key.Id) + " (phoneme timeline canvas)");
+        }
+        for (int i = 0; i < part.Effects.Count; i++)
+        {
+            var type = part.Effects[i].Type;
+            var source = string.IsNullOrEmpty(type) ? "(empty)" : EffectManager.GetDisplayName(type);
+            foreach (var kvp in part.Effects[i].AutomationConfigs)
+                Add(AutomationKey.Effect(i, kvp.Key.Id), "effect" + i.ToString(System.Globalization.CultureInfo.InvariantCulture) + ":" + kvp.Key.Id, (kvp.Key.DisplayText ?? kvp.Key.Id) + " (" + source + ")");
+        }
+        return values;
+    }
+
+    // token 只按第一个冒号切（路径与 id 里带冒号也无碍）；source / effect<n> 的拼法同合成参数轨（ParseTrackToken）。
+    void SetHiddenFromTabBar(string token, bool hidden)
+    {
+        var part = Part;
+        if (part == null)
+            return;
+
+        int colon = token.IndexOf(':');
+        var source = token[..colon];
+        var id = token[(colon + 1)..];
+        var key = source switch
+        {
+            "note" => AutomationKey.NoteLane(id),
+            "phoneme" => AutomationKey.PhonemeLane(id),
+            _ => ParseTrackToken(token),
+        };
+        ParameterHiding.SetHidden(part, key, hidden);
     }
 
     // 参数面板堆本身（几块、哪块是焦点、各自收起没有、整个区显示没有）的动作。与标题栏 / 标签栏那几个按钮是同一件事。
@@ -844,6 +936,16 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         {
             EditorState.ParameterPanelHeightNormal.Value = height;
         }
+    }
+
+    // 在焦点面板里编辑这条参数（侧栏时间轴画布那一行的编辑按钮）：同点它的页签——参数区藏着就先显示出来，
+    // 它被从标签栏隐藏了也先显示回去（按这个按钮就是要看它）。
+    public void EditInFocusedPanel(AutomationKey automation)
+    {
+        SetParameterAreaHidden(false);
+        if (Part is { } part)
+            ParameterHiding.SetHidden(part, automation, false);
+        FocusedPanel.ActiveAutomation = automation;
     }
 
     void OnParameterTabBarStateChangeAsked(AutomationKey automation, ParameterButton.ButtonState state)

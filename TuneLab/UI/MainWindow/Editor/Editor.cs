@@ -168,6 +168,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         ProjectHolder.When(project => project.Tracks.ItemAdded).Subscribe(track => { if (mDetachedEditingPart != null && track.Parts.Contains(mDetachedEditingPart)) { SwitchEditingPart(mDetachedEditingPart); mDetachedEditingPart = null; } mExportSideBarContentProvider.RefreshTrackList(); });
         ProjectHolder.When(project => project.Tracks.WhenAny(track => track.Name.Modified)).Subscribe(() => mExportSideBarContentProvider.RefreshTrackList());
         mPianoWindow.PartHolder.Modified.Subscribe(() => { mPianoWindow.IsVisible = mPianoWindow.Part != null; mNotePropertySideBarContentProvider.SetPart(mPianoWindow.Part); UpdatePartPanelTarget(); }, s);
+        mNotePropertySideBarContentProvider.EditInParameterPanel = mPianoWindow.EditInFocusedPanel;
         // instrument 音源无颤音系统：编辑 part 切换 / 音源就地换种类时，颤音工具自动退回音符工具（工具栏按钮同步置灰，见 FunctionBar）。
         void EnsurePianoToolAvailable() { if (PianoTool.Value == UI.PianoTool.Vibrato && mPianoWindow.Part?.SoundSource.Kind == SourceKind.Instrument) PianoTool.Value = UI.PianoTool.Note; }
         mPianoWindow.PartHolder.Modified.Subscribe(EnsurePianoToolAvailable, s);

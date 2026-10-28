@@ -333,6 +333,9 @@
 "Clear Locked Phonemes" = "Vergrendelde fonemen wissen"
 "Edit in Parameter Panel" = "Bewerken in parameterpaneel"
 "Remove from Parameter Panel" = "Verwijderen uit parameterpaneel"
+"Hide from Tab Bar" = "Verbergen in tabbalk"
+"Show in Tab Bar" = "Tonen in tabbalk"
+"Has Data" = "Bevat gegevens"
 "Octave Up" = "Octaaf omhoog"
 "Octave Down" = "Octaaf omlaag"
 "Move Lyrics Forward" = "Verplaats Tekst Vooruit"
@@ -531,6 +534,7 @@
 "Only some of the selected items have this tag. Pick it from + to add it to all of them." = "Slechts een deel van de geselecteerde items heeft deze tag. Kies hem via + om hem aan alle toe te voegen."
 
 [PropertyObjectController]
+"(Timeline canvases are not supported here)" = "(Tijdlijncanvassen worden hier niet ondersteund)"
 "Reset to Default" = "Terugzetten naar standaard"
 "{0} items" = "{0} items"
 "On" = "Aan"

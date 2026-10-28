@@ -333,6 +333,9 @@
 "Clear Locked Phonemes" = "Cancella fonemi bloccati"
 "Edit in Parameter Panel" = "Modifica nel pannello parametri"
 "Remove from Parameter Panel" = "Rimuovi dal pannello parametri"
+"Hide from Tab Bar" = "Nascondi dalla barra delle schede"
+"Show in Tab Bar" = "Mostra nella barra delle schede"
+"Has Data" = "Contiene dati"
 "Octave Up" = "Aumenta di un'ottava"
 "Octave Down" = "Diminuisci di un'ottava"
 "Move Lyrics Forward" = "Sposta testo in avanti"
@@ -531,6 +534,7 @@
 "Only some of the selected items have this tag. Pick it from + to add it to all of them." = "Solo alcuni degli elementi selezionati hanno questo tag. Sceglilo da + per aggiungerlo a tutti."
 
 [PropertyObjectController]
+"(Timeline canvases are not supported here)" = "(I canvas della timeline non sono supportati qui)"
 "Reset to Default" = "Reimposta ai valori predefiniti"
 "{0} items" = "{0} elementi"
 "On" = "Attivo"

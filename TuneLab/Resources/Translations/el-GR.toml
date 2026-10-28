@@ -333,6 +333,9 @@
 "Clear Locked Phonemes" = "Εκκαθάριση Κλειδωμένων Φωνημάτων"
 "Edit in Parameter Panel" = "Επεξεργασία στον Πίνακα Παραμέτρων"
 "Remove from Parameter Panel" = "Αφαίρεση από τον Πίνακα Παραμέτρων"
+"Hide from Tab Bar" = "Απόκρυψη από τη γραμμή καρτελών"
+"Show in Tab Bar" = "Εμφάνιση στη γραμμή καρτελών"
+"Has Data" = "Έχει δεδομένα"
 "Octave Up" = "Οκτάβα Πάνω"
 "Octave Down" = "Οκτάβα Κάτω"
 "Move Lyrics Forward" = "Μετακίνηση Στίχων προς τα Εμπρός"
@@ -531,6 +534,7 @@
 "Only some of the selected items have this tag. Pick it from + to add it to all of them." = "Μόνο ορισμένα από τα επιλεγμένα στοιχεία έχουν αυτήν την ετικέτα. Επιλέξτε την από το + για να την προσθέσετε σε όλα."
 
 [PropertyObjectController]
+"(Timeline canvases are not supported here)" = "(Οι καμβάδες χρονογραμμής δεν υποστηρίζονται εδώ)"
 "Reset to Default" = "Επαναφορά στις προεπιλογές"
 "{0} items" = "{0} στοιχεία"
 "On" = "Ενεργό"

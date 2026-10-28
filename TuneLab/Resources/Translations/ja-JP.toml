@@ -333,6 +333,9 @@
 "Clear Locked Phonemes" = "音素のロックを解除"
 "Edit in Parameter Panel" = "パラメータパネルで編集"
 "Remove from Parameter Panel" = "パラメータパネルから削除"
+"Hide from Tab Bar" = "タブバーから隠す"
+"Show in Tab Bar" = "タブバーに表示"
+"Has Data" = "データあり"
 "Octave Up" = "一オクターブ上げる"
 "Octave Down" = "一オクターブ下げる"
 "Move Lyrics Forward" = "歌詞を前に移動"
@@ -531,6 +534,7 @@
 "Only some of the selected items have this tag. Pick it from + to add it to all of them." = "選択中の一部の項目だけがこのタグを持っています。+ から選ぶとすべてに追加されます。"
 
 [PropertyObjectController]
+"(Timeline canvases are not supported here)" = "（ここではタイムラインキャンバスは使えません）"
 "Reset to Default" = "デフォルトに戻す"
 "{0} items" = "{0} 項目"
 "On" = "オン"

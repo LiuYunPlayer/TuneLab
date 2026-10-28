@@ -279,7 +279,8 @@ internal sealed class DropDownMenu : Panel
     }
 
     // 分隔线：无标签 = 纯线；有标签 = 左线 + 居中文字 + 右线。不可交互、不计入选中。
-    static Control BuildSeparator(string label)
+    // 右键菜单的带组名分隔线（MenuSeparators.Labeled）也用它，两种菜单的分组观感一致。
+    internal static Control BuildSeparator(string label)
     {
         var line = () => new Border() { Height = 1, Background = Style.LIGHT_WHITE.Opacity(0.15).ToBrush(), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
         if (string.IsNullOrEmpty(label))

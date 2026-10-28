@@ -46,6 +46,9 @@ internal interface IMidiPart : IPart, IDataObject<MidiPartInfo>
     //（或不是有界数值）返回 false = 这一段不画、不可写。形状不带轨色。
     bool TryGetNoteLaneShape(INote note, string id, out LaneEntry shape);
     bool TryGetPhonemeLaneShape(INote note, int index, string id, out LaneEntry shape);
+    // lane（路径，见 LanePath）在这个 note（的第 index 个显示音素）的声明里指到的字段与读写它要走的路；没声明返回 null。
+    LanePath.Resolved? ResolveNoteLane(INote note, string path);
+    LanePath.Resolved? ResolvePhonemeLane(INote note, int index, string path);
     // 钉选变更后由动作方调用：重算两 scope 的 lane 集合，实变则经 AutomationConfigsModified 通知 UI。
     void RefreshPinnedLaneConfigs();
     // 当前声明面里【可钉选】的属性（有 lane 资格的 note / phoneme 属性）：钉选的外部面要报出"此刻能钉什么"，

@@ -333,6 +333,9 @@
 "Clear Locked Phonemes" = "Kilitli Fonemleri Temizle"
 "Edit in Parameter Panel" = "Parametre Panelinde Düzenle"
 "Remove from Parameter Panel" = "Parametre Panelinden Kaldır"
+"Hide from Tab Bar" = "Sekme çubuğundan gizle"
+"Show in Tab Bar" = "Sekme çubuğunda göster"
+"Has Data" = "Veri var"
 "Octave Up" = "Bir Oktav Yükselt"
 "Octave Down" = "Bir Oktav Düşür"
 "Move Lyrics Forward" = "Şarkı Sözlerini İleri Taşı"
@@ -531,6 +534,7 @@
 "Only some of the selected items have this tag. Pick it from + to add it to all of them." = "Seçili öğelerin yalnızca bazılarında bu etiket var. Hepsine eklemek için + menüsünden seçin."
 
 [PropertyObjectController]
+"(Timeline canvases are not supported here)" = "(Zaman çizelgesi tuvalleri burada desteklenmez)"
 "Reset to Default" = "Varsayılana sıfırla"
 "{0} items" = "{0} öğe"
 "On" = "Açık"

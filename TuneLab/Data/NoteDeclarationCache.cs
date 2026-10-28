@@ -24,33 +24,45 @@ internal sealed class NoteDeclarationCache(MidiPart part)
         return entry.Phonemes ??= part.SoundSource.GetPhonemePropertyConfigs(Context(note));
     }
 
-    // 这个 note 的声明里 id 字段的 lane 形状；字段不在或不是有界数值返回 false（该 note 在这条 lane 上没有段）。
-    // Color 留空：轨色跟钉选走，由调用方从 lane 条目取。
-    public bool TryGetNoteLaneShape(INote note, string id, out LaneEntry shape)
+    // 这个 note 的声明里 lane（路径，见 LanePath）指到的字段：路径对不上（这个 note 没声明它）返回 null。
+    public LanePath.Resolved? ResolveNoteLane(INote note, string path)
     {
         var entry = EntryOf(note);
-        if (!entry.NoteShapes.TryGetValue(id, out var cached))
+        if (!entry.NoteLanes.TryGetValue(path, out var resolved))
         {
-            cached = NoteConfig(note).Properties.TryGetValue(id, out var config) && LaneEntry.TryGetBoundedNumber(config, out var s) ? s : null;
-            entry.NoteShapes[id] = cached;
+            resolved = LanePath.Resolve(NoteConfig(note), path);
+            entry.NoteLanes[path] = resolved;
         }
-        shape = cached.GetValueOrDefault();
-        return cached.HasValue;
+        return resolved;
     }
 
-    // 第 index 个显示音素（引导 ++ 主体）的 lane 形状：按 slot（位置 − 引导个数，口径见 SDK PhonemeSlots）查这个 note 的音素声明。
-    public bool TryGetPhonemeLaneShape(INote note, int index, string id, out LaneEntry shape)
+    // 第 index 个显示音素（引导 ++ 主体）上 lane 指到的字段：按 slot（位置 − 引导个数，口径见 SDK PhonemeSlots）查这个 note 的音素声明。
+    public LanePath.Resolved? ResolvePhonemeLane(INote note, int index, string path)
     {
         var entry = EntryOf(note);
         int slot = index - note.PhonemeLeadCount();
-        if (!entry.PhonemeShapes.TryGetValue((slot, id), out var cached))
+        if (!entry.PhonemeLanes.TryGetValue((slot, path), out var resolved))
         {
-            cached = PhonemeConfigs(note).GetValue(slot, out bool found) is { } slotConfig && found
-                && slotConfig.Properties.TryGetValue(id, out var config) && LaneEntry.TryGetBoundedNumber(config, out var s) ? s : null;
-            entry.PhonemeShapes[(slot, id)] = cached;
+            resolved = PhonemeConfigs(note).GetValue(slot, out bool found) is { } slotConfig && found ? LanePath.Resolve(slotConfig, path) : null;
+            entry.PhonemeLanes[(slot, path)] = resolved;
         }
-        shape = cached.GetValueOrDefault();
-        return cached.HasValue;
+        return resolved;
+    }
+
+    // 这个 note 在 lane 上的数值形状；字段不在或不是有界数值返回 false（该 note 在这条 lane 上没有段）。
+    // Color 留空：轨色跟钉选走，由调用方从 lane 条目取。
+    public bool TryGetNoteLaneShape(INote note, string path, out LaneEntry shape)
+        => TryGetShape(ResolveNoteLane(note, path), out shape);
+
+    public bool TryGetPhonemeLaneShape(INote note, int index, string path, out LaneEntry shape)
+        => TryGetShape(ResolvePhonemeLane(note, index, path), out shape);
+
+    static bool TryGetShape(LanePath.Resolved? resolved, out LaneEntry shape)
+    {
+        if (resolved != null && LaneEntry.TryGetBoundedNumber(resolved.Leaf, out shape))
+            return true;
+        shape = default;
+        return false;
     }
 
     public void Invalidate()
@@ -65,7 +77,7 @@ internal sealed class NoteDeclarationCache(MidiPart part)
         foreach (var entry in mEntries.Values)
         {
             entry.Phonemes = null;
-            entry.PhonemeShapes.Clear();
+            entry.PhonemeLanes.Clear();
         }
     }
 
@@ -87,8 +99,8 @@ internal sealed class NoteDeclarationCache(MidiPart part)
     {
         public ObjectConfig? Note;
         public IReadOnlyMap<int, ObjectConfig>? Phonemes;
-        public readonly Dictionary<string, LaneEntry?> NoteShapes = new();
-        public readonly Dictionary<(int Slot, string Id), LaneEntry?> PhonemeShapes = new();
+        public readonly Dictionary<string, LanePath.Resolved?> NoteLanes = new();
+        public readonly Dictionary<(int Slot, string Path), LanePath.Resolved?> PhonemeLanes = new();
     }
 
     readonly Dictionary<INote, Entry> mEntries = new();

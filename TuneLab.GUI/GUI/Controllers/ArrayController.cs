@@ -29,6 +29,10 @@ internal abstract class ArrayControllerBase : StackPanel, IElementRowHost
     // 未设（独立使用）时元素里的按钮各自成树。
     internal ButtonRoot? ButtonRoot { get; set; }
     internal string ButtonPath { get; set; } = string.Empty;
+    // 本数组在声明树里的位置（见 FieldPath）：元素按它当前的下标往下接。
+    internal FieldPath FieldPath { get; set; } = FieldPath.Root(null);
+    // 折叠记忆的作用域（见 PropertyObjectController.CollapseScope）：元素里的字段按 "作用域/下标" 继续往下记。null = 不可折叠。
+    internal string? CollapseScope { get; set; }
 
     protected ArrayControllerBase()
     {
@@ -150,7 +154,9 @@ internal abstract class ArrayControllerBase : StackPanel, IElementRowHost
             }
             else
             {
-                row = new ElementRow(host, key, cfg, onDelete, Deletable ? this : null, ButtonRoot, ButtonPath + "/" + key);
+                // 折叠键取建行时的下标：列表调序后行被复用、键不跟着改，记住的收起状态到下次重建才按新位置对上（折叠只是界面便利）。
+                row = new ElementRow(host, key, cfg, onDelete, Deletable ? this : null, ButtonRoot, ButtonPath + "/" + key, FieldPath,
+                    CollapseScope == null ? null : CollapseScope + "/" + i.ToString(System.Globalization.CultureInfo.InvariantCulture));
                 structureChanged = true; // 新建（含同 key 换类型 / seed 位物化为真实位）
             }
             row.SetPosition(i);   // 序号 = 元素位置 + 1，增删/重排后随位置刷新
@@ -615,8 +621,8 @@ internal sealed class ListController : ArrayControllerBase
 // 选中态同轨道头：整行底色提亮 + 右缘 3px 强调条（叠在上层、不占布局，选中与否不抖动）。
 sealed class ElementRow : IDisposable
 {
-    // 嵌套面板类元素左侧保留的留白：让元素里再嵌的对象，其折叠三角与引导线仍露在序号条右侧。
-    const double NestedLeftGutter = 8;
+    // 嵌套面板类元素左侧保留的留白：元素里字段的折叠三角与引导线露在序号条右侧，三角离序号条的距离同顶层字段离面板左沿。
+    const double NestedLeftGutter = 16;
 
     public Control Root => mRoot;
     public Type ConfigType => mWidget.ConfigType;
@@ -627,11 +633,13 @@ sealed class ElementRow : IDisposable
     // 数据位置（0 起）：序号 = Position + 1；删除 / 拖拽松手时按它告诉数组动哪个。
     public int Position { get; private set; }
 
-    public ElementRow(IDataPropertyObject host, string bindKey, IControllerConfig config, Action? onDelete, IElementRowHost? rowHost, ButtonRoot? buttonRoot, string buttonPath)
+    public ElementRow(IDataPropertyObject host, string bindKey, IControllerConfig config, Action? onDelete, IElementRowHost? rowHost, ButtonRoot? buttonRoot, string buttonPath, FieldPath arrayPath, string? foldScope)
     {
         Key = bindKey;
         // host = 现存位的数组外观（bindKey = token）或越界位的 SeedPositionView（bindKey 仅作行身份、视图按 position 寻址）。
-        mWidget = ElementWidget.Create(host, bindKey, config, buttonRoot, buttonPath);
+        // 元素在声明树里的路径按它当前的下标现算（增删、调序后跟着变）。
+        mWidget = ElementWidget.Create(host, bindKey, config, buttonRoot, buttonPath,
+            arrayPath.Child(() => Position.ToString(System.Globalization.CultureInfo.InvariantCulture)), foldScope);
 
         mIndexText = new TextBlock
         {
@@ -645,8 +653,8 @@ sealed class ElementRow : IDisposable
         if (rowHost != null)
             AttachHandle(index, rowHost);
         // 嵌套面板类元素（对象 / 变长键控）里的字段自带左右 Gutter（那是顶层的版心边距），层层叠加就缩进过多：右侧整个
-        // 抵消，内容与标量元素一样贴着行的右沿；左侧抵消到只剩 NestedLeftGutter——元素里的叶子字段不折叠（嵌套面板没有
-        // 折叠作用域），留白本是空的，但元素里再嵌的对象仍把折叠三角与引导线画在这条留白里，留一点让它们露出来。
+        // 抵消，内容与标量元素一样贴着行的右沿；左侧抵消到只剩 NestedLeftGutter——元素里的字段同样可折叠，折叠三角与
+        // 引导线画在这条留白里，留一点让它们露出来。
         // 左侧因此伸进序号条底下一截：序号条叠在上面（ZIndex），拖动 / 选中照常。伸出去的部分不挡删除钮（它在 Popup 里）。
         mWidget.View.Margin = mWidget.CarriesGutter
             ? new(8 - (ArrayControlsFactory.Gutter - NestedLeftGutter), 6, -ArrayControlsFactory.Gutter, 6)
@@ -915,18 +923,21 @@ internal abstract class ElementWidget : IDisposable
 
     // buttonRoot / buttonPath：本元素在按钮作用域里的位置（见 ButtonRoot），复合元素据此把作用域传给内层控制器。
     // ButtonConfig 直接当元素（或可加键模板）不支持——那些位置每一格都是一个值，按钮没有值可占——落到 UnknownElement。
+    // path：本元素在声明树里的位置（见 FieldPath），复合元素据此把逐字段钩子传给内层控制器。
+    // foldScope：本元素的折叠作用域（见 PropertyObjectController.CollapseScope），复合元素交给内层控制器；null = 里面的字段不可折叠。
     public static ElementWidget Create(IDataPropertyObject dataObject, string token, IControllerConfig config,
-        ButtonRoot? buttonRoot = null, string buttonPath = "") => config switch
+        ButtonRoot? buttonRoot = null, string buttonPath = "", FieldPath? path = null, string? foldScope = null) => config switch
     {
         SliderConfig c => new SliderElement(dataObject, token, c),
         TextBoxConfig c => new TextElement(dataObject, token, c),
         PathPickerConfig c => new PathElement(dataObject, token, c),
         ComboBoxConfig c => new ComboElement(dataObject, token, c),
         CheckBoxConfig c => new CheckElement(dataObject, token, c),
-        ObjectConfig c => new ObjectElement(dataObject, token, c, buttonRoot, buttonPath),
-        ArrayConfig c => new NestedArrayElement(dataObject, token, c, buttonRoot, buttonPath),
-        ListConfig c => new NestedListElement(dataObject, token, c, buttonRoot, buttonPath),
-        ExtensibleObjectConfig c => new NestedExtensibleObjectElement(dataObject, token, c, buttonRoot, buttonPath),
+        ObjectConfig c => new ObjectElement(dataObject, token, c, buttonRoot, buttonPath, path ?? FieldPath.Root(null), foldScope),
+        ArrayConfig c => new NestedArrayElement(dataObject, token, c, buttonRoot, buttonPath, path ?? FieldPath.Root(null), foldScope),
+        ListConfig c => new NestedListElement(dataObject, token, c, buttonRoot, buttonPath, path ?? FieldPath.Root(null), foldScope),
+        ExtensibleObjectConfig c => new NestedExtensibleObjectElement(dataObject, token, c, buttonRoot, buttonPath, path ?? FieldPath.Root(null), foldScope),
+        TimelineCanvasConfig c => new TimelineCanvasElement(dataObject, token, c, path ?? FieldPath.Root(null)),
         _ => new UnknownElement(config),
     };
 
@@ -1099,9 +1110,9 @@ internal abstract class ElementWidget : IDisposable
     // 对象元素：嵌 PropertyObjectController 渲染该元素子字段（带各自 key 标签），导航进 dataObject.Object(token)。
     sealed class ObjectElement : ElementWidget
     {
-        public ObjectElement(IDataPropertyObject dataObject, string token, ObjectConfig config, ButtonRoot? buttonRoot, string buttonPath)
+        public ObjectElement(IDataPropertyObject dataObject, string token, ObjectConfig config, ButtonRoot? buttonRoot, string buttonPath, FieldPath path, string? foldScope)
         {
-            mController = new PropertyObjectController();
+            mController = new PropertyObjectController() { FieldPath = path, CollapseScope = foldScope };
             if (buttonRoot != null)
                 mController.AttachButtonRoot(buttonRoot, buttonPath);
             mController.SetConfig(config, dataObject.Object(token));
@@ -1123,10 +1134,12 @@ internal abstract class ElementWidget : IDisposable
     // 数组套数组元素：嵌 ArrayController/ListController，导航进 dataObject.Array(token)。
     sealed class NestedArrayElement : ElementWidget
     {
-        public NestedArrayElement(IDataPropertyObject dataObject, string token, ArrayConfig config, ButtonRoot? buttonRoot, string buttonPath)
+        public NestedArrayElement(IDataPropertyObject dataObject, string token, ArrayConfig config, ButtonRoot? buttonRoot, string buttonPath, FieldPath path, string? foldScope)
         {
             mController.ButtonRoot = buttonRoot;
             mController.ButtonPath = buttonPath;
+            mController.FieldPath = path;
+            mController.CollapseScope = foldScope;
             mController.Bind(dataObject.Array(token));
             mController.Apply(config);
         }
@@ -1145,10 +1158,12 @@ internal abstract class ElementWidget : IDisposable
 
     sealed class NestedListElement : ElementWidget
     {
-        public NestedListElement(IDataPropertyObject dataObject, string token, ListConfig config, ButtonRoot? buttonRoot, string buttonPath)
+        public NestedListElement(IDataPropertyObject dataObject, string token, ListConfig config, ButtonRoot? buttonRoot, string buttonPath, FieldPath path, string? foldScope)
         {
             mController.ButtonRoot = buttonRoot;
             mController.ButtonPath = buttonPath;
+            mController.FieldPath = path;
+            mController.CollapseScope = foldScope;
             mController.Bind(dataObject.Array(token));
             mController.Apply(config);
         }
@@ -1165,13 +1180,39 @@ internal abstract class ElementWidget : IDisposable
         readonly ListController mController = new();
     }
 
+    // 时间轴画布元素：编辑界面在参数面板里，这里只有一行摘要 + 编辑按钮（同对象字段里的 TimelineCanvasCreator，只是没有标题——
+    // 元素行左侧的序号就是它的位置）。
+    sealed class TimelineCanvasElement : ElementWidget
+    {
+        public TimelineCanvasElement(IDataPropertyObject dataObject, string token, TimelineCanvasConfig config, FieldPath path)
+        {
+            mRow = new TimelineCanvasRow(null, () => dataObject.GetRawValue(token), path.Hooks, path.Prefix);
+            mRow.Apply(config);
+            dataObject.Modified.Subscribe(mRow.RefreshSummary, mSubscriptions);
+        }
+
+        public override Control View => mRow.View;
+        public override Type ConfigType => typeof(TimelineCanvasConfig);
+        public override void Update(IControllerConfig config) => mRow.Apply((TimelineCanvasConfig)config);
+        public override void Dispose()
+        {
+            base.Dispose();
+            mSubscriptions.DisposeAll();
+        }
+
+        readonly TimelineCanvasRow mRow;
+        readonly DisposableManager mSubscriptions = new();
+    }
+
     // 数组套变长键控对象元素：嵌 ExtensibleObjectController，导航进 dataObject.Object(token)。
     sealed class NestedExtensibleObjectElement : ElementWidget
     {
-        public NestedExtensibleObjectElement(IDataPropertyObject dataObject, string token, ExtensibleObjectConfig config, ButtonRoot? buttonRoot, string buttonPath)
+        public NestedExtensibleObjectElement(IDataPropertyObject dataObject, string token, ExtensibleObjectConfig config, ButtonRoot? buttonRoot, string buttonPath, FieldPath path, string? foldScope)
         {
             mController.ButtonRoot = buttonRoot;
             mController.ButtonPath = buttonPath;
+            mController.FieldPath = path;
+            mController.CollapseScope = foldScope;
             mController.Bind(dataObject.Object(token));
             mController.Apply(config);
         }

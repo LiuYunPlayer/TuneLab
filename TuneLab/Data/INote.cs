@@ -124,8 +124,8 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
     //   · SynthesizedSyllable == null → 引擎根本没提这个 note = 该块脏 / 合成中，答案还没到。
     // 前两态都让邻居的布局边界确定、可以照铺；只有第三态是真正的"未决"，才该让邻居一并留白等数据。
     // 用"有没有几何"（HasPhonemeContent）当门控判据会把"明确无音素"误当"还没合成"，让一个空 note
-    // 连累相邻 note 一起留白。
-    private static bool HasPhonemeAnswer(INote x)
+    // 连累相邻 note 一起留白。参数面板也拿它判"这个 note 的音素声明是暂时问不到，还是问到了"（见 MidiPart.KeepSeenTimelineLanes）。
+    internal static bool HasPhonemeAnswer(INote x)
     {
         return x.HasPinnedPhonemes || x.SynthesizedSyllable != null;
     }

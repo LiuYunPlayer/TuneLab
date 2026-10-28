@@ -333,6 +333,9 @@
 "Clear Locked Phonemes" = "음소 잠금 해제"
 "Edit in Parameter Panel" = "파라미터 패널에서 편집"
 "Remove from Parameter Panel" = "파라미터 패널에서 제거"
+"Hide from Tab Bar" = "탭 바에서 숨기기"
+"Show in Tab Bar" = "탭 바에 표시"
+"Has Data" = "데이터 있음"
 "Octave Up" = "한 옥타브 올리기"
 "Octave Down" = "한 옥타브 내리기"
 "Move Lyrics Forward" = "가사를 앞으로 이동"
@@ -531,6 +534,7 @@
 "Only some of the selected items have this tag. Pick it from + to add it to all of them." = "선택한 항목 중 일부만 이 태그를 가지고 있습니다. +에서 선택하면 모두에 추가됩니다."
 
 [PropertyObjectController]
+"(Timeline canvases are not supported here)" = "(여기서는 타임라인 캔버스를 지원하지 않습니다)"
 "Reset to Default" = "기본값으로 초기화"
 "{0} items" = "{0}개 항목"
 "On" = "켬"
