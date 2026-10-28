@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using TuneLab.Data.Synthesis;
+using TuneLab.Configs;
 using TuneLab.Foundation;
 using TuneLab.SDK;
 using TuneLab.Extensions.Effect;
@@ -29,13 +30,14 @@ internal class Effect : DataObject, IEffect
     // 无缓存/无失效时序问题。配置很小、读取不在热路径，开销可忽略。
     // 轨从集合消失不裁剪 mAutomations 的曲线数据——保留隐藏、轨复现即原样恢复。
     // 连续轨与分段轨同在此 map（kind 由 AutomationConfig.IsPiecewise 现解析）；live 求值、随当前参数涌现，孤儿数据保留隐藏。
+    // 插件没指定颜色的轨由宿主分配，避开所在 part 声源轨的颜色（同一条标签栏上）。
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> AutomationConfigs
-        => Engine?.GetAutomationConfigs(new EffectPropertyContext(this)) ?? EmptyAutomationConfigs;
+        => AssignColors(Engine?.GetAutomationConfigs(new EffectPropertyContext(this)) ?? EmptyAutomationConfigs, mPart);
 
     // 回显轨声明随当前参数值涌现（live、纯函数 of 当前值），镜像 AutomationConfigs；引擎缺失时为空集合。
     // 曲线数据不在数据层，由合成管线聚合各段 processor 的回显按同一批 key 承载。
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> SynthesizedParameterConfigs
-        => Engine?.GetSynthesizedParameterConfigs(new EffectPropertyContext(this)) ?? EmptyAutomationConfigs;
+        => TrackColors.AssignSynthesized(Engine?.GetSynthesizedParameterConfigs(new EffectPropertyContext(this)) ?? EmptyAutomationConfigs, AutomationConfigs);
 
     public Effect(MidiPart part, EffectInfo info)
     {
@@ -139,8 +141,16 @@ internal class Effect : DataObject, IEffect
 
     public static IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IReadOnlyList<IEffect> slot)
         => slot.Count > 0
-            ? ((Effect)slot[0]).Engine?.GetAutomationConfigs(new EffectPropertyContext(slot)) ?? EmptyAutomationConfigs
+            ? AssignColors(((Effect)slot[0]).Engine?.GetAutomationConfigs(new EffectPropertyContext(slot)) ?? EmptyAutomationConfigs, ((Effect)slot[0]).mPart)
             : EmptyAutomationConfigs;
+
+    static IReadOnlyOrderedMap<PropertyKey, AutomationConfig> AssignColors(IReadOnlyOrderedMap<PropertyKey, AutomationConfig> configs, MidiPart part)
+    {
+        var occupied = new List<string> { ConstantDefine.PitchColor };
+        foreach (var kvp in part.SoundSource.AutomationConfigs)
+            occupied.Add(kvp.Value.Color);
+        return TrackColors.Assign(configs, occupied);
+    }
 
     // 条件面板求值上下文（多选壳）：数据层自身求值恒单选——本 effect 一个视图；
     // 多选 part 的合并面板由 UI 层用各 part 对应槽位的实例构造多元素上下文（见上方静态求值口）。

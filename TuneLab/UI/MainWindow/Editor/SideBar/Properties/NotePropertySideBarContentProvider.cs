@@ -1,4 +1,4 @@
-using Avalonia.Controls;
+﻿using Avalonia.Controls;
 using Avalonia.Layout;
 using System;
 using System.Collections.Generic;
@@ -134,7 +134,27 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
     {
         if (mPart == null || mNoteData == null)
             return;
-        mNotePropertiesController.Reconcile(mPart.SoundSource.GetNotePropertyConfig(BuildNoteContext()));
+        mNotePropertiesController.Reconcile(SelectedNoteConfig());
+    }
+
+    // 单选的声明就是这个 note 的单 note 声明，与参数栏 lane 同一份、走 part 的缓存（context 完全相同，结果一样）；
+    // 多选是插件合并多个值的地方，照旧现场问。
+    ObjectConfig SelectedNoteConfig()
+        => SingleSelectedNote() is { } note ? mPart!.GetNotePropertyConfig(note) : mPart!.SoundSource.GetNotePropertyConfig(BuildNoteContext());
+
+    IReadOnlyMap<int, ObjectConfig> SelectedPhonemeConfigs()
+        => SingleSelectedNote() is { } note ? mPart!.GetPhonemePropertyConfigs(note) : mPart!.SoundSource.GetPhonemePropertyConfigs(BuildNoteContext());
+
+    INote? SingleSelectedNote()
+    {
+        INote? single = null;
+        foreach (var note in mPart!.Notes.AllSelectedItems())
+        {
+            if (single != null)
+                return null;
+            single = note;
+        }
+        return single;
     }
 
     // 声明面活视图壳（引擎无关、调用级）：note 面板 → 单个所属 part + 各选中 note 列表
@@ -213,16 +233,12 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
 
         return string.Join(";", mPart.Notes.AllSelectedItems().Select(note =>
         {
-            int lead = PhonemeLeadCount(note);
+            int lead = note.PhonemeLeadCount();
             if (note.HasPinnedPhonemes)
                 return "P" + string.Join("|", note.Phonemes.Select((p, i) => p.Symbol.Value + (i < lead ? "<" : ">")));
             return "S" + (note.SynthesizedSyllable is { } s ? string.Join("|", s.AllPhonemes().Select((p, i) => p.Symbol + (i < lead ? "<" : ">"))) : "");
         }));
     }
-
-    // 一个 note 的引导音素个数 = 引导列表长度（结构化、稳定、不由几何派生）。
-    static int PhonemeLeadCount(INote note)
-        => note.HasPinnedPhonemes ? note.LeadingPhonemes.Count : (note.SynthesizedSyllable?.LeadingPhonemes.Count ?? 0);
 
     // 把 note 属性面板绑定到当前选中 note 集合（多选合一）。无选中则盖遮罩。
     // 值的下发/写回/撤销刷新由逐字段绑定承担，选中变化时整体重绑（数据对象变 → SetConfig 重建）。
@@ -249,7 +265,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         mNotePropertiesController.ButtonScope = "note/" + mPart.RuntimeId + "/" + string.Join(",", mPart.Notes.AllSelectedItems().Select(note => note.RuntimeId));
         // 折叠记忆按「音符面板 + 声源引擎」记：同一引擎的音符字段，收起一次处处收起（见 FieldFolds）。
         mNotePropertiesController.CollapseScope = "note:" + mPart.SoundSource.Kind + ":" + mPart.SoundSource.Type;
-        mNotePropertiesController.SetConfig(mPart.SoundSource.GetNotePropertyConfig(BuildNoteContext()), mNoteData);
+        mNotePropertiesController.SetConfig(SelectedNoteConfig(), mNoteData);
         mNoteContentMask.IsVisible = dataObjects.Count == 0;
         mNoteData.Modified.Subscribe(mNoteScheduler.InvalidateValues, mNoteSub);
     }
@@ -274,13 +290,13 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
 
         // 音素属性 schema：引擎按核相对 slot 键控授出（键 = 位置 − leadCount，口径见 SDK PhonemeSlots）。
         // 多选合并归引擎（同 GetNotePropertyConfig 契约）——宿主不再拆分 / 挑代表 config，只按 slot 点查 + 并值。
-        var slotConfigs = mPart.SoundSource.GetPhonemePropertyConfigs(BuildNoteContext());
+        var slotConfigs = SelectedPhonemeConfigs();
         var perNote = new List<PhonemeNoteInfo>();
         foreach (var note in mPart.Notes.AllSelectedItems())
         {
             bool pinned = note.HasPinnedPhonemes;
             int count = pinned ? note.PhonemeCount : note.SynthesizedSyllable.PhonemeCount();
-            int leadCount = PhonemeLeadCount(note);   // 核位置：引导音素个数（结构化列表长度）
+            int leadCount = note.PhonemeLeadCount();   // 核位置：引导音素个数（结构化列表长度）
             perNote.Add(new PhonemeNoteInfo(note, pinned, count, leadCount));
             // 钉死/清除音素结构变化 → 重建（即便当前无行也订阅，使后续钉死/清除刷新面板）。两列表各订一次。
             note.LeadingPhonemes.MembershipModified.Subscribe(mPhonemeScheduler.InvalidateStructure, mPhonemeSub);

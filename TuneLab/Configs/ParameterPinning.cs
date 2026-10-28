@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
@@ -17,7 +17,7 @@ internal enum ParameterPinKind
     PhonemeProperty,
 }
 
-// 参数面板钉选存储 + 轨色分配：只管"用户往参数面板钉了什么、什么颜色"（呈现快照/值形态判别在 TuneLab.Data.LaneEntry）。
+// 参数面板钉选存储 + 轨色记录：只管"用户往参数面板钉了什么、什么颜色"（颜色在钉选时经 TrackColors 分配）（呈现快照/值形态判别在 TuneLab.Data.LaneEntry）。
 // 【为何是用户偏好而非插件声明】"哪个属性值得占参数面板"是工作流偏好、不是插件语义：SDK 声明面零变动，
 //   所有现有 voice/instrument 插件即刻可用。
 // 【存法】不是用户可调项，不进 Settings（Settings 仅承用户可调项）；也非窗口布局，不进 EditorState——
@@ -83,7 +83,7 @@ internal static class ParameterPinning
             foreach (var color in GetPinned(source, existing).Values)
                 occupied.Add(color);
         }
-        mLanes[LaneKey(source, kind, id)] = PickColor(occupied);
+        mLanes[LaneKey(source, kind, id)] = TrackColors.Pick(occupied);
         Save();
     }
 
@@ -126,81 +126,6 @@ internal static class ParameterPinning
     static string LaneKey(ISoundSource source, ParameterPinKind kind, string id)
         => (source.Kind == SourceKind.Voice ? "voice:" : "instrument:") + source.Type
             + (kind == ParameterPinKind.NoteProperty ? ":note-property:" : ":phoneme-property:") + id;
-
-    // 从固定调色板挑与已占用色相距离最远的色（灰/近灰的占用色无稳定色相，忽略）。全占满后仍取距离最大者（可重复）。
-    static string PickColor(IReadOnlyList<string> occupiedColors)
-    {
-        var occupiedHues = new List<double>();
-        foreach (var color in occupiedColors)
-        {
-            if (TryGetHue(color, out var hue))
-                occupiedHues.Add(hue);
-        }
-
-        string best = Palette[0];
-        double bestDistance = -1;
-        foreach (var candidate in Palette)
-        {
-            TryGetHue(candidate, out var hue);   // 调色板恒高饱和，必有色相
-            double distance = double.MaxValue;
-            foreach (var occupied in occupiedHues)
-            {
-                double d = Math.Abs(hue - occupied);
-                distance = Math.Min(distance, Math.Min(d, 360 - d));
-            }
-            if (distance > bestDistance)
-            {
-                bestDistance = distance;
-                best = candidate;
-            }
-        }
-        return best;
-    }
-
-    // "#RRGGBB" → HSV 色相（度）。解析失败或饱和度过低（近灰、色相不稳定）返回 false。
-    static bool TryGetHue(string hex, out double hue)
-    {
-        hue = 0;
-        if (string.IsNullOrEmpty(hex))
-            return false;
-
-        var span = hex.AsSpan(hex[0] == '#' ? 1 : 0);
-        if (span.Length < 6
-            || !int.TryParse(span[..2], System.Globalization.NumberStyles.HexNumber, null, out int r)
-            || !int.TryParse(span[2..4], System.Globalization.NumberStyles.HexNumber, null, out int g)
-            || !int.TryParse(span[4..6], System.Globalization.NumberStyles.HexNumber, null, out int b))
-            return false;
-
-        int max = Math.Max(r, Math.Max(g, b));
-        int min = Math.Min(r, Math.Min(g, b));
-        int delta = max - min;
-        if (max == 0 || delta * 255 < max * 30)   // 饱和度 < ~0.12：近灰
-            return false;
-
-        double h;
-        if (max == r)
-            h = 60.0 * (g - b) / delta;
-        else if (max == g)
-            h = 60.0 * (b - r) / delta + 120;
-        else
-            h = 60.0 * (r - g) / delta + 240;
-        hue = (h + 360) % 360;
-        return true;
-    }
-
-    // 深底友好的高饱和候选色（色相尽量铺开）。
-    static readonly string[] Palette =
-    [
-        "#F1595B",   // 红
-        "#F5A623",   // 橙
-        "#F7DC5C",   // 黄
-        "#8AC926",   // 绿
-        "#2EC4B6",   // 青
-        "#4CC9F0",   // 天蓝
-        "#3A86FF",   // 蓝
-        "#9B5DE5",   // 紫
-        "#F15BB5",   // 品红
-    ];
 
     static Dictionary<string, string> mLanes = new();
     static string mPath = string.Empty;

@@ -263,6 +263,13 @@
 [Menu]
 "Full Screen" = "Tam ekran"
 "Toggle Parameter Panel" = "Parametre panelini göster/gizle"
+"Add Parameter Panel" = "Parametre paneli ekle"
+"Close Panel" = "Paneli kapat"
+"Hide Parameter Panel" = "Parametre panelini gizle"
+"Show Parameter Panel" = "Parametre panelini göster"
+"Collapse Panel" = "Paneli daralt"
+"Expand Panel" = "Paneli genişlet"
+"Focus Panel" = "Panele odaklan"
 "Select All" = "Tümünü Seç"
 "Note Tool" = "Nota Aracı"
 "Pitch Pen" = "Perde Kalemi"

@@ -101,6 +101,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 endTime: () => AudioEngine.EndTime,
                 currentToolActionId: () => ToolActionId(mPianoWindow.PianoTool.Value),
                 isParameterPanelVisible: () => mPianoWindow.IsParameterPanelVisible,
+                parameterPanels: () => mPianoWindow.ParameterPanelStatuses,
                 isWaveformVisible: () => mPianoWindow.IsWaveformVisible,
                 sidebarPanelActionIds: () => mRightSideTabBar.OpenTabs.Select(SidebarActionId).OfType<string>().ToList(),
                 focusedSurface: () => mTrackWindow.IsKeyboardFocusWithin ? "arrangement" : mPianoWindow.IsKeyboardFocusWithin ? "pianoRoll" : null,
@@ -934,7 +935,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         var file = new NativeProjectFile
         {
             Project = mDocument.Project.GetInfo(),
-            Editor = new EditorInfo { PlayheadPos = Playhead.Pos },
+            Editor = CaptureEditorInfo(),
             Export = mDocument.Project.GetExportConfig(),
         };
 
@@ -1022,6 +1023,8 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                     ]
                 }]
             }));
+            // 新工程用默认单面板（布局属于工程，不从上一个工程带过来）。
+            RestoreEditorInfo(new EditorInfo());
         });
     }
 
@@ -1069,7 +1072,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             var project = CreateProject(file.Project);
             project.SetExportConfig(file.Export);
             mDocument.SetProject(project, path);
-            Playhead.Pos = Math.Max(0, file.Editor.PlayheadPos);
+            RestoreEditorInfo(file.Editor);
         }
         catch (Exception ex)
         {
@@ -1079,6 +1082,20 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
         RecentFilesManager.AddFile(path);
         return null;
+    }
+
+    // 工程文件里的编辑器状态：播放头 + 参数面板布局。存档的几条路（保存、另存、自动保存、命令面导出）共用。
+    public EditorInfo CaptureEditorInfo()
+    {
+        var (panels, focused) = mPianoWindow.CaptureParameterLayout();
+        return new EditorInfo { PlayheadPos = Playhead.Pos, ParameterPanels = panels, FocusedParameterPanel = focused };
+    }
+
+    // 打开工程、崩溃恢复共用。没存布局（旧工程、.tlp）= 默认单面板。
+    public void RestoreEditorInfo(EditorInfo info)
+    {
+        Playhead.Pos = Math.Max(0, info.PlayheadPos);
+        mPianoWindow.RestoreParameterLayout(info.ParameterPanels, info.FocusedParameterPanel);
     }
 
     Project CreateProject(ProjectInfo info)
@@ -1197,7 +1214,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         var projectFile = new NativeProjectFile
         {
             Project = mDocument.Project.GetInfo(),
-            Editor = new EditorInfo { PlayheadPos = Playhead.Pos },
+            Editor = CaptureEditorInfo(),
             Export = mDocument.Project.GetExportConfig(),
         };
         if (!FormatsManager.SerializeNative(projectFile, extension, out var stream, out var error))
@@ -1225,7 +1242,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         var file = new NativeProjectFile
         {
             Project = mDocument.Project.GetInfo(),
-            Editor = new EditorInfo { PlayheadPos = Playhead.Pos },
+            Editor = CaptureEditorInfo(),
             Export = mDocument.Project.GetExportConfig(),
         };
         if (!FormatsManager.SerializeNative(file, ConstantDefine.DefaultProjectExtension, out var stream, out var error))
@@ -1961,6 +1978,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         public bool HasSaveTarget => editor.HasSaveTarget;
         public string? Open(string path) => editor.TryLoadProject(path);
         public string? Save(string? path) => editor.SaveFromCommand(path);
+        public EditorInfo CaptureEditorInfo() => editor.CaptureEditorInfo();
     }
 
     // 模态进度框那道口子（`project export-audio`）。**复用界面上那条导出用的同一个框**：

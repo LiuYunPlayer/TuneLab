@@ -263,6 +263,13 @@
 [Menu]
 "Full Screen" = "全螢幕"
 "Toggle Parameter Panel" = "顯示/隱藏參數面板"
+"Add Parameter Panel" = "新增參數面板"
+"Close Panel" = "關閉面板"
+"Hide Parameter Panel" = "隱藏參數面板"
+"Show Parameter Panel" = "顯示參數面板"
+"Collapse Panel" = "收合面板"
+"Expand Panel" = "展開面板"
+"Focus Panel" = "聚焦面板"
 "Select All" = "全選"
 "Note Tool" = "音符工具"
 "Pitch Pen" = "音高畫筆"

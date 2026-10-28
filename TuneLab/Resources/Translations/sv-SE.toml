@@ -263,6 +263,13 @@
 [Menu]
 "Full Screen" = "Helskärm"
 "Toggle Parameter Panel" = "Visa/dölj parameterpanelen"
+"Add Parameter Panel" = "Lägg till parameterpanel"
+"Close Panel" = "Stäng panel"
+"Hide Parameter Panel" = "Dölj parameterpanel"
+"Show Parameter Panel" = "Visa parameterpanel"
+"Collapse Panel" = "Fäll ihop panel"
+"Expand Panel" = "Fäll ut panel"
+"Focus Panel" = "Fokusera panel"
 "Select All" = "Markera alla"
 "Note Tool" = "Notverktyg"
 "Pitch Pen" = "Pitch-penna"

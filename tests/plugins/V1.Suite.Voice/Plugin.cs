@@ -59,8 +59,9 @@ public sealed class SuiteVoiceEngine : IVoiceSynthesisEngine, IExtensionSettings
 
         var selected = context.Parts.Select(p => p.PartProperties).Merge().GetValue("speakers", PropertyObject.Empty);
         var map = new OrderedMap<PropertyKey, AutomationConfig>();
+        // 混音轨不指定颜色：条数随所选 speaker 变，交给宿主按调色板分配、各条不撞色（演示 Color 默认 = 宿主分配）。
         foreach (var id in InCatalogOrder(selected, kSpeakers))
-            map.Add((id, SpeakerName(id)), AutomationConfig.Create(0, 100).WithColor("#73E5A5").WithDefault(0));
+            map.Add((id, SpeakerName(id)), AutomationConfig.Create(0, 100).WithDefault(0));
         // 音色 tag：每选一个派生一条强度曲线，**按 tag 的顺序**排——拖动调序后参数面板的曲线顺序随之变，
         // 用来观察 tag 组是有序的。
         foreach (var timbre in SelectedTimbres(context))

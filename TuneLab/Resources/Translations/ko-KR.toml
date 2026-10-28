@@ -263,6 +263,13 @@
 [Menu]
 "Full Screen" = "전체 화면"
 "Toggle Parameter Panel" = "매개변수 패널 표시/숨기기"
+"Add Parameter Panel" = "파라미터 패널 추가"
+"Close Panel" = "패널 닫기"
+"Hide Parameter Panel" = "파라미터 패널 숨기기"
+"Show Parameter Panel" = "파라미터 패널 표시"
+"Collapse Panel" = "패널 접기"
+"Expand Panel" = "패널 펼치기"
+"Focus Panel" = "패널 포커스"
 "Select All" = "모두 선택"
 "Note Tool" = "노트 툴"
 "Pitch Pen" = "피치 툴"

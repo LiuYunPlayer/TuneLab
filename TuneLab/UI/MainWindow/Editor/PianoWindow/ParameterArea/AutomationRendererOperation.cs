@@ -589,7 +589,7 @@ internal partial class AutomationRenderer
         return Part != null && key != null && Part.IsEffectivePhonemeLane(key.Value);
     }
 
-    // note lane 绘制：主键拖动把扫过的 note 的属性值写为鼠标处值（Ctrl = 锁定按下值，横扫即批量定值）。
+    // note lane 绘制：主键拖动把扫过的 note 的属性值写为鼠标处值（Ctrl = 锁定按下的高度，横扫即批量定值）。
     // 与连续轨 DrawOperation 同用「DiscardTo 重放」模式：每帧丢弃未提交命令、按各 note 最新目标值整批重写
     //（同一 note 只留最后一次赋值，命令数有界），抬起统一 Commit——整段拖动一个撤销步。
     // 值写 note.Properties（数据在 note 上、非时间曲线）；命中区间与渲染共用 NoteLaneRanges（去重叠口径）。
@@ -611,10 +611,9 @@ internal partial class AutomationRenderer
             State = State.NoteLaneDrawing;
             mPart = part;
             mId = key.Value.Id;
-            mEntry = part.GetNoteLaneEntry(key.Value);
             part.BeginMergeDirty();
             mHead = part.Head;
-            mDownValue = AutomationRenderer.YToValue(position.Y, mEntry.Scale);
+            mDownY = position.Y;
             mLastX = position.X;
             Apply(position, constantValue);
         }
@@ -636,12 +635,15 @@ internal partial class AutomationRenderer
             mPart.Commit();
             mPart = null;
             mValues.Clear();
+            mShapes.Clear();
             State = State.None;
         }
 
+        // 值按各 note 自己声明的量程从高度换算（与绘制同一口径：各段各按各的形状画）。定值绘制锁的是按下的高度——
+        // 量程不同的 note 上同一高度是各自量程里的同一位置。没声明这个字段的 note 不写。
         void Apply(Avalonia.Point position, bool constantValue)
         {
-            double value = constantValue ? mDownValue : AutomationRenderer.YToValue(position.Y, mEntry.Scale);
+            double y = constantValue ? mDownY : position.Y;
             double tick0 = AutomationRenderer.TickAxis.X2Tick(Math.Min(mLastX, position.X));
             double tick1 = AutomationRenderer.TickAxis.X2Tick(Math.Max(mLastX, position.X));
             mLastX = position.X;
@@ -654,7 +656,8 @@ internal partial class AutomationRenderer
                 if (startTick > tick1)
                     break;
 
-                mValues[note] = value;
+                if (ShapeOf(note) is { } shape)
+                    mValues[note] = AutomationRenderer.YToValue(y, shape.Scale);
             }
 
             mPart!.DiscardTo(mHead);
@@ -662,13 +665,24 @@ internal partial class AutomationRenderer
                 kvp.Key.Properties.SetValue(mId, PropertyValue.Create(kvp.Value));
         }
 
+        // 一次拖动内每个 note 的形状只取一次：写进去的值可能让插件改声明（条件字段），拖到一半量程跟着变会让值乱跳。
+        LaneEntry? ShapeOf(INote note)
+        {
+            if (!mShapes.TryGetValue(note, out var shape))
+            {
+                shape = mPart!.TryGetNoteLaneShape(note, mId, out var s) ? s : null;
+                mShapes.Add(note, shape);
+            }
+            return shape;
+        }
+
         IMidiPart? mPart;
         string mId = string.Empty;
-        LaneEntry mEntry;
-        double mDownValue;   // 定值绘制锁定的值（按下时捕获）
+        double mDownY;   // 定值绘制锁定的高度（按下时捕获）
         double mLastX;
         Head mHead;
         readonly Dictionary<INote, double> mValues = new();
+        readonly Dictionary<INote, LaneEntry?> mShapes = new();
     }
 
     readonly NoteLaneDrawOperation mNoteLaneDrawOperation;
@@ -734,7 +748,9 @@ internal partial class AutomationRenderer
                 if (startTick > mEnd)
                     break;
 
-                note.Properties.RemoveValue(mId);
+                // 没声明这个字段的 note 在 lane 上没有段，它存着的值（字段被条件藏起来时）不归这次清除管。
+                if (mPart.TryGetNoteLaneShape(note, mId, out _))
+                    note.Properties.RemoveValue(mId);
             }
         }
 
@@ -747,7 +763,7 @@ internal partial class AutomationRenderer
 
     readonly NoteLaneClearOperation mNoteLaneClearOperation;
 
-    // phoneme lane 绘制：主键拖动把扫过的显示音素属性值写为鼠标处值（Ctrl = 锁定按下值）。写回走音素编辑统一范式：
+    // phoneme lane 绘制：主键拖动把扫过的显示音素属性值写为鼠标处值（Ctrl = 锁定按下的高度）。写回走音素编辑统一范式：
     // 受影响 note 先 LockPhonemes（幂等，合成→钉死保几何）再写该位音素 Properties；DiscardTo 重放、抬起单 Commit。
     // 命中几何与渲染共用 note.DisplayPhonemes（绝对秒、去重叠），目标按 (note, index) 记账——重放把钉死撤回后
     // 再 lock 重建，索引仍对齐（钉死列表逐位拷贝自合成音素、几何不变）。
@@ -765,8 +781,7 @@ internal partial class AutomationRenderer
             if (part == null || key == null || !part.IsEffectivePhonemeLane(key.Value))
                 return;
 
-            mEntry = part.GetPhonemeLaneEntry(key.Value);
-            if (!mEntry.Resolved)
+            if (!part.GetPhonemeLaneEntry(key.Value).Resolved)
                 return;   // 未解析占位（合成音素未产出）：量程未知，不可编辑
 
             State = State.NoteLaneDrawing;
@@ -774,7 +789,7 @@ internal partial class AutomationRenderer
             mId = key.Value.Id;
             part.BeginMergeDirty();
             mHead = part.Head;
-            mDownValue = AutomationRenderer.YToValue(position.Y, mEntry.Scale);
+            mDownY = position.Y;
             mLastX = position.X;
             Apply(position, constantValue);
         }
@@ -796,12 +811,14 @@ internal partial class AutomationRenderer
             mPart.Commit();
             mPart = null;
             mTargets.Clear();
+            mShapes.Clear();
             State = State.None;
         }
 
+        // 值按该音素所在 note 对这一 slot 的声明换算（同 note lane）；没声明这个字段的音素不写。
         void Apply(Avalonia.Point position, bool constantValue)
         {
-            double value = constantValue ? mDownValue : AutomationRenderer.YToValue(position.Y, mEntry.Scale);
+            double y = constantValue ? mDownY : position.Y;
             var tempoManager = mPart!.TempoManager;
             double sec0 = tempoManager.GetTime(Math.Max(0, AutomationRenderer.TickAxis.X2Tick(Math.Min(mLastX, position.X))));
             double sec1 = tempoManager.GetTime(Math.Max(0, AutomationRenderer.TickAxis.X2Tick(Math.Max(mLastX, position.X))));
@@ -818,7 +835,8 @@ internal partial class AutomationRenderer
                     if (phonemes[i].EndTime <= sec0 || phonemes[i].StartTime > sec1)
                         continue;
 
-                    mTargets[(note, i)] = value;
+                    if (ShapeOf(note, i) is { } shape)
+                        mTargets[(note, i)] = AutomationRenderer.YToValue(y, shape.Scale);
                 }
             }
 
@@ -832,13 +850,24 @@ internal partial class AutomationRenderer
             }
         }
 
+        // 同 note lane：一次拖动内每个音素的形状只取一次。
+        LaneEntry? ShapeOf(INote note, int index)
+        {
+            if (!mShapes.TryGetValue((note, index), out var shape))
+            {
+                shape = mPart!.TryGetPhonemeLaneShape(note, index, mId, out var s) ? s : null;
+                mShapes.Add((note, index), shape);
+            }
+            return shape;
+        }
+
         IMidiPart? mPart;
         string mId = string.Empty;
-        LaneEntry mEntry;
-        double mDownValue;   // 定值绘制锁定的值（按下时捕获）
+        double mDownY;   // 定值绘制锁定的高度（按下时捕获）
         double mLastX;
         Head mHead;
         readonly Dictionary<(INote Note, int Index), double> mTargets = new();
+        readonly Dictionary<(INote Note, int Index), LaneEntry?> mShapes = new();
     }
 
     readonly PhonemeLaneDrawOperation mPhonemeLaneDrawOperation;
@@ -909,7 +938,7 @@ internal partial class AutomationRenderer
                     if (phonemes[i].EndTime <= mStart || phonemes[i].StartTime > mEnd)
                         continue;
 
-                    if (note.Phonemes[i].HasProperties)
+                    if (note.Phonemes[i].HasProperties && mPart.TryGetPhonemeLaneShape(note, i, mId, out _))
                         note.Phonemes[i].Properties.RemoveValue(mId);
                 }
             }

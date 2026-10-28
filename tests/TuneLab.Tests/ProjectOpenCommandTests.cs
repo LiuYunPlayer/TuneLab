@@ -36,6 +36,7 @@ public class ProjectOpenCommandTests
         // 换工程这条路上没有任何一步该去保存——真被调到就是接错了线，故这里炸而不是默默成功。
         public bool HasSaveTarget => Opened != null;
         public string? Save(string? path) => throw new NotSupportedException("project open must never save");
+        public TuneLab.Extensions.Formats.TLP.EditorInfo CaptureEditorInfo() => new();
 
         public string? Open(string path)
         {

@@ -38,6 +38,14 @@ internal static class EditorStatusText
                 ["label"] = ActionRegistry.LabelOf(status.CurrentToolActionId),
             },
             ["parameterPanelVisible"] = status.IsParameterPanelVisible,
+            // 自上而下；number 与 view.*ParameterPanel 动作的 panel 参数同一个序号。
+            ["parameterPanels"] = new JsonArray(status.ParameterPanels.Select((p, i) => (JsonNode)new JsonObject
+            {
+                ["number"] = i + 1,
+                ["parameter"] = p.ActiveParameter,
+                ["focused"] = p.IsFocused,
+                ["collapsed"] = p.IsCollapsed,
+            }).ToArray()),
             ["waveformVisible"] = status.IsWaveformVisible,
             // 侧栏：各面可并排共存，按打开顺序列出；每面同时给 id 与显示名（同 tool）——渲染可能发生在
             // 命令桥另一端，那里没有注册表可查。空数组 = 全关（不省成 null，理由同 blockingDialogs）。
@@ -119,6 +127,15 @@ internal static class EditorStatusText
         var tool = data["tool"]!.AsObject();
         sb.Append("\nTool: \"").Append(tool["label"]!.GetValue<string>()).Append("\" (").Append(tool["id"]!.GetValue<string>()).Append(')');
         sb.Append(". Parameter panel: ").Append(data["parameterPanelVisible"]!.GetValue<bool>() ? "open" : "closed");
+        // 各块一项：序号、激活参数，焦点 / 收起另注——底部标签栏作用于焦点那块，外部据此知道切参数会落在哪。
+        if (data["parameterPanels"] is JsonArray panels && panels.Count > 0)
+        {
+            sb.Append(" (").Append(string.Join(", ", panels.Select(p =>
+            {
+                var notes = new[] { p!["focused"]?.GetValue<bool>() == true ? "focused" : null, p["collapsed"]?.GetValue<bool>() == true ? "collapsed" : null }.OfType<string>().ToList();
+                return "#" + p["number"]!.GetValue<int>() + " \"" + p["parameter"]!.GetValue<string>() + "\"" + (notes.Count == 0 ? "" : " [" + string.Join(", ", notes) + "]");
+            }))).Append(')');
+        }
         sb.Append(", waveform lane: ").Append(data["waveformVisible"]?.GetValue<bool>() == true ? "shown" : "hidden").Append('.');
         // 侧栏单独一句：各面并排共存，按打开顺序列出开着的那几个。
         sb.Append("\nSide panels: ");

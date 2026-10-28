@@ -1,4 +1,4 @@
-using Avalonia.Input;
+﻿using Avalonia.Input;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -178,7 +178,11 @@ internal partial class AutomationRenderer : View
         mDependency.PianoScrollView.RegionSelectionChanged += InvalidateVisual;   // 范围选区变化（任一区拖/清）→ 参数区重绘同一条 tick 带
     }
 
-    ~AutomationRenderer()
+    ~AutomationRenderer() => Detach();
+
+    // 退订全部共享事件源。刻度轴、钢琴窗视图、part 都比一块参数面板活得久，它们持有的订阅会让关掉的面板
+    // 一直活着、继续收事件——故关掉面板时显式调这里，不能只等终结器（订阅在就轮不到它）。重复调用无害。
+    public void Detach()
     {
         s.DisposeAll();
         mDependency.PianoScrollView.RegionSelectionChanged -= InvalidateVisual;
@@ -230,6 +234,18 @@ internal partial class AutomationRenderer : View
 
         double lineWidth = 1;
 
+        // 激活 lane 的值轴口径：各段按各自 note 的声明画，量程未必一样。画激活 lane 时记下第一段的形状、看其余段是否同轴，
+        // 上下界标签据此决定——同轴就标这一份，不同轴就不标（标哪一份都会让别的段读错）。
+        LaneEntry? activeLaneAxis = null;
+        bool activeLaneAxisMixed = false;
+        void NoteActiveLaneAxis(LaneEntry shape)
+        {
+            if (activeLaneAxis is not { } first)
+                activeLaneAxis = shape;
+            else if (!SameAxis(first, shape))
+                activeLaneAxisMixed = true;
+        }
+
         // 按 kind 分派：连续轨画含 vibrato 的最终值（处处有值）；分段轨画分段曲线（段间 NaN，断开不连线）；
         // 属性 lane 画逐 note / 逐音素值段（顶线 + active 时半透明柱）。
         void Draw(AutomationKey automationID, bool isActive)
@@ -252,7 +268,7 @@ internal partial class AutomationRenderer : View
 
         // note lane：每个 note 一段——顶部实色横线是值指示（与分段轨的段视觉同族），active 时其下再垫半透明柱，
         // 给块感与 note 对应关系。段区间经 NoteLaneRanges 去重叠；右端再内缩 1px 留缝，相邻 note 不连成墙；
-        // 未写过值的 note 画在 DefaultValue 高度。
+        // 量程与默认值按该 note 自己的声明（没声明这个字段的 note 没有段）；未写过值的 note 画在它的默认值高度。
         void DrawNoteLane(AutomationKey automationID, bool isActive)
         {
             var entry = Part.GetNoteLaneEntry(automationID);
@@ -262,7 +278,6 @@ internal partial class AutomationRenderer : View
             double minVisibleTick = TickAxis.MinVisibleTick;
             double maxVisibleTick = TickAxis.MaxVisibleTick;
             double topLineWidth = isActive ? 2 : 1;
-            var laneDefault = PropertyValue.Create(entry.DefaultValue);
             foreach (var (note, startTick, endTick) in NoteLaneRanges(Part))
             {
                 if (endTick <= minVisibleTick)
@@ -271,13 +286,19 @@ internal partial class AutomationRenderer : View
                 if (startTick >= maxVisibleTick)
                     break;
 
+                if (!Part.TryGetNoteLaneShape(note, automationID.Id, out var shape))
+                    continue;
+
+                if (isActive)
+                    NoteActiveLaneAxis(shape);
+
                 double left = TickAxis.Tick2X(startTick);
                 double right = TickAxis.Tick2X(endTick) - 1;   // 1px 缝
                 if (right <= left)
                     right = left + 1;
 
-                note.Properties.GetValue(automationID.Id, laneDefault).ToDouble(out double value);
-                double y = ValueToY(value, entry.Scale);
+                note.Properties.GetValue(automationID.Id, PropertyValue.Create(shape.DefaultValue)).ToDouble(out double value);
+                double y = ValueToY(value, shape.Scale);
                 if (isActive)
                     context.FillRectangle(fillBrush, new Rect(left, y, right - left, Bounds.Height - y));
                 context.FillRectangle(lineBrush, new Rect(left, Math.Max(0, y - topLineWidth / 2), right - left, topLineWidth));
@@ -285,6 +306,7 @@ internal partial class AutomationRenderer : View
         }
 
         // phoneme lane：每个显示音素一段，几何走 note.DisplayPhonemes（绝对秒、跨 note 已去重叠——与波形带同口径）。
+        // 形状按该 note 对这一 slot 的声明（没声明这个字段的音素没有段）。
         // 值只在钉死音素上存在（经 HasProperties 闸门读、不触发 lazy 物化）；合成音素画默认值高度。
         // 邻接未解析的 note 其 DisplayPhonemes 为空 → 暂无段，合成回填后经订阅重绘补上。
         void DrawPhonemeLane(AutomationKey automationID, bool isActive)
@@ -300,7 +322,6 @@ internal partial class AutomationRenderer : View
             double minVisibleSec = tempoManager.GetTime(Math.Max(0, TickAxis.MinVisibleTick));
             double maxVisibleSec = tempoManager.GetTime(Math.Max(0, TickAxis.MaxVisibleTick));
             double topLineWidth = isActive ? 2 : 1;
-            var laneDefault = PropertyValue.Create(entry.DefaultValue);
             foreach (var note in Part.Notes)
             {
                 // 音素段可越出 note 几何（前置辅音前伸 / 元音向满末充填），note 级过滤只做右侧宽松截断、逐段精筛。
@@ -318,15 +339,21 @@ internal partial class AutomationRenderer : View
                     if (phoneme.EndTime <= minVisibleSec || phoneme.StartTime >= maxVisibleSec)
                         continue;
 
+                    if (!Part.TryGetPhonemeLaneShape(note, i, automationID.Id, out var shape))
+                        continue;
+
+                    if (isActive)
+                        NoteActiveLaneAxis(shape);
+
                     double left = TickAxis.Tick2X(tempoManager.GetTick(phoneme.StartTime));
                     double right = TickAxis.Tick2X(tempoManager.GetTick(phoneme.EndTime)) - 1;   // 1px 缝
                     if (right <= left)
                         right = left + 1;
 
-                    double value = entry.DefaultValue;
+                    double value = shape.DefaultValue;
                     if (pinned && i < note.Phonemes.Count && note.Phonemes[i].HasProperties)
-                        note.Phonemes[i].Properties.GetValue(automationID.Id, laneDefault).ToDouble(out value);
-                    double y = ValueToY(value, entry.Scale);
+                        note.Phonemes[i].Properties.GetValue(automationID.Id, PropertyValue.Create(shape.DefaultValue)).ToDouble(out value);
+                    double y = ValueToY(value, shape.Scale);
                     if (isActive)
                         context.FillRectangle(fillBrush, new Rect(left, y, right - left, Bounds.Height - y));
                     context.FillRectangle(lineBrush, new Rect(left, Math.Max(0, y - topLineWidth / 2), right - left, topLineWidth));
@@ -581,15 +608,36 @@ internal partial class AutomationRenderer : View
             context.DrawRectangle(selectionColor.Opacity(0.25).ToBrush(), new Pen(selectionColor.ToUInt32()), rect);
         }
 
+        // 属性 lane 的上下界跟着画出来的段走（各段按各自 note 的声明）：段同轴就标那一份，不同轴就不标；视口里没有段时退回 lane 条目。
+        if ((activeNoteLane || activePhonemeLane) && boundsKnown)
+        {
+            if (activeLaneAxisMixed)
+                boundsKnown = false;
+            else if (activeLaneAxis is { } axis)
+            {
+                scale = axis.Scale;
+                numberFormat = axis.Format;
+                minLabel = axis.MinLabel;
+                maxLabel = axis.MaxLabel;
+            }
+        }
+
         // 上下界处显示：优先用描述文本（MaxLabel/MinLabel，插件自译），否则按 Format 格式化数值（缺省两位小数带符号）。
         // band 轨无值轴、跳过。
         if (boundsKnown && !activeBand)
         {
-            string BoundText(double value) => numberFormat is { } f ? f.Format(value) : value.ToString("+0.00;-0.00");
-            context.DrawString(maxLabel ?? BoundText(scale.ToValue(1)), new Point(8, 12), Style.LIGHT_WHITE.ToBrush(), 12, Alignment.LeftCenter);
-            context.DrawString(minLabel ?? BoundText(scale.ToValue(0)), new Point(8, Bounds.Height - 12), Style.LIGHT_WHITE.ToBrush(), 12, Alignment.LeftCenter);
+            context.DrawString(maxLabel ?? BoundText(scale.ToValue(1), numberFormat), new Point(8, 12), Style.LIGHT_WHITE.ToBrush(), 12, Alignment.LeftCenter);
+            context.DrawString(minLabel ?? BoundText(scale.ToValue(0), numberFormat), new Point(8, Bounds.Height - 12), Style.LIGHT_WHITE.ToBrush(), 12, Alignment.LeftCenter);
         }
     }
+
+    // 上下界标签读出来一样 = 同轴（量程与标签逐字比；标度的中间形状比不了，以两端为准）。
+    static bool SameAxis(LaneEntry a, LaneEntry b)
+        => a.MinValue == b.MinValue && a.MaxValue == b.MaxValue
+            && (a.MinLabel ?? BoundText(a.MinValue, a.Format)) == (b.MinLabel ?? BoundText(b.MinValue, b.Format))
+            && (a.MaxLabel ?? BoundText(a.MaxValue, a.Format)) == (b.MaxLabel ?? BoundText(b.MaxValue, b.Format));
+
+    static string BoundText(double value, SDK.INumberFormat? format) => format is { } f ? f.Format(value) : value.ToString("+0.00;-0.00");
 
     // 合成参数回显轨（只读，voice 级一等轨）：遍历声明的回显轨，对每条可见轨用 Part.SynthesizedParameters
     // 的同名曲线绘制为半透明积分面积（曲线与底部基线围成的填充区），用各自 config 色——区别于可编辑轨的细线。

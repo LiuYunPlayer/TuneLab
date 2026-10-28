@@ -9,6 +9,7 @@ using TuneLab.Extensions.Effect;
 using TuneLab.Foundation;
 using TuneLab.GUI;
 using TuneLab.GUI.Components;
+using TuneLab.GUI.Controllers;
 using TuneLab.I18N;
 using TuneLab.SDK;
 using TuneLab.Utils;
@@ -24,10 +25,17 @@ namespace TuneLab.UI;
 // 「按在按钮 = 切换、按在空白 = 拖拽」的手势仲裁由控件树命中天然完成，无需手写。
 // 回显轨是 voice 级扁平只读集合，不入分源的底部 tabbar，故显隐按钮收在这条标题栏里（右对齐）。
 // 复用参数栏的小眼睛图标表显隐：眼睛点亮（config 色）= 可见，眼睛暗（灰白）= 隐藏；悬浮时图标/文字各提亮一档。
-// 左对齐另置一个波形带显隐开关（波形条图标 + 文本，图标点亮=展开 / 暗=收起），与回显轨显隐相互独立。
+// 最左是这块面板的表头：收起三角、激活参数名（收起时也靠它认面板）、焦点圆点（焦点面板才有，色 = 它激活参数的颜色）。
 internal class ParameterTitleBar : LayerPanel
 {
     public event Action<double>? Moved;
+    // 收起三角被点：要不要收起由面板决定，这里只报告。
+    public event Action? CollapseToggleAsked;
+    // 最右的「×」被点：关不关由宿主决定（只剩一块时它本就不显示）。
+    public event Action? CloseAsked;
+    // 在标题栏空白处 / 参数名上按下了左键（点一下或开始拖动改高度都算）：聚焦这块面板。按在三角、「×」、
+    // 回显 chip 上不算——它们盖在拖拽把手上面，事件到不了把手。
+    public event Action? Pressed;
 
     public interface IDependency
     {
@@ -37,10 +45,6 @@ internal class ParameterTitleBar : LayerPanel
         IReadOnlyOrderedMap<AutomationKey, AutomationConfigEntry> SynthesizedParameterConfigs { get; }
         bool IsSynthesizedParameterVisible(AutomationKey key);
         void SetSynthesizedParameterVisible(AutomationKey key, bool isVisible);
-        // 波形带显隐（左对齐开关）：与回显轨显隐相互独立。
-        IActionEvent WaveformVisibleChanged { get; }
-        bool IsWaveformVisible { get; }
-        void SetWaveformVisible(bool isVisible);
     }
 
     IMidiPart? Part => mDependency.PartHolder.Value;
@@ -53,15 +57,58 @@ internal class ParameterTitleBar : LayerPanel
         // 底层拖拽把手：Moved 换算成标题栏在父容器内的目标 top（把手在标题栏内恒为 (0,0)，补上自身位置即可）。
         var dragHandle = new MovableComponent();
         dragHandle.Moved.Subscribe(p => Moved?.Invoke(p.Y + Bounds.Y));
+        // 挂在把手上（自绘组件把指针事件标成已处理，故连已处理的也收）。
+        dragHandle.AddHandler(PointerPressedEvent, (_, e) =>
+        {
+            if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+                Pressed?.Invoke();
+        }, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
         Children.Add(dragHandle);
 
         var content = new DockPanel() { LastChildFill = false };
         {
-            mWaveformToggle = CreateToggle(GUI.Assets.Waveform, WaveformIconSize, "Waveform".Tr(TC.Document), Style.WHITE);
-            mWaveformToggle.Margin = new Thickness(LeftMargin - ChipHitPadding, 0, 0, 0);
-            mWaveformToggle.Switched.Subscribe(() => mDependency.SetWaveformVisible(mWaveformToggle.IsChecked));
-            mWaveformToggle.Display(mDependency.IsWaveformVisible);
-            content.AddDock(mWaveformToggle, Dock.Left);
+            // 收起三角：命中区是一个无内容的 Toggle（悬浮 / 按下手感同其余按钮），三角本身只画不吃指针。
+            var collapseArea = new Panel() { Width = CollapseAreaWidth };
+            {
+                mCollapseToggle = new Toggle() { Width = CollapseAreaWidth };
+                mCollapseToggle.Switched.Subscribe(() => CollapseToggleAsked?.Invoke());
+                collapseArea.Children.Add(mCollapseToggle);
+
+                mChevron = new Chevron(8, Style.LIGHT_WHITE)
+                {
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                    IsExpanded = true,
+                };
+                collapseArea.Children.Add(mChevron);
+            }
+            content.AddDock(collapseArea, Dock.Left);
+
+            mNameText = new TextBlock()
+            {
+                FontSize = FontSize,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                IsHitTestVisible = false,
+            };
+            content.AddDock(mNameText, Dock.Left);
+
+            // 焦点圆点：参数名右侧，激活参数色。非焦点时透明但仍占位，切焦点时右边的东西不跳。
+            mFocusDot = new Avalonia.Controls.Shapes.Ellipse()
+            {
+                Width = FocusDotSize,
+                Height = FocusDotSize,
+                Margin = new Thickness(FocusDotGap, 0, 0, 0),
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                IsHitTestVisible = false,
+            };
+            content.AddDock(mFocusDot, Dock.Left);
+
+            // 最右：关闭这块面板的「×」（右键菜单里也有）。回显 chip 行贴在它左边。
+            mCloseButton = new TuneLab.GUI.Components.Button() { Width = CloseButtonWidth, Margin = new Thickness(0, 0, CloseButtonRightMargin, 0) }
+                .AddContent(new() { Item = new IconItem() { Icon = GUI.Assets.WindowClose }, ColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5), HoveredColor = Colors.White, PressedColor = Colors.White } });
+            mCloseButton.SetupToolTip("Close Panel".Tr(TC.Menu));
+            mCloseButton.Clicked += () => CloseAsked?.Invoke();
+            content.AddDock(mCloseButton, Dock.Right);
 
             mChipsPanel = new StackPanel() { Orientation = Avalonia.Layout.Orientation.Horizontal, Margin = new Thickness(0, 0, RightMargin - ChipHitPadding, 0) };
             content.AddDock(mChipsPanel, Dock.Right);
@@ -69,7 +116,6 @@ internal class ParameterTitleBar : LayerPanel
         Children.Add(content);
 
         mDependency.SynthesizedParameterVisibilityChanged += SyncChipStates;
-        mDependency.WaveformVisibleChanged.Subscribe(() => mWaveformToggle.Display(mDependency.IsWaveformVisible), s);
         mDependency.PartHolder.Modified.Subscribe(RebuildChips, s);
         // 换声源 → 回显轨声明随之变，按钮组要立即重建（否则显示的还是旧声源的轨）。
         mDependency.PartHolder.When(p => p.SoundSource.Modified).Subscribe(RebuildChips, s);
@@ -83,10 +129,29 @@ internal class ParameterTitleBar : LayerPanel
         RebuildChips();
     }
 
-    ~ParameterTitleBar()
+    ~ParameterTitleBar() => Detach();
+
+    // 退订共享事件源（part 比一块参数面板活得久，订阅在就轮不到终结器）：关掉面板时显式调。重复调用无害。
+    public bool IsCloseButtonVisible
+    {
+        get => mCloseButton.IsVisible;
+        set => mCloseButton.IsVisible = value;
+    }
+
+    public void Detach()
     {
         s.DisposeAll();
         mDependency.SynthesizedParameterVisibilityChanged -= SyncChipStates;
+    }
+
+    // 表头：激活参数名与色、是否焦点、是否收起。参数名一律白字（暗字会被读成"失效"）；焦点只靠名字右侧的参数色圆点。
+    public void ShowHeader(string name, Color color, bool isFocused, bool isCollapsed)
+    {
+        mNameText.Text = name;
+        mNameText.Foreground = Brushes.White;
+        mFocusDot.Fill = isFocused ? color.ToBrush() : Brushes.Transparent;
+        mChevron.IsExpanded = !isCollapsed;
+        mCollapseToggle.Display(!isCollapsed);
     }
 
     // 重建回显 chip 行（右对齐，按源分组、按声明序左→右排）：每组前置一个源标签（"Voice" / effect 的 Type），
@@ -188,7 +253,7 @@ internal class ParameterTitleBar : LayerPanel
     }
 
     // 图标 + 文字显隐开关的统一构造：命中区两侧比可视内容各宽 ChipHitPadding（内容经 Offset 内缩）、垂直吃满栏高。
-    // 图标点亮色随勾选态（悬浮向白提亮 30%，纯白点亮态如波形开关则不变、由文字承担反馈），压暗态灰白（悬浮升不透明度）；
+    // 图标点亮色随勾选态（悬浮向白提亮 30%），压暗态灰白（悬浮升不透明度）；
     // 文字恒亮 LIGHT_WHITE（开/关仅由图标染色区分）、悬浮提亮到纯白。
     Toggle CreateToggle(SvgIcon icon, double iconWidth, string text, Color litIconColor)
     {
@@ -228,9 +293,12 @@ internal class ParameterTitleBar : LayerPanel
     const double LabelGap = 8;
     const double DividerGap = 10;
     const double RightMargin = 10;
-    const double LeftMargin = 10;
-    const double WaveformIconSize = 14;
+    const double FocusDotSize = 6;
+    const double FocusDotGap = 6;
+    const double CollapseAreaWidth = 22;
     const double ChipHitPadding = 6;
+    const double CloseButtonWidth = 24;
+    const double CloseButtonRightMargin = 4;
     const string DividerText = "|";
 
     static readonly Color EyeOffColor = new(102, 255, 255, 255);
@@ -241,9 +309,13 @@ internal class ParameterTitleBar : LayerPanel
     static readonly IBrush DividerColor = Style.LIGHT_WHITE.Opacity(0.25).ToBrush();
 
     List<Elem> mElems = new();
-    readonly Toggle mWaveformToggle;
     readonly StackPanel mChipsPanel;
     readonly Dictionary<AutomationKey, Toggle> mChipToggles = new();
     readonly IDependency mDependency;
+    readonly Avalonia.Controls.Shapes.Ellipse mFocusDot;
+    readonly Toggle mCollapseToggle;
+    readonly TuneLab.GUI.Components.Button mCloseButton;
+    readonly Chevron mChevron;
+    readonly TextBlock mNameText;
     readonly DisposableManager s = new();
 }

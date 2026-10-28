@@ -33,6 +33,7 @@ public class ActionCommandsTests
         public double EndTime => 131;
         public string CurrentToolActionId => "tool.pitch";
         public bool IsParameterPanelVisible => true;
+        public IReadOnlyList<ParameterPanelStatus> ParameterPanels => [new("Volume", true, false)];
         public bool IsWaveformVisible => false;
         public IReadOnlyList<string> SidebarPanelActionIds => ["sidebar.showPart", "sidebar.showAgent"];
         public string? FocusedSurface => "pianoRoll";
@@ -568,7 +569,7 @@ public class ActionCommandsTests
         var text = status.Render(result.Data, CommandArgs.Empty);
 
         Assert.Contains("Stopped, playhead at 0:03.24 (tick 1536) of 2:11.00.", text);
-        Assert.Contains("Parameter panel: open, waveform lane: hidden.", text);
+        Assert.Contains("Parameter panel: open (#1 \"Volume\" [focused]), waveform lane: hidden.", text);
         // 侧栏报的是【动作 id】（同当前工具），按打开顺序列出并排开着的各面；本进程没注册动作，故显示名回落成 id 本身。
         Assert.Contains("Side panels: \"sidebar.showPart\" (sidebar.showPart), \"sidebar.showAgent\" (sidebar.showAgent).", text);
         Assert.Contains("Keyboard focus: the piano roll", text);

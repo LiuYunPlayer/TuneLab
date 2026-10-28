@@ -45,7 +45,8 @@ internal partial class PianoScrollView : View, IPianoScrollView
         IQuantization Quantization { get; }
         IHolder<IMidiPart> PartHolder { get; }
         ParameterButton PitchButton { get; }
-        AutomationRenderer AutomationRenderer { get; }
+        // 取消了自动化点选中之类：让每块参数面板重画、刷新锚点数值框。
+        void RefreshParameterPanels();
         double WaveformBottom { get; }
         IActionEvent WaveformBottomChanged { get; }
         bool IsWaveformVisible { get; }

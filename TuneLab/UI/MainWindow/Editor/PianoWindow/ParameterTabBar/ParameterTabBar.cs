@@ -33,10 +33,17 @@ internal class ParameterTabBar : Panel
         IHolder<IMidiPart> PartHolder { get; }
         AutomationKey? ActiveAutomation { get; }
         bool IsAutomationVisible(AutomationKey automation);
-        // 参数面板折叠/恢复（tabbar 最左小眼睛）：与 Ctrl+P 共用同一切换逻辑。
+        // 参数区藏起来（Ctrl+P）时没有哪个参数在显示：激活的那个也不点亮，看着像"都没开"——点一个就出来。
         IActionEvent ParameterPanelVisibilityChanged { get; }
         bool IsParameterPanelVisible { get; }
-        void ToggleParameterPanel();
+        // 「+」：在焦点面板下方加一块照着它设置的新面板（参数区藏着时只是把它显示出来）。
+        void AddParameterPanel();
+        // 右键「+」：关掉焦点面板（熟手的快捷方式；直观入口是各面板标题栏最右的「×」）。只剩一块时不关。
+        void CloseFocusedParameterPanel();
+        // 波形带显隐：全局的独立开关，不属于哪块面板。
+        IActionEvent WaveformVisibleChanged { get; }
+        bool IsWaveformVisible { get; }
+        void SetWaveformVisible(bool isVisible);
     }
 
     public ParameterTabBar(IDependency dependency)
@@ -49,27 +56,42 @@ internal class ParameterTabBar : Panel
         mPitchButton.State = ParameterButton.ButtonState.Visible;
         mPitchButton.StateChangeAsked += (state) => { mPitchButton.State = state; };
 
-        // 左右各让出钢琴键列宽：左侧留给面板开关（避免轨多时居中流式布局铺过来重叠），右侧对称、保持轨按钮相对窗口居中。
+        // 左右各让出钢琴键列宽：左侧留给波形开关与「+」（避免轨多时居中流式布局铺过来重叠），右侧对称、保持轨按钮相对窗口居中。
         mAutomationLayout = new() { Orientation = Orientation.Horizontal, HorizontalAlignment=Avalonia.Layout.HorizontalAlignment.Center, Margin = new Thickness(PianoWindow.ROLL_WIDTH, 9) };
         Children.Add(mAutomationLayout);
 
-        // 最左侧：整个参数面板的折叠/恢复开关（底部面板图标，展开=实心底条 / 收起=空底框；不用小眼睛，与轨显隐语义区分）。
-        // 钉在 tabbar 而非参数区标题栏——tabbar 不随面板改高移动，收起后可在原位连点恢复。
-        // 无底色，悬停反馈走图标变色：两态都提亮一档（展开 LIGHT_WHITE→纯白，收起半透明→LIGHT_WHITE），静息时仍保持亮暗有别。
-        var panelIconItem = new IconItem() { Icon = Assets.BottomPanel };
-        mPanelToggle = new Toggle() { Width = 24, Height = 24 }
-            .AddContent(new() { Item = panelIconItem, CheckedColorSet = new() { Color = Style.LIGHT_WHITE, HoveredColor = Colors.White, PressedColor = Colors.White }, UncheckedColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5), HoveredColor = Style.LIGHT_WHITE, PressedColor = Style.LIGHT_WHITE } });
-        mPanelToggle.SetupToolTip("Toggle Parameter Panel".Tr(TC.Menu));
-        mPanelToggle.Switched.Subscribe(() => mDependency.ToggleParameterPanel());
-        void SyncPanelToggle()
+        // 左侧两个按钮的配色照工具栏：开关（同钢琴窗工具按钮）开 = 高亮圆角底 + 白图标、关 = 无底 + 半透明图标；
+        // 「+」是常用操作，图标纯白。悬停都只加一层淡底。
+        var hoverBack = Colors.White.Opacity(0.05);
+
+        // 最左侧：波形带显隐开关。钉在 tabbar——它和「+」都作用于整个参数区，不属于哪块面板。
+        mWaveformToggle = new Toggle() { Width = 24, Height = 24 }
+            .AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, CheckedColorSet = new() { Color = Style.HIGH_LIGHT }, UncheckedColorSet = new() { HoveredColor = hoverBack, PressedColor = hoverBack } })
+            .AddContent(new() { Item = new IconItem() { Icon = Assets.Waveform }, CheckedColorSet = new() { Color = Colors.White }, UncheckedColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5) } });
+        mWaveformToggle.SetupToolTip("Waveform".Tr(TC.Document));
+        mWaveformToggle.Switched.Subscribe(() => mDependency.SetWaveformVisible(mWaveformToggle.IsChecked));
+        mDependency.WaveformVisibleChanged.Subscribe(() => mWaveformToggle.Display(mDependency.IsWaveformVisible), s);
+        mWaveformToggle.Display(mDependency.IsWaveformVisible);
+        Children.Add(mWaveformToggle);
+
+        // 波形开关右边：「+」加一块参数面板（照着焦点面板，插在它下方）。同样钉在 tabbar、不随面板改高移动。
+        mAddPanelButton = new TuneLab.GUI.Components.Button() { Width = 24, Height = 24 }
+            .AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, ColorSet = new() { HoveredColor = hoverBack, PressedColor = hoverBack } })
+            .AddContent(new() { Item = new IconItem() { Icon = Assets.Plus }, ColorSet = new() { Color = Colors.White } });
+        mAddPanelButton.SetupToolTip("Add Parameter Panel".Tr(TC.Menu));
+        // 自绘按钮的 Clicked 不分左右键（右键松开也算点击），故先在隧道阶段记下这次松开的是哪个键，点击时再分流：
+        // 左键加面板、右键关焦点面板。（隧道先于按钮自身的松开处理，记下的总是这一次的。）
+        bool rightReleased = false;
+        mAddPanelButton.AddHandler(PointerReleasedEvent, (_, e) => rightReleased = e.InitialPressMouseButton == Avalonia.Input.MouseButton.Right,
+            Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+        mAddPanelButton.Clicked += () =>
         {
-            bool visible = mDependency.IsParameterPanelVisible;
-            panelIconItem.Icon = visible ? Assets.BottomPanel : Assets.BottomPanelCollapsed;
-            mPanelToggle.Display(visible);
-        }
-        mDependency.ParameterPanelVisibilityChanged.Subscribe(SyncPanelToggle, s);
-        SyncPanelToggle();
-        Children.Add(mPanelToggle);
+            if (rightReleased)
+                mDependency.CloseFocusedParameterPanel();
+            else
+                mDependency.AddParameterPanel();
+        };
+        Children.Add(mAddPanelButton);
 
         mDependency.PartHolder.Modified.Subscribe(OnPartChanged, s);
         mDependency.PartHolder.When(p => p.SoundSource.Modified).Subscribe(OnAutomationConfigsChanged, s);
@@ -78,6 +100,7 @@ internal class ParameterTabBar : Panel
         mDependency.PartHolder.When(p => p.AutomationConfigsModified).Subscribe(OnAutomationConfigsChanged, s);
         mDependency.ActiveAutomationChanged += SyncAutomationButtonsState;
         mDependency.VisibleAutomationChanged += SyncAutomationButtonsState;
+        mDependency.ParameterPanelVisibilityChanged.Subscribe(SyncAutomationButtonsState, s);
 
         OnPartChanged();
     }
@@ -104,8 +127,10 @@ internal class ParameterTabBar : Panel
     protected override Size ArrangeOverride(Size finalSize)
     {
         mAutomationLayout.Arrange(new Rect(finalSize));
-        // 面板开关钉在左侧预留区内水平居中（正对钢琴键列）、垂直居中，位置不随轨按钮集合变化。
-        mPanelToggle.Arrange(new Rect((PianoWindow.ROLL_WIDTH - mPanelToggle.Width) / 2, (finalSize.Height - mPanelToggle.Height) / 2, mPanelToggle.Width, mPanelToggle.Height));
+        // 波形开关与「+」并排、整体在左侧预留区内水平居中（正对钢琴键列）、垂直居中，位置不随轨按钮集合变化。
+        double left = (PianoWindow.ROLL_WIDTH - (mWaveformToggle.Width + LeftButtonGap + mAddPanelButton.Width)) / 2;
+        mWaveformToggle.Arrange(new Rect(left, (finalSize.Height - mWaveformToggle.Height) / 2, mWaveformToggle.Width, mWaveformToggle.Height));
+        mAddPanelButton.Arrange(new Rect(left + mWaveformToggle.Width + LeftButtonGap, (finalSize.Height - mAddPanelButton.Height) / 2, mAddPanelButton.Width, mAddPanelButton.Height));
         return finalSize;
     }
 
@@ -211,7 +236,8 @@ internal class ParameterTabBar : Panel
         if (Part == null)
             return;
 
-        var activeAutomation = mDependency.ActiveAutomation;
+        // 参数区藏着时不点亮激活的那个（画面上确实没有参数在显示）；激活记录本身不动，显示出来即复原。
+        var activeAutomation = mDependency.IsParameterPanelVisible ? mDependency.ActiveAutomation : null;
 
         void SyncKey(AutomationKey key)
         {
@@ -253,7 +279,9 @@ internal class ParameterTabBar : Panel
     Color Back => Style.INTERFACE;
 
     readonly WrapPanel mAutomationLayout;
-    readonly Toggle mPanelToggle;
+    readonly Toggle mWaveformToggle;
+    readonly TuneLab.GUI.Components.Button mAddPanelButton;
+    const double LeftButtonGap = 4;
     readonly ParameterButton mPitchButton;
     readonly OrderedMap<AutomationKey, ParameterButton> mAutomationButtons = new();
     readonly Map<AutomationKey, ParameterButton> mCacheParameterButtons = new();

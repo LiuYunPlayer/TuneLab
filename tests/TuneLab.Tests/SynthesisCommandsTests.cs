@@ -60,6 +60,7 @@ public class SynthesisCommandsTests
         public double EndTime => 0;
         public string CurrentToolActionId => "tool.note";
         public bool IsParameterPanelVisible => false;
+        public IReadOnlyList<ParameterPanelStatus> ParameterPanels => [new("Volume", true, false)];
         public bool IsWaveformVisible => false;
         public IReadOnlyList<string> SidebarPanelActionIds => [];
         public IReadOnlyList<string> BlockingDialogs => [];
