@@ -23,8 +23,9 @@ public sealed class AutomationConfig : IValueConfig<double>
     // （钳位会静默改数据；回显轨与可编辑轨各按自己量程绘制、宿主不要求二者一致，量程声明不一致的后果即出界）。
     public INormalizedScale Scale { get; private set; } = null!;
 
-    // 轨曲线渲染色（hex）。不设给中性默认——但同一面板多轨应各设其色以免撞色。
-    public string Color { get; private set; } = "#888888";
+    // 轨曲线渲染色（hex，"#RRGGBB" 或 "#AARRGGBB"）。不设 = 全透明 "#00000000" = 不指定：宿主从调色板分配
+    //（确定性：按声明序、避开同一面板上已占用的颜色），想定颜色就 WithColor。alpha 为 0 的颜色一律按"不指定"处理。
+    public string Color { get; private set; } = "#00000000";
 
     // 数值显示/回读格式；null = 宿主默认。
     public INumberFormat? Format { get; private set; }

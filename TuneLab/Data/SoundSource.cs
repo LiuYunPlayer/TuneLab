@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using TuneLab.Configs;
 using TuneLab.Foundation;
 using TuneLab.I18N;
 using TuneLab.SDK;
@@ -118,6 +119,9 @@ internal class SoundSource : DataObject, ISoundSource
             }
         }
 
+        // 插件没指定颜色的轨由宿主分配（避开音高线的颜色，它与这些轨同屏）。
+        Replace(mAutomationConfigs, TrackColors.Assign(mAutomationConfigs, [ConstantDefine.PitchColor]));
+
         // 回显轨集合（独立、扁平；与可编辑轨集合各管各的，不去重不掺通用轨）。
         mSynthesizedParameterConfigs.Clear();
         foreach (var kvp in DeclaredSynthesizedParameterConfigs(context))
@@ -125,6 +129,20 @@ internal class SoundSource : DataObject, ISoundSource
             if (!mSynthesizedParameterConfigs.ContainsKey(kvp.Key))
                 mSynthesizedParameterConfigs.Add(kvp.Key, kvp.Value);
         }
+        Replace(mSynthesizedParameterConfigs, TrackColors.AssignSynthesized(mSynthesizedParameterConfigs, mAutomationConfigs));
+    }
+
+    static void Replace(OrderedMap<PropertyKey, AutomationConfig> target, IReadOnlyOrderedMap<PropertyKey, AutomationConfig> source)
+    {
+        if (ReferenceEquals(target, source))
+            return;
+
+        var items = new List<(PropertyKey Key, AutomationConfig Value)>();
+        foreach (var kvp in source)
+            items.Add((kvp.Key, kvp.Value));
+        target.Clear();
+        foreach (var (key, value) in items)
+            target.Add(key, value);
     }
 
     IReadOnlyOrderedMap<PropertyKey, AutomationConfig> DeclaredAutomationConfigs(PartPropertyContext context)
