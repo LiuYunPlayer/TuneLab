@@ -1300,6 +1300,24 @@ props.Add(("mix", "Mix"), TimelineCanvasConfig.Create(MixCanvas.Default, host =>
 - **Keep the default neutral** (no effect when untouched), or define it only by positions relative to the object: unlocked
   phonemes change length with synthesis, so a default whose effect depends on length makes objects the user never touched sound
   different after an edit elsewhere.
+- **How it looks in the parameter panel** (the host does this; nothing for you to do, but it helps your layout):
+  - Each block covers exactly the object's time span, **with no gap between neighbouring blocks**, on a transparent background —
+    whether to draw a separator is up to you.
+  - As a **background parameter** (visible while another parameter is active) it still renders; the host dims it and puts it
+    under the active parameter, and it receives no input then.
+  - **Canvases never stack**: while a canvas is the active parameter, other canvases are not drawn, and within one panel only one
+    canvas can be visible at a time (the user turning one on turns the others off). So your canvas never shares the space with
+    another canvas, though it may sit over other curves.
+  - When a phoneme-level field is written, the host locks that note's phonemes first and then writes the value, in one undo step.
+  - Users can also pin a **side-panel canvas** (`CanvasConfig`) into the parameter panel: it is then one block per object too, with
+    the object's duration as width and the panel height as height, and the host is still an `ICanvasHost` (no time axis) — a
+    side-panel canvas has to cope with any size anyway.
+
+Reference implementations: `tests/plugins/V1.Voice/TimelineDemoCanvas.cs` (the note-level "Timeline Demo" and core-phoneme
+"Phoneme Timeline": points stored in seconds, per-pixel sampling interpolated in seconds, only the columns `VisibleBounds` shows;
+click empty space to add a point, drag points, right-click to delete; click the symbol for a text box, right-click empty space
+for a language menu; only the curve when narrow or short) and `tools/ScreenshotBot/demo-plugins/DemoVoice/BreathCanvas.cs`
+(the minimal display-only version).
 
 ## 11. Packaging, Installation, Uninstallation
 

@@ -67,7 +67,16 @@ public sealed class DemoVoiceEngine : IVoiceSynthesisEngine
     // 曲线数据经 IVoiceSynthesisSession.SynthesizedParameters 按同一 key（energy）承载；宿主作一等只读轨绘制。
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IVoiceSynthesisPartPropertyContext context) => mSynthesizedParameterConfigs;
     public ObjectConfig GetPartPropertyConfig(IVoiceSynthesisPartPropertyContext context) => ObjectConfig.Create(mPartProperties);
-    public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext context) => ObjectConfig.Create(mNoteProperties);
+    // 时间轴画布「呼吸」：只在参数面板里、每个音符一块（见 BreathCanvas）。参数面板里 context 只有这一个音符，值从它取。
+    public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext context)
+    {
+        var properties = new OrderedMap<PropertyKey, IControllerConfig>();
+        foreach (var kvp in mNoteProperties)
+            properties.Add(kvp.Key, kvp.Value);
+        var breath = context.Notes.Count == 1 && context.Notes[0].Properties.Map.TryGetValue("breath", out var value) ? value : BreathCanvas.Default;
+        properties.Add(("breath", "呼吸"), BreathCanvas.Config(breath));
+        return ObjectConfig.Create(properties);
+    }
     // 音素属性声明（复用 note 上下文）：按核相对 slot 键控授 schema——核（slot 0）= accent + offset、
     // 辅音（slot ≠ 0）= 仅 offset，验证按角色差异化。slot 遍历用 SDK 共享口径 PhonemeSlots.UnionSlots；
     // schema 若依赖当前属性值，在此对同 slot 各成员值做三态 Merge（同 GetNotePropertyConfig 契约）再条件化。

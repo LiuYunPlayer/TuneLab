@@ -5,7 +5,7 @@
   "author": "TuneLab",
   "description": "文档示例用的歌声合成引擎，带两个示例音色。",
   "introduction": "Introduction.md",
-  "sdk-version": "1.0",
+  "sdk-version": "1.2",
   "type": "voice",
   "engine": "DemoVoice",
   "class": "TuneLab.DocsPlugins.DemoVoice.DemoVoiceEngine",

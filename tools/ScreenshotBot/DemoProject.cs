@@ -71,6 +71,19 @@ internal static class DemoProject
             pos += R * beats;
         }
 
+        // 时间轴画布「呼吸」：几个长音上画一条呼吸强度曲线（秒 = 距音符起点），参数面板里画布的插图才有东西可看。
+        (int Note, double[][] Curve)[] breaths =
+        [
+            (2, [[0, 0.15], [0.35, 0.75], [0.9, 0.35]]),
+            (5, [[0, 0.3], [0.5, 0.85], [0.95, 0.2]]),
+            (9, [[0, 0.1], [0.6, 0.5], [1.3, 0.9], [1.95, 0.25]]),
+        ];
+        foreach (var (index, curve) in breaths)
+        {
+            var array = new PropertyArray(curve.Select(p => (PropertyValue)new PropertyArray([PropertyValue.Create(p[0]), PropertyValue.Create(p[1])])).ToList());
+            notes[index].Properties = new PropertyObject(new Map<string, PropertyValue> { { "breath", new PropertyObject(new Map<string, PropertyValue> { { "curve", array } }) } });
+        }
+
         // 参数曲线：音量做一个渐强渐弱，气声在末字上抬起来——参数面板的插图才有东西可看。
         var automations = new Map<string, AutomationInfo>();
         automations.Add("Volume", new AutomationInfo

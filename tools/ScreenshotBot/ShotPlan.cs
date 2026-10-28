@@ -174,6 +174,19 @@ internal static class ShotPlan
         pianoWindow.CloseFocusedParameterPanel();
         await Camera.Settle(8);
 
+        // ==== 07 参数面板里的插件画布：示例声源的时间轴画布「呼吸」，每个音符一块 ====
+        // 画布实例在第一次画到时才建（推迟一拍），多等几帧再拍。
+        pianoWindow.ActiveAutomation = AutomationKey.NoteLane("breath");
+        await Camera.Settle(20);
+        {
+            var area = B(pianoScroll);
+            var tabArea = B(parameterTabBar);
+            double top = area.Y + PianoAreaHeight(pianoWindow);
+            camera.Shoot(window, "parameter-timeline-canvas", crop: new Rect(area.X, top, area.Width, tabArea.Bottom - top));
+        }
+        pianoWindow.ActiveAutomation = AutomationKey.Voice("Volume");
+        await Camera.Settle(6);
+
         // ==== 08 侧栏各页 ====
         vocalPart.Notes.ElementAt(2).Select();
         await Camera.Settle(10);
