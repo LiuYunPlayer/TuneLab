@@ -28,7 +28,7 @@ internal static class ExtensionManager
     // 同一周期后续的新 API 并入这一档、不再提；发版时 Unshipped → Shipped，LastReleasedSdkVersion 跟上。
     // SdkVersionLedgerTests 按 Unshipped 是否为空机械校验这条规矩。
     // 1.1 = 2.1.0 那批新增（PathPickerConfig 一族、多行 TextBox）。
-    // 1.2 = 2.1.1 之后的新增（TagConfig 一族、ButtonConfig 与对话框、声明失效、+ 菜单分组/分隔线、画布 CanvasConfig 一族——画布仍在实验中），尚未发布。
+    // 1.2 = 2.1.1 之后的新增（TagConfig 一族、ButtonConfig 与对话框、声明失效、+ 菜单分组/分隔线、画布 CanvasConfig / TimelineCanvasConfig 一族——画布仍在实验中），尚未发布。
     public static readonly Version SdkVersion = new(1, 2);
 
     // 最近一次正式发布的宿主所提供的 SDK 版本。只在发版收口时改（与 Unshipped → Shipped 同一个动作）。

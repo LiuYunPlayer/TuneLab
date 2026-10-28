@@ -43,7 +43,7 @@
 |---|---|---|
 | `1.0` | TuneLab 2.0.0 | V1 SDK 的全部初始面 |
 | `1.1` | TuneLab 2.1.0 | 路径选择控件（`PathPickerConfig` / `FileTypeFilter`）、多行文本框（`TextBoxConfig.WithMultiline`） |
-| `1.2` | 尚未发布 | 标签组（`TagConfig` / `TagItem`）、按钮（`ButtonConfig` / `IButtonClickContext` / `IDialogService` / `IProgressReporter`，见 §9）、声明失效（`InvalidatePart` / `InvalidateNotes` 及配套的 `PartId` / note `Id`，见 §5.2）、`+` 菜单与下拉的分组和分隔线（`AddableElement` / `AddableKey` 分组、`Separator`、`ComboBoxItem.Separator`）；以及**实验中**的画布（`CanvasConfig` / `ICanvasControl` / `ICanvasHost` / `ICanvasDrawing` / `CanvasImage` 及其事件类型，见 §10） |
+| `1.2` | 尚未发布 | 标签组（`TagConfig` / `TagItem`）、按钮（`ButtonConfig` / `IButtonClickContext` / `IDialogService` / `IProgressReporter`，见 §9）、声明失效（`InvalidatePart` / `InvalidateNotes` 及配套的 `PartId` / note `Id`，见 §5.2）、`+` 菜单与下拉的分组和分隔线（`AddableElement` / `AddableKey` 分组、`Separator`、`ComboBoxItem.Separator`）；以及**实验中**的画布（`CanvasConfig` / `TimelineCanvasConfig` / `ICanvasControl` / `ICanvasHost` / `ITimelineCanvasHost` / `ICanvasTimeAxis` / `ICanvasDrawing` / `CanvasImage` 及其事件类型，见 §10） |
 
 插件级（描述「这个包提供什么」）。**身份内联进 manifest**：一个条目 = 一个具体可注册能力，自带身份（引擎 id / 文件扩展名）+ 实现类全名。宿主读完 manifest 即知插件提供什么、无需加载程序集反射。
 
@@ -1219,7 +1219,7 @@ sealed class StretchCurveCanvas(ICanvasHost host, IReadOnlyList<PropertyValue> v
 
 ### 10.4 绘制与输入
 
-- **尺寸**：`Create` 的首选宽高是你心目中这块画布的最佳尺寸，认真定——它只是期望，实际给多大由宿主按所在位置决定（侧栏里宽度跟随面板、只取首选高度；没有外部约束的位置宽高都取；眼下还没有位置取宽度，但以后出现时就用你给的值）。实际尺寸读 `host.Width` / `host.Height`，随时可能变（如拖宽侧栏），变了宿主会按新尺寸重画，没有单独的事件——每次 `Render` 都按当前尺寸排版，内部几何用相对单位存。坐标是逻辑像素（左上角为原点，与 DPI 无关），绘制裁剪在画布内；宿主先画好底（与输入框同款的深色圆角底），你画在它上面。`host.DevicePixelRatio` 是一个逻辑像素对应的物理像素数（随屏幕缩放，如 1.5、2），自己生成位图时用得到。
+- **尺寸**：`Create` 的首选宽高是你心目中这块画布的最佳尺寸，认真定——它只是期望，实际给多大由宿主按所在位置决定（侧栏里宽度跟随面板、只取首选高度；没有外部约束的位置宽高都取；眼下还没有位置取宽度，但以后出现时就用你给的值）。实际尺寸读 `host.Width` / `host.Height`，随时可能变（如拖宽侧栏），变了宿主会按新尺寸重画，没有单独的事件——每次 `Render` 都按当前尺寸排版，内部几何用相对单位存。坐标是逻辑像素（左上角为原点，与 DPI 无关），绘制裁剪在画布内；宿主先画好底（与输入框同款的深色圆角底），你画在它上面。`host.DevicePixelRatio` 是一个逻辑像素对应的物理像素数（随屏幕缩放，如 1.5、2），自己生成位图时用得到。`host.VisibleBounds` 是画布此刻露在外面的部分（画布坐标的矩形，完全看不见时宽高为 0；侧栏里多因面板滚动只露出一部分高度，参数面板里多因时间轴滚动只露出一部分宽度）——只是提示，不处理它照样正确（整块都画，宿主裁掉看不见的部分）；逐像素采样、自己生成位图的，按它只算露出来的部分，它变了宿主会重新调用 `Render`。
 - **绘图**（`ICanvasDrawing`，只在 `Render` 期间有效）：参数一律"画什么、在哪 → 用什么画"，怎么画装在三种样式对象里——`CanvasPen`（描边：颜色、粗细，`WithLineCap` / `WithLineJoin`，默认圆头圆角）、`CanvasBrush`（填充与文字颜色，眼下只有 `CanvasBrush.Solid(color)`）、`CanvasTextStyle`（`Create()` 起手，字号默认跟随宿主、`WithFontSize` 指定，`WithAlignment` 九宫格对齐、默认居中；用到文字的地方都可以不传样式，等于默认样式）。三者都不可变、构造时校验（粗细、字号须为正的有限数），**建好存进静态字段反复用**，宿主据此缓存，每帧不必重建。颜色、矩形、尺寸是 Foundation 的只读值类型：`Color`（只走工厂，名字即参数顺序：`Color.FromRgb(r, g, b)` 不透明、`Color.FromArgb(a, r, g, b)`、`Color.FromHex("#RRGGBB" 或 "#AARRGGBB")`；SDK 里颜色一律 Alpha 在前，与工程文件里的 8 位十六进制同一种语义；`WithAlpha` 换透明度；`default(Color)` 是完全透明的黑色）、`Rect(x, y, width, height)`（四条边 `Left` / `Top` / `Right` / `Bottom`、`Center`、`Contains(point)` 含边、`Inflate(dx, dy)` 负数即向内缩（留内边距）、按边构造 `Rect.FromLTRB(left, top, right, bottom)`）、`Size`——写画布不需要 `using System.Drawing`。接口只有几个原语：`DrawLine(from, to, pen)`、`DrawGeometry(geometry, fill, stroke)`（fill / stroke 可只给一个）、`DrawText`、`MeasureText`、`DrawImage`；形状是 `CanvasGeometry`（`Polyline` / `Polygon` / `Rectangle(rect, cornerRadius)` / `Ellipse` / `Circle`，点列建时拷一份），常用写法在扩展方法里：`Draw*` 按给的填充 + 描边画、`Fill*` 只填充、`Stroke*` 只描边——`DrawPolyline`、`DrawPolygon` / `FillPolygon` / `StrokePolygon`、`DrawRectangle` / `FillRectangle` / `StrokeRectangle`（可圆角）、`DrawEllipse` / `FillEllipse` / `StrokeEllipse`、`DrawCircle` / `FillCircle` / `StrokeCircle`。`DrawText(text, bounds, brush, style)` 按样式的对齐把文字排在矩形内，矩形宽高给 0 即"以该点为锚"；文字里的 `\n` 换行，多行时每一行也按横向对齐（`Center` 即每行各自居中），不会自动折行；字体由宿主决定（跟随界面字体），排版用 `MeasureText(text, style)` 的结果，别写死文字宽度，也别按字号推算（默认字号跟随宿主、可能变）。
 - **图片**：`CanvasImage.FromEncodedData(bytes)`（PNG、JPEG、WebP、SVG；SVG 不加载外部引用）或 `CanvasImage.FromPixelData(width, height, rgba)`（每像素 R、G、B、A 四字节、非预乘、逐行无填充）创建，`DrawImage(image, bounds)` 缩放画进矩形（不保持宽高比，要保持就按 `image.Width` / `image.Height` 自己算；SVG 按绘制尺寸清晰栅格化）。图片**创建后不可改写**：换内容就新建一张、把旧的 `Dispose`（先 Dispose 再新建，宿主更容易及时回收）；已经画出去的那一帧不受 Dispose 影响。可以在任意线程创建与 Dispose（如后台解码），绘制只在 `Render` 里。解码要花时间，**图片在插件级缓存**，别在工厂或 `Render` 里每次重新解码。自己生成像素时按 `宽 × host.DevicePixelRatio` 的像素数生成才清晰，比例变了（窗口拖到另一块屏幕）宿主会重新调用 `Render`。
 - **绘制状态**：`PushOpacity(opacity)`（不透明度，与外层相乘）、`PushClip(geometry)`（只画形状围出的区域内，与外层取交集；矩形写 `PushClip(rect, cornerRadius)`）、`PushTransform(Matrix3x2)`（坐标变换，`System.Numerics`，与外层复合）——之后的绘制都受影响，直到 Dispose 返回值，用 `using` 写最自然。按栈嵌套、后进先出，`Render` 结束时没撤销的宿主一并撤销。变换只影响绘制：**鼠标坐标永远是画布坐标**，命中检测自己做逆变换。
@@ -1259,6 +1259,34 @@ if (picked is { } v && v.ToString(out var command) && command == "set")
 - **弹窗**：`host.DialogService` 与按钮点击拿到的是同一套（提示 / 确认 / 进度 / 输入表单，§9.2），以画布所在的窗口为父窗口、标明来源插件。区别只在有效期：画布没有"一次点击"的边界，**本实例有效期内都能用**，实例作废后再调抛 `InvalidOperationException`。弹窗开着时同弹出一样算"在用"。
 
 参考实现：`tests/plugins/V1.Voice/StretchCurveCanvas.cs`（note 面板与核音素面板上的拉伸曲线：按下即写草稿、拖动、双击复位、点上滚轮微调并推迟提交 / 空白处照常滚面板、多选合并值；画布有焦点时 ↑ / ↓ 微调指针所在的点、按住连调、松开提交，拖动中按 Esc 取消；右键菜单——在数值标签处弹文本框改值、多行备注、确认后全部复位）与 `tests/plugins/V1.Voice/ImageDemoCanvas.cs`（note 面板上的"Canvas Images"：编码位图与 SVG 的插件级缓存、按设备像素比自生成像素、圆角裁剪、透明度、旋转变换，← / → 旋转）。
+
+### 10.6 时间轴画布（TimelineCanvasConfig）
+
+必须与时间轴对齐、逐个对象编辑的界面（如音素混合：一条随时间变化的曲线，加上符号与语言），声明成**时间轴画布**：
+它不在侧栏里，而是常驻钢琴窗下方的参数面板——每个声明了它的对象（note 级字段 = 每个 note，音素级字段 = 每个音素）
+在自己的时间段上占一块，宽 = 这个对象的时间段，高 = 面板高度。标签栏里哪个 note 的声明有它就有它，不用用户去钉。
+
+```csharp
+props.Add(("mix", "Mix"), TimelineCanvasConfig.Create(MixCanvas.Default, host => new MixCanvas(host, value))
+    .WithColor("#E58AC9"));   // 不设颜色 = 宿主从调色板分配（同 AutomationConfig）
+```
+
+- **怎么选**：界面属于侧栏、与时间无关（或只按对象内的相对位置画）→ `CanvasConfig`；必须与时间轴对齐 → `TimelineCanvasConfig`。
+  同一个字段只能选一种。侧栏可以多选，多个对象没有一个共同的时间段，所以时间换算只有时间轴画布有。
+- **其余与侧栏画布完全相同**：同一个 `ICanvasControl`、同一套绘制 / 事件 / 草稿 / 提交 / 弹出 / 弹窗（§10.1–10.5），值语义、实例寿命也一样。
+  只能作为 note / 音素属性声明的顶层成员。没有首选尺寸：宽由对象的时长定，高是用户调的面板高度。
+- **时间换算**：工厂收到的是 `ITimelineCanvasHost`，多一个 `TimeAxis`——`TimeToX(秒)` / `XToTime(x)`，秒是全局秒（与声明视图
+  `IVoiceSynthesisNoteView.StartTime` 同一口径），x 是画布坐标。换算跟着钢琴窗的时间轴走（速度变化处不均匀），**别假设它线性**。
+  这块画布覆盖的时间段就是 `XToTime(0)` 到 `XToTime(Width)`；它未必等于对象自己的起止（note 会被钳到下一个 note 的起点，
+  音素的显示时间由宿主排版），按秒画的内容拿自己数据里的绝对时间换算即可。
+- **所见即所闻**：按秒定义的曲线，别只换算控制点再连直线——跨过速度变化处会与按秒插值的结果不一致。逐像素采样
+  （每一列 `XToTime(x)` 换回秒、再按秒求值）就与合成严格一致。
+- **以宿主的换算为准**：别用你合成时自己算出的音素时间来画。宿主给的是屏幕上显示的时间段，画布要与用户看到的音素块对齐；
+  两者在合成结果回填后一致，只在改动后、合成回来前的过渡期不同，显示一更新宿主就重新 `Render`。
+- **按尺寸排版**：参数面板里可能很窄、很矮、也可能很宽（放大后上万像素）。窄、矮时画紧凑版（如只画曲线和一行符号、
+  点字才弹 `PopupTextBox`）；要不要拆成两个控件类、还是一个类里按尺寸分支，你自己定。宿主不告诉你"在哪"，只给尺寸与换算。
+- **默认值宜中性**（未调即无效果），或只按对象内的相对位置定义：未钉住的音素长度随合成变化，默认值的作用若依赖长度，
+  用户没碰过的对象会在别处编辑后听感改变。
 
 ## 11. 打包、安装、卸载
 

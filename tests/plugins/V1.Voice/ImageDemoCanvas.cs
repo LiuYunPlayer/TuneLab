@@ -83,7 +83,13 @@ sealed class ImageDemoCanvas(ICanvasHost host, IReadOnlyList<PropertyValue> valu
         var band = new Rect(gx, Pad, gw, size);
         d.DrawImage(Gradient(gw, size), band);
         d.StrokeRectangle(band, Frame);
+
+        // 露出的部分（VisibleBounds）：侧栏滚到画布只露出一截时，左上角标出露出的纵向范围。
+        var visible = host.VisibleBounds;
+        d.DrawText($"visible y {visible.Top:0}–{visible.Bottom:0} / {h:0}", new Rect(Pad, Math.Max(visible.Top, 0) + 2, 0, 0), LabelBrush, VisibleStyle);
     }
+
+    static readonly CanvasTextStyle VisibleStyle = CanvasTextStyle.Create().WithFontSize(11).WithAlignment(CanvasAlignment.LeftTop);
 
     // 色带图片：逻辑尺寸 × 设备像素比 = 像素尺寸。变了就先 Dispose 旧的再新建（不可改写，换内容就换一张）。
     CanvasImage Gradient(double width, double height)

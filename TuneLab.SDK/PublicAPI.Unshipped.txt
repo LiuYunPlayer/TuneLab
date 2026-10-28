@@ -38,6 +38,7 @@ static TuneLab.SDK.TagItem.implicit operator TuneLab.SDK.TagItem(long value) -> 
 static TuneLab.SDK.TagItem.implicit operator TuneLab.SDK.TagItem(string! value) -> TuneLab.SDK.TagItem
 static TuneLab.SDK.TagItem.implicit operator TuneLab.SDK.TagItem(TuneLab.Foundation.PropertyValue value) -> TuneLab.SDK.TagItem
 static TuneLab.SDK.TagItem.Separator(string? label = null) -> TuneLab.SDK.TagItem
+static TuneLab.SDK.TimelineCanvasConfig.Create(TuneLab.Foundation.PropertyValue defaultValue, System.Func<TuneLab.SDK.ITimelineCanvasHost!, TuneLab.SDK.ICanvasControl!>! createControl) -> TuneLab.SDK.TimelineCanvasConfig!
 TuneLab.SDK.ButtonConfig
 TuneLab.SDK.ButtonConfig.OnClick.get -> System.Func<TuneLab.SDK.IButtonClickContext!, System.Threading.Tasks.Task!>!
 TuneLab.SDK.ButtonConfig.Text.get -> string!
@@ -216,7 +217,11 @@ TuneLab.SDK.ICanvasHost.Invalidate() -> void
 TuneLab.SDK.ICanvasHost.PopupMenu(TuneLab.Foundation.Rect anchor, System.Collections.Generic.IReadOnlyList<TuneLab.SDK.ComboBoxItem>! items) -> System.Threading.Tasks.Task<TuneLab.Foundation.PropertyValue?>!
 TuneLab.SDK.ICanvasHost.PopupTextBox(string! text, TuneLab.Foundation.Rect bounds, TuneLab.SDK.CanvasTextStyle? style = null, TuneLab.SDK.CanvasTextBoxOptions? options = null) -> System.Threading.Tasks.Task<string?>!
 TuneLab.SDK.ICanvasHost.SetValue(TuneLab.Foundation.PropertyValue value) -> bool
+TuneLab.SDK.ICanvasHost.VisibleBounds.get -> TuneLab.Foundation.Rect
 TuneLab.SDK.ICanvasHost.Width.get -> double
+TuneLab.SDK.ICanvasTimeAxis
+TuneLab.SDK.ICanvasTimeAxis.TimeToX(double time) -> double
+TuneLab.SDK.ICanvasTimeAxis.XToTime(double x) -> double
 TuneLab.SDK.IDialogService
 TuneLab.SDK.IDialogService.Confirm(string! title, string! message) -> System.Threading.Tasks.Task<bool>!
 TuneLab.SDK.IDialogService.PromptInputs(string! title, System.Func<TuneLab.Foundation.PropertyObject!, TuneLab.SDK.ObjectConfig!>! config) -> System.Threading.Tasks.Task<TuneLab.Foundation.PropertyObject?>!
@@ -232,6 +237,8 @@ TuneLab.SDK.IInstrumentSynthesisPartView.PartId.get -> string!
 TuneLab.SDK.IProgressReporter
 TuneLab.SDK.IProgressReporter.Report(double? fraction, string? status = null) -> void
 TuneLab.SDK.IProgressReporter.SetCancellable(bool cancellable) -> void
+TuneLab.SDK.ITimelineCanvasHost
+TuneLab.SDK.ITimelineCanvasHost.TimeAxis.get -> TuneLab.SDK.ICanvasTimeAxis!
 TuneLab.SDK.IVoiceSynthesisContext.InvalidateNotes(System.Collections.Generic.IEnumerable<string!>! noteIds) -> void
 TuneLab.SDK.IVoiceSynthesisContext.InvalidatePart() -> void
 TuneLab.SDK.IVoiceSynthesisContext.PartId.get -> string!
@@ -256,3 +263,8 @@ TuneLab.SDK.TagItem.TagItem() -> void
 TuneLab.SDK.TagItem.TagItem(string! displayText, System.Collections.Generic.IEnumerable<TuneLab.SDK.TagItem>! subItems) -> void
 TuneLab.SDK.TagItem.TagItem(TuneLab.Foundation.PropertyValue value, string? displayText = null) -> void
 TuneLab.SDK.TagItem.Value.get -> TuneLab.Foundation.PropertyValue
+TuneLab.SDK.TimelineCanvasConfig
+TuneLab.SDK.TimelineCanvasConfig.Color.get -> string!
+TuneLab.SDK.TimelineCanvasConfig.CreateControl.get -> System.Func<TuneLab.SDK.ITimelineCanvasHost!, TuneLab.SDK.ICanvasControl!>!
+TuneLab.SDK.TimelineCanvasConfig.DefaultValue.get -> TuneLab.Foundation.PropertyValue
+TuneLab.SDK.TimelineCanvasConfig.WithColor(string! color) -> TuneLab.SDK.TimelineCanvasConfig!

@@ -26,7 +26,7 @@ internal static class ConfigValues
     internal static readonly IReadOnlyList<Type> Values =
     [
         typeof(CheckBoxConfig), typeof(SliderConfig), typeof(DraggableNumberBoxConfig), typeof(ComboBoxConfig), typeof(TagConfig),
-        typeof(TextBoxConfig), typeof(PathPickerConfig), typeof(CanvasConfig),
+        typeof(TextBoxConfig), typeof(PathPickerConfig), typeof(CanvasConfig), typeof(TimelineCanvasConfig),
         typeof(ObjectConfig), typeof(ArrayConfig), typeof(ListConfig), typeof(ExtensibleObjectConfig),
     ];
     internal static readonly IReadOnlyList<Type> NotValues = [typeof(ButtonConfig), typeof(AutomationConfig)];
@@ -105,6 +105,7 @@ internal static class ConfigValues
 
             // 画布的值形状由插件自定、宿主不解读：任何真实的值都收（插件读值时自己校验），只拒内部含 Multiple 的。
             case CanvasConfig:
+            case TimelineCanvasConfig:
                 try
                 {
                     PropertySlot.EnsureStorable(value);

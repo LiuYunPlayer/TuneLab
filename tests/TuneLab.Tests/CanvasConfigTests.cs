@@ -23,6 +23,7 @@ public class CanvasConfigTests
         public double Width => 0;
         public double Height => 0;
         public double DevicePixelRatio => 1;
+        public Rect VisibleBounds => default;
         public void Invalidate() { }
         public void BeginEdit() => Begins++;
         public void EndEdit() => Ends++;
@@ -58,6 +59,19 @@ public class CanvasConfigTests
         Assert.Throws<ArgumentException>(() => CanvasConfig.Create(PropertyValue.Multiple, 240, 80, _ => new NullControl()));
         CanvasConfig.Create(PropertyValue.Create(0.5), 240, 80, _ => new NullControl());
         CanvasConfig.Create(PropertyObject.Empty, 240, 80, _ => new NullControl());
+    }
+
+    // 时间轴画布同一条默认值规矩；颜色默认全透明 = 不指定（宿主分配，同 AutomationConfig）。
+    [Fact]
+    public void TimelineCanvas_RejectsNullOrMultipleDefault_ColorUnassignedByDefault()
+    {
+        Assert.Throws<ArgumentNullException>(() => TimelineCanvasConfig.Create(Curve, null!));
+        Assert.Throws<ArgumentException>(() => TimelineCanvasConfig.Create(PropertyValue.Null, _ => new NullControl()));
+        Assert.Throws<ArgumentException>(() => TimelineCanvasConfig.Create(PropertyValue.Multiple, _ => new NullControl()));
+        var config = TimelineCanvasConfig.Create(PropertyObject.Empty, _ => new NullControl());
+        Assert.True(TuneLab.Configs.TrackColors.IsUnassigned(config.Color));
+        Assert.Equal("#F1595B", config.WithColor("#F1595B").Color);
+        Assert.True(TuneLab.Configs.TrackColors.IsUnassigned(config.Color));   // With 不改原对象
     }
 
     [Fact]

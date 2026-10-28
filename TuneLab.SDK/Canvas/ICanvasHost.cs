@@ -17,6 +17,11 @@ public interface ICanvasHost
     // 按 Width × DevicePixelRatio 的像素宽度生成才清晰。变化后（窗口拖到另一块屏幕）宿主会重新调用 Render。
     double DevicePixelRatio { get; }
 
+    // 画布区域里此刻露在外面的部分（画布坐标的矩形，在 [0, Width] × [0, Height] 之内；完全看不见时宽高为 0）。
+    // 侧栏里多因面板滚动只露出一部分高度，参数面板里多因时间轴滚动只露出一部分宽度。只是提示：不处理它照样正确
+    //（整块都画，宿主裁掉看不见的部分）；逐像素采样、自己生成位图的，按它只算露出来的部分。变化后宿主会重新调用 Render。
+    Rect VisibleBounds { get; }
+
     // 请求重画（合并到下一帧）。
     void Invalidate();
 

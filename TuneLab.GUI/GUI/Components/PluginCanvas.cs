@@ -10,6 +10,7 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using TuneLab.Foundation;
 using TuneLab.GUI.Controllers;
 using TuneLab.GUI.Input;
@@ -187,6 +188,7 @@ internal sealed class PluginCanvas : Component
         // 也让画布整块可命中（插件没画东西的地方同样收得到鼠标）。插件画在它上面。
         context.FillRectangle(Style.BACK.ToBrush(), new Rect(Bounds.Size), 4);
         mRendering = true;
+        mRenderedVisibleBounds = ComputeVisibleBounds();
         try
         {
             if (Ensure() is not { } session)
@@ -202,6 +204,7 @@ internal sealed class PluginCanvas : Component
     }
 
     bool mRendering;   // 正在画：这期间插件请求重画（如建实例时补发的 Enter 里）不必再排一帧
+    Rect mRenderedVisibleBounds;   // 上一帧画的时候露出的部分：布局变了与它比，变了才重画
 
     // —— 事件转发：宿主保证每个实例收到的事件成对（契约见 ICanvasControl）——
     // · Enter / Leave 严格交替：换了实例时指针可能已在画布内，转发下一个事件前先给新实例补一次 Enter；
@@ -315,6 +318,27 @@ internal sealed class PluginCanvas : Component
         mTopLevel = Avalonia.Controls.TopLevel.GetTopLevel(this);
         if (mTopLevel != null)
             mTopLevel.ScalingChanged += OnScalingChanged;
+        // 露出的部分随所在滚动面板变（VisibleBounds）：滚动只是祖先重新排布内容，画布自己的尺寸不变、不会重画，得自己听。
+        // 听布局完成而不是某种滚动容器的事件：宿主的滚动容器不止一种（侧栏是自绘的 ScrollView，滚动即重新排布），
+        // 排布一定先于露出范围变化完成，此时算出的才是新范围。
+        LayoutUpdated += OnLayoutUpdated;
+    }
+
+    // 露出的部分变了才重画（契约：VisibleBounds 变化后宿主重新调用 Render）；没变（如滚动的是画布之外的内容）不打扰插件。
+    void OnLayoutUpdated(object? sender, System.EventArgs e)
+    {
+        if (mSession != null && ComputeVisibleBounds() != mRenderedVisibleBounds)
+            InvalidateVisual();
+    }
+
+    // 画布区域里此刻露在外面的部分（画布坐标）：自身区域与各祖先裁剪区的交集。完全看不见时宽高为 0。
+    Rect ComputeVisibleBounds()
+    {
+        var whole = new Rect(Bounds.Size);
+        if (this.GetTransformedBounds() is not { } transformed || !transformed.Transform.TryInvert(out var inverse))
+            return default;
+        var visible = transformed.Clip.TransformToAABB(inverse).Intersect(whole);
+        return visible.Width > 0 && visible.Height > 0 ? visible : default;
     }
 
     // 设备像素比变了（窗口拖到另一块屏幕）：插件按它生成的位图、宿主栅格化的 SVG 都要按新比例重画。
@@ -330,6 +354,7 @@ internal sealed class PluginCanvas : Component
         if (mTopLevel != null)
             mTopLevel.ScalingChanged -= OnScalingChanged;
         mTopLevel = null;
+        LayoutUpdated -= OnLayoutUpdated;
         ReleaseAll();
         ReleaseKeys();
         if (mSession is { Inside: true } session)
@@ -442,6 +467,14 @@ internal sealed class PluginCanvas : Component
         public double Width => view.Bounds.Width;
         public double Height => view.Bounds.Height;
         public double DevicePixelRatio => view.Scaling;
+        public TuneLab.Foundation.Rect VisibleBounds
+        {
+            get
+            {
+                var visible = view.ComputeVisibleBounds();
+                return new(visible.X, visible.Y, visible.Width, visible.Height);
+            }
+        }
         public void Invalidate()
         {
             VerifyThread();

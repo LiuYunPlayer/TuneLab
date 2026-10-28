@@ -147,6 +147,8 @@ internal class PropertyObjectController : StackPanel
             var cfg = kvp.Value;
             if (nextByKey.ContainsKey(id))
                 continue; // ObjectConfig 是 map，key 本应唯一；防御重复
+            if (cfg is TimelineCanvasConfig)
+                continue; // 时间轴画布只在参数面板里（见 TimelineCanvasConfig）：侧栏不显示它
 
             if (mCreatorsByKey.TryGetValue(id, out var existing) && existing.ConfigType == cfg.GetType())
             {
