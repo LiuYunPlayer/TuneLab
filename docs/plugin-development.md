@@ -1282,6 +1282,9 @@ props.Add(("mix", "Mix"), TimelineCanvasConfig.Create(MixCanvas.Default, host =>
 - **Everything else is the same as the side-panel canvas**: the same `ICanvasControl`, drawing / events / drafts / commits /
   popups / dialogs (§10.1–10.5), value semantics and instance lifetime. Top-level members of note / phoneme property
   declarations only. No preferred size: the width comes from the object's duration, the height is the panel height the user set.
+  Layered or list-shaped data (say one canvas per layer) can reach the parameter panel only as several top-level keys (such as
+  `mix:0`, `mix:1`, …, declared as needed); a canvas inside an array or object does not — the side panel's array style does not
+  carry over.
 - **Time mapping**: the factory receives an `ITimelineCanvasHost` with a `TimeAxis` — `TimeToX(seconds)` / `XToTime(x)`, in
   global seconds (the same as the declaration view's `IVoiceSynthesisNoteView.StartTime`) and canvas coordinates. It follows the
   piano roll's time axis (uneven across tempo changes); **do not assume it is linear**. The block covers `XToTime(0)` to

@@ -1275,6 +1275,8 @@ props.Add(("mix", "Mix"), TimelineCanvasConfig.Create(MixCanvas.Default, host =>
   同一个字段只能选一种。侧栏可以多选，多个对象没有一个共同的时间段，所以时间换算只有时间轴画布有。
 - **其余与侧栏画布完全相同**：同一个 `ICanvasControl`、同一套绘制 / 事件 / 草稿 / 提交 / 弹出 / 弹窗（§10.1–10.5），值语义、实例寿命也一样。
   只能作为 note / 音素属性声明的顶层成员。没有首选尺寸：宽由对象的时长定，高是用户调的面板高度。
+  多层 / 列表型的数据（如每层一块画布）要进参数面板，只能拆成多个顶层键（如 `mix:0`、`mix:1`……，层数按需声明），
+  放在数组或对象里的画布不进参数面板——侧栏那种数组写法在这里行不通。
 - **时间换算**：工厂收到的是 `ITimelineCanvasHost`，多一个 `TimeAxis`——`TimeToX(秒)` / `XToTime(x)`，秒是全局秒（与声明视图
   `IVoiceSynthesisNoteView.StartTime` 同一口径），x 是画布坐标。换算跟着钢琴窗的时间轴走（速度变化处不均匀），**别假设它线性**。
   这块画布覆盖的时间段就是 `XToTime(0)` 到 `XToTime(Width)`；它未必等于对象自己的起止（note 会被钳到下一个 note 的起点，
