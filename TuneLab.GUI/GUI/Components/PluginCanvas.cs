@@ -258,8 +258,25 @@ internal sealed class PluginCanvas : Component
     // · Enter / Leave 严格交替：换了实例时指针可能已在画布内，转发下一个事件前先给新实例补一次 Enter；
     // · Up 只转发给收到过对应 Down 的实例（换实例后不会收到孤立的抬起）；鼠标捕获意外丢失时补发 Up（IsClick = false）。
 
+    // 弹出（菜单、文本框）挂在画布自己的子树上，里面的指针事件会沿树冒泡到这里——那不是落在画布上的操作，不转给插件
+    //（否则在菜单里点一项，同一下又成了在画布上按下）。画布自己没有别的子控件，事件源不是自己就是来自弹出。
+    // 隧道阶段先记下这一下的来源，随后（冒泡阶段）的转发据此放行或丢弃。
+    public PluginCanvas()
+    {
+        AddHandler(PointerPressedEvent, OnPointerFromAnywhere, RoutingStrategies.Tunnel, handledEventsToo: true);
+        AddHandler(PointerMovedEvent, OnPointerFromAnywhere, RoutingStrategies.Tunnel, handledEventsToo: true);
+        AddHandler(PointerReleasedEvent, OnPointerFromAnywhere, RoutingStrategies.Tunnel, handledEventsToo: true);
+        AddHandler(PointerWheelChangedEvent, OnPointerFromAnywhere, RoutingStrategies.Tunnel, handledEventsToo: true);
+    }
+
+    void OnPointerFromAnywhere(object? sender, PointerEventArgs e) => mPointerFromPopup = !ReferenceEquals(e.Source, this);
+
+    bool mPointerFromPopup;
+
     protected override void OnMouseDown(MouseDownEventArgs e)
     {
+        if (mPointerFromPopup)
+            return;
         var button = ToButton(e.MouseButtonType);
         mPressed |= Bit(button);
         if (Prepare() is not { } session)
@@ -270,12 +287,20 @@ internal sealed class PluginCanvas : Component
 
     protected override void OnMouseUp(MouseUpEventArgs e)
     {
+        if (mPointerFromPopup)
+            return;
         var button = ToButton(e.MouseButtonType);
         if ((mPressed & Bit(button)) != 0)   // 在别处按下、到画布上才松开的抬起不算
             Release(button, ToPoint(e.Position), ToModifiers(e.KeyModifiers), e.IsClick);
     }
 
     protected override void OnMouseMove(MouseMoveEventArgs e)
+    {
+        if (!mPointerFromPopup)
+            MoveTo(e);
+    }
+
+    void MoveTo(MouseMoveEventArgs e)
         => Prepare()?.Call(control => control.OnMouseMove(new CanvasMouseEvent(ToPoint(e.Position), ToModifiers(e.KeyModifiers))));
 
     protected override void OnMouseEnter(MouseEnterEventArgs e)
@@ -293,6 +318,8 @@ internal sealed class PluginCanvas : Component
     // 插件置了 Handled 才消费这次滚轮；没置（含没实现 OnScroll、实例失效）则照常冒泡去滚面板。
     protected override void OnScroll(WheelEventArgs e)
     {
+        if (mPointerFromPopup)
+            return;
         var args = new CanvasWheelEvent(ToPoint(e.Position), ToModifiers(e.KeyModifiers), ToPoint(e.Delta));
         Prepare()?.Call(control => control.OnScroll(args));
         e.Handled = args.Handled;
