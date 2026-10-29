@@ -112,6 +112,31 @@ public class ManualLibraryTests
         });
     }
 
+    // 正文里的跳转链接（](#锚点)）在应用内手册窗里按章滚动：每一个都得落到某一章——改了标题而没改链接，这里先叫。
+    [Fact]
+    public void EveryInManualLinkResolvesToAChapter()
+    {
+        var sections = ManualLibrary.Sections;
+        var anchors = sections
+            .SelectMany(s => System.Text.RegularExpressions.Regex.Matches(s.Body, @"\]\(#([^)]+)\)").Select(m => m.Groups[1].Value))
+            .Distinct()
+            .ToList();
+        Assert.NotEmpty(anchors);
+        var unresolved = anchors.Where(a => ManualLibrary.IndexOfAnchor(sections, a) < 0).ToList();
+        Assert.True(unresolved.Count == 0, "links that point at no chapter: " + string.Join(", ", unresolved));
+    }
+
+    // 锚点规则同 GitHub：小写、去标点、空格变连字符，中文保留；章标题里的章号在比对时去掉。
+    [Fact]
+    public void AnchorsFollowGitHubHeadingRules()
+    {
+        Assert.Equal("123-外观", ManualLibrary.AnchorOf("12.3 外观"));
+        Assert.Equal("范围选区daw-式常驻选区", ManualLibrary.AnchorOf("范围选区（DAW 式常驻选区）"));
+        var sections = ManualLibrary.Sections;
+        Assert.Equal(ManualLibrary.IndexOfAnchor(sections, "扩展管理"), ManualLibrary.IndexOfAnchor(sections, "15-扩展管理"));
+        Assert.Equal(-1, ManualLibrary.IndexOfAnchor(sections, "no-such-heading"));
+    }
+
     [Fact]
     public void SearchIsEmptyForBlankOrMissingQuery()
     {
