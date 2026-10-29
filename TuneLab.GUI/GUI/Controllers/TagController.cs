@@ -388,7 +388,7 @@ internal sealed class TagController : Panel
             Child = content;
 
             if (invalid)
-                ToolTip.SetTip(this, string.Format("Stored value \"{0}\" is not among the current tags.\nThe plugin decides how to treat it.".Tr(owner), text));
+                ToolTip.SetTip(this, string.Format("Current value \"{0}\" is not among the available tags.".Tr(owner), text));
             else if (partial)
                 ToolTip.SetTip(this, "Only some of the selected items have this tag. Pick it from + to add it to all of them.".Tr(owner));
 

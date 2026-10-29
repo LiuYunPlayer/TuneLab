@@ -34,39 +34,39 @@ TuneLab 是一款**可扩展的歌声合成编辑器**：合成引擎、工程�
 <!-- section: install -->
 ## 1. 安装与启动
 
-Release 页面目前提供 Windows x64 两种包：
+Release 页面提供以下两种 Windows x64 安装包：
 
 | 形态 | 文件名 | 说明 |
 |------|--------|------|
-| 安装器 | `TuneLab-Setup-win-x64-v<版本>.exe` | 安装到 `%LocalAppData%\Programs\TuneLab`（当前用户，无需管理员），可选关联 `.tlpx` / `.tlp` / `.tlx` 文件类型，注册卸载项。**只有安装版能就地自更新。** |
-| 免安装 | `TuneLab-win-x64-v<版本>.zip` | 解压到任意目录运行 `TuneLab.exe`。不往目录外写任何东西，也不关联文件类型、不自更新。 |
+| 安装器 | `TuneLab-Setup-win-x64-v<版本>.exe` | 安装到 `%LocalAppData%\Programs\TuneLab`（仅当前用户，无需管理员权限）；可选择关联 `.tlpx` / `.tlp` / `.tlx` 文件类型，并注册卸载项。**仅安装版支持自动更新。** |
+| 免安装 | `TuneLab-win-x64-v<版本>.zip` | 解压到任意目录后运行 `TuneLab.exe`。不关联文件类型，不注册卸载项，不支持自动更新。 |
 
-两者都是**框架依赖**构建，需要 [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0)（x64）。没装运行时的机器首次启动会被引导到微软的下载页。
+两种包均为**框架依赖**构建，需要安装 [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0)（x64）。未安装运行时的机器首次启动时会引导至微软下载页面。
 
-程序未做代码签名，首次启动 Windows 可能弹 SmartScreen（"Windows 已保护你的电脑"），选 **更多信息 → 仍要运行** 即可。
+程序未进行代码签名，首次启动时 Windows 可能显示 SmartScreen 提示（“Windows 已保护你的电脑”），依次选择 **更多信息 → 仍要运行** 即可。
 
-其他平台请自行从源码构建。
+其他平台请从源码自行构建。
 
 ### 无人值守安装（脚本 / AI Agent）
 
-安装器自带命令行，向导上能勾的每一项都有对应参数，**缺省值与向导一致**（都建快捷方式、关联文件类型、装完启动）。`TuneLab-Setup-win-x64-v<版本>.exe -help` 会把参数与默认值全部列出来。
+安装器支持命令行参数，向导中的每个选项都有对应参数，**默认值与向导一致**（创建快捷方式、关联文件类型、安装完成后启动）。运行 `TuneLab-Setup-win-x64-v<版本>.exe -help` 可列出全部参数及默认值。
 
-一台干净机器上从零装好，大致是这几步（PowerShell）：
+在尚未安装运行时的机器上，安装步骤如下（PowerShell）：
 
 ```powershell
-# 1) 运行时（框架依赖构建，必须先有它）
+# 1) 安装运行时（框架依赖构建的前提）
 winget install --id Microsoft.DotNet.DesktopRuntime.8 --silent --accept-package-agreements
 
-# 2) 取最新安装器
+# 2) 下载最新安装器
 $api = Invoke-RestMethod https://api.github.com/repos/LiuYunPlayer/TuneLab/releases/latest
 $url = ($api.assets | Where-Object { $_.name -like 'TuneLab-Setup-win-x64-*.exe' }).browser_download_url
 $exe = Join-Path $env:TEMP (Split-Path $url -Leaf)
 Invoke-WebRequest $url -OutFile $exe
-Unblock-File $exe          # 去掉"从网上下载"标记，否则运行时可能被 SmartScreen 拦
+Unblock-File $exe          # 移除“从网络下载”标记，避免运行时被 SmartScreen 拦截
 
-# 3) 静默安装（这里示范 CI 常用的一组：不建快捷方式、不关联文件类型、装完不启动）
-#    安装器是窗口程序，PowerShell 的 & 不会等它结束，必须用 Start-Process -Wait，
-#    否则第 4 步会在还没装完时就跑起来，退出码也读不到（见下）
+# 3) 静默安装（以下为 CI 常用参数：不创建快捷方式、不关联文件类型、安装后不启动）
+#    安装器是窗口程序，PowerShell 的 & 不会等待其结束，须使用 Start-Process -Wait，
+#    否则第 4 步会在安装完成前执行，且无法获取退出码（见下文）
 $setup = Start-Process $exe -Wait -PassThru -ArgumentList @(
     '-silent',
     '-desktop-shortcut', 'false',
@@ -76,42 +76,42 @@ $setup = Start-Process $exe -Wait -PassThru -ArgumentList @(
 if ($setup.ExitCode -ne 0) {
     throw "TuneLab 安装失败，退出码 $($setup.ExitCode)，详见 $env:TEMP\TuneLab.Setup.log"
 }
-#    想装成"给人用"的样子就把参数减成 @('-silent')，缺省与向导一致
-#    换目录 -dir <path>；指定界面语言 -language zh-CN
+#    仅保留 @('-silent') 即为与向导默认一致的安装
+#    -dir <path> 指定安装目录；-language zh-CN 指定界面语言
 
-# 4) 验证（命令行在安装目录里，装到别处就换成那个目录）
+# 4) 验证安装（命令行工具位于安装目录；若指定了其他目录，请相应替换路径）
 & "$env:LOCALAPPDATA\Programs\TuneLab\tunelab.cmd" --headless app info
 ```
 
-退出码：`0` 成功 / `1` 安装失败 / `2` 用法错——但**只有等得住它的调用方式才读得到**。安装器是 GUI 子系统的程序，PowerShell 的 `&` 与 cmd 里的直接调用都是发出去就返回：`$LASTEXITCODE` 是空的，后面的步骤会与安装并行地跑起来。PowerShell 用上面的 `Start-Process -Wait -PassThru` 取 `.ExitCode`，cmd 里用 `start /wait`。静默安装还会把过程写进 `%temp%\TuneLab.Setup.log`。
+退出码：`0` 成功 / `1` 安装失败 / `2` 参数错误。**仅在等待安装器结束的调用方式下才能获取退出码**：安装器属于 GUI 子系统程序，PowerShell 的 `&` 与 cmd 中的直接调用均不等待其结束，此时 `$LASTEXITCODE` 为空，后续步骤会与安装同时执行。PowerShell 请使用上文的 `Start-Process -Wait -PassThru` 读取 `.ExitCode`，cmd 请使用 `start /wait`。静默安装的过程记录在 `%temp%\TuneLab.Setup.log`。
 
-几件事值得先知道：
+注意事项：
 
-- **TuneLab 正开着时装不了**（文件被占用）。静默安装会等它 20 秒，然后如实报错退出，不会一直挂着。
-- **`-dir` 给的就是最终目录**：文件直接铺在这个路径里，不会再往下套一层 `TuneLab\`。向导里的"浏览"按钮会替你套一层（选 `D:\Apps` 得到 `D:\Apps\TuneLab`），命令行不替你做这个主。不给就是默认的 `%LocalAppData%\Programs\TuneLab`。
-- **卸载**：`TuneLab-Setup-win-x64-v<版本>.exe -uninstall <安装目录>`，或安装目录里的 `TuneLab.Setup.exe -uninstall <安装目录>`。它只删安装时记过账的那些文件（账本就是安装目录里的 `install-manifest.txt`）——你自己放进那个目录的东西会原样留着，目录也只在空了之后才删。
-- **同一台机器只支持一份安装**：快捷方式名、文件关联、卸载项都是产品级固定的，装第二份会覆盖第一份的这些登记。
-- 装完之后，脚本与 AI Agent 用 `tunelab --headless …` 就能直接干活（跑脚本改工程、批量导出），**不需要打开命令桥**；只有要驱动**用户正开着的那个窗口**时才需要他去设置里勾一下，见[命令行与外部工具](#17-命令行与外部工具)。
+- **TuneLab 运行时无法安装**（文件被占用）。静默安装会等待 20 秒，届时仍未退出则报错退出。
+- **`-dir` 指定的即最终安装目录**：文件直接安装到该路径下，不会再创建 `TuneLab\` 子目录。向导中的「浏览」按钮会自动追加该子目录（选择 `D:\Apps` 得到 `D:\Apps\TuneLab`），命令行则不追加。未指定时使用默认目录 `%LocalAppData%\Programs\TuneLab`。
+- **卸载**：`TuneLab-Setup-win-x64-v<版本>.exe -uninstall <安装目录>`，或安装目录中的 `TuneLab.Setup.exe -uninstall <安装目录>`。卸载只删除安装时记录在 `install-manifest.txt`（位于安装目录）中的文件，用户自行放入该目录的文件会保留；目录在清空后才会删除。
+- **每台机器仅支持一份安装**：快捷方式、文件关联与卸载项均使用固定名称，再次安装会覆盖已有的注册信息。
+- 安装完成后，脚本与 AI Agent 可直接通过 `tunelab --headless …` 执行任务（运行脚本修改工程、批量导出等），**无需开启命令桥**；仅在需要操作**用户当前打开的窗口**时，才需要由用户在设置中开启命令桥，见[命令行与外部工具](#17-命令行与外部工具)。
 
-### 用户数据放在哪
+### 用户数据位置
 
-除程序本体外，TuneLab 的一切用户数据都在 `%APPDATA%\TuneLab`：
+除程序文件外，TuneLab 的全部用户数据位于 `%APPDATA%\TuneLab`：
 
 | 位置 | 内容 |
 |------|------|
-| `Configs\Settings.json` | 设置窗里的全部设置 |
-| `Configs\Keybindings.json` | 你改过的快捷键（只存差量，未改的项继承默认） |
-| `Configs\EditorState.json` | 窗口位置、面板高度这类界面状态 |
-| `Configs\ExtensionActivation.json` | 扩展与单个能力的启停 |
-| `Configs\ExtensionRouting.json` | 多个扩展提供同一能力时选了谁 |
-| `Configs\ParameterPins.json` | 钉在参数面板上的属性 lane |
+| `Configs\Settings.json` | 设置窗中的全部设置 |
+| `Configs\Keybindings.json` | 修改过的快捷键（仅保存改动项，其余沿用默认值） |
+| `Configs\EditorState.json` | 窗口位置、面板高度等界面状态 |
+| `Configs\ExtensionActivation.json` | 扩展及其单项功能的启用状态 |
+| `Configs\ExtensionRouting.json` | 多个扩展提供同一功能时的选择 |
+| `Configs\ParameterPins.json` | 钉选到参数面板的属性 |
 | `Extensions\` | 已安装的扩展（每个包一个子目录） |
-| `Scripts\` | 你保存的脚本 |
+| `Scripts\` | 保存的脚本 |
 | `AgentSessions\` | AI Agent 的会话记录 |
 | `AutoSave\` | 自动保存的备份 |
 | `Logs\` | 运行日志 |
 
-菜单 **帮助 → 打开 TuneLab 文件夹 / 打开日志** 可直达。
+可通过菜单 **帮助 → 打开 TuneLab 文件夹 / 打开日志** 直接打开。
 
 ---
 
@@ -607,7 +607,7 @@ if ($setup.ExitCode -ne 0) {
 ### 自动保存与崩溃恢复
 
 - 按设置的间隔自动备份到 `%APPDATA%\TuneLab\AutoSave`，最多保留设定的份数。
-- 上次异常退出后再启动会问：「程序异常退出。要打开自动备份文件么？」
+- 上次异常退出后再启动会问：「程序上次异常退出。是否打开自动备份文件？」
 - 从备份恢复出来的工程，菜单 **文件 → 存回原位** 可以把它写回原来的文件（会先确认「用恢复出来的内容替换这个文件？」）。这一项只在「当前工程来自崩溃恢复且原文件仍在」时出现。
 
 ---
@@ -623,7 +623,7 @@ TuneLab 的合成引擎、乐器、效果器、工程格式都是扩展（`.tlx`
 - **侧栏扩展页 → 安装扩展**：选文件安装。
 - 安装/卸载都在**重启后生效**；卸载会先标成「待卸载」，可以撤销（「取消卸载」）。
 - 「打开扩展文件夹」直达 `%APPDATA%\TuneLab\Extensions`。
-- 已装扩展显示为卡片：图标、名称、版本、作者、类别徽标（Voice / Instrument / Effect / Format …）。点卡片打开**详情窗**，显示作者写的说明文档（`introduction`）；旧版（legacy）扩展没有 manifest，能力靠扫描发现，详情窗会明确说明这一点。
+- 已装扩展显示为卡片：图标、名称、版本、作者、类别徽标（Voice / Instrument / Effect / Format …）。点卡片打开**详情窗**，显示扩展作者提供的介绍；没有附带介绍的扩展会注明。
 
 ### 启停
 

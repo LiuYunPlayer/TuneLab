@@ -508,7 +508,7 @@ internal sealed class ExtensionDetailWindow : Window
     Control BuildNoEntryContent(ExtensionDetailInfo info)
     {
         var text = info.IsLegacy
-            ? "This is a legacy extension. It ships no manifest metadata, so TuneLab discovers its capabilities by scanning — there is no author-provided documentation to show.".Tr(TC.Dialog)
+            ? "This extension includes no introduction.".Tr(TC.Dialog)
             : "This extension has no documentation.".Tr(TC.Dialog);
 
         return new TextBlock

@@ -74,7 +74,7 @@ internal class ComboBoxController : DropDown, IDataValueController<PropertyValue
                 PlaceholderText = literal;
                 PlaceholderForeground = Style.SYNTHESIS_DEGRADED.ToBrush();
                 WarningMarker = true;
-                this.SetupToolTip(string.Format("Stored value \"{0}\" is not among the current options.\nThe plugin decides how to treat it (usually as default).\nSelect an option to overwrite it.".Tr(this), literal));
+                this.SetupToolTip(string.Format("Current value \"{0}\" is not among the options.\nSelecting any option replaces it.".Tr(this), literal));
             }
             SelectedIndex = -1;
         }

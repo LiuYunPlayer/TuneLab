@@ -521,7 +521,7 @@ internal partial class SettingsWindow : Window
         {
             listView.Content.Children.Add(new TextBlock
             {
-                Text = "No conflicting extensions. (Conflicts appear here when multiple packages provide the same engine id or file format.)".Tr(this),
+                Text = "No extension conflicts.".Tr(this),
                 Margin = new Thickness(24, 16),
                 TextWrapping = TextWrapping.Wrap,
                 Foreground = Style.LIGHT_WHITE.Opacity(0.5).ToBrush(),
@@ -531,7 +531,7 @@ internal partial class SettingsWindow : Window
 
         listView.Content.Children.Add(new TextBlock
         {
-            Text = "Multiple packages provide the same extension. Choose which one to use. Changes apply after restart.".Tr(this),
+            Text = "Multiple extensions provide the same feature. Choose one. Takes effect after restart.".Tr(this),
             Margin = new Thickness(24, 16, 24, 4),
             TextWrapping = TextWrapping.Wrap,
             Foreground = Style.LIGHT_WHITE.Opacity(0.6).ToBrush(),

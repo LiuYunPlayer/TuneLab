@@ -10,6 +10,7 @@ using System.Collections.Generic;
 using System.Linq;
 using TuneLab.Animation;
 using TuneLab.Foundation;
+using TuneLab.I18N;
 using TuneLab.SDK;
 using TuneLab.GUI.Components;
 using TuneLab.Utils;
@@ -1194,7 +1195,7 @@ internal abstract class ElementWidget : IDisposable
         public UnknownElement(IControllerConfig config)
         {
             mConfigType = config.GetType();
-            mView = new Label { Content = $"(unsupported element: {mConfigType.Name})", FontSize = 12, Foreground = Style.LIGHT_WHITE.ToBrush(), Margin = new(0, 6) };
+            mView = new Label { Content = string.Format("(Unsupported element type: {0})".Tr("PropertyObjectController"), mConfigType.Name), FontSize = 12, Foreground = Style.LIGHT_WHITE.ToBrush(), Margin = new(0, 6) };
         }
 
         public override Control View => mView;

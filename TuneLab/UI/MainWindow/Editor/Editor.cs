@@ -1573,7 +1573,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             if (succeeded.Count > 0)
                 summary.Add("Installed: ".Tr(TC.Dialog) + string.Join(", ", succeeded));
             if (needsNewerHost.Count > 0)
-                summary.Add(string.Format("Installed, but needs a newer TuneLab (current SDK {0}) — update TuneLab to use it: ".Tr(TC.Dialog), ExtensionManager.SdkVersion)
+                summary.Add("Installed, but requires a newer version of TuneLab: ".Tr(TC.Dialog)
                     + string.Join(", ", needsNewerHost));
             if (failed.Count > 0)
                 summary.Add("Failed: ".Tr(TC.Dialog) + string.Join("; ", failed));

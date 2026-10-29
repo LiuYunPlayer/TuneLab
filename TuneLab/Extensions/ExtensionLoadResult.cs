@@ -71,7 +71,7 @@ internal sealed class ExtensionLoadResult
 
     // 给用户看的原因：SDK 太新时说成"要更新 TuneLab"（翻译过）；其余原因是技术性英文，原样给出。
     // Error 本身保持英文——它还进日志与命令面（agent / CLI）。
-    public string? DisplayError => RequiredSdk is { } required
-        ? string.Format("Requires a newer TuneLab: this extension needs SDK {0}, this TuneLab provides {1}.".Tr(TC.Dialog), required, ExtensionManager.SdkVersion)
+    public string? DisplayError => RequiredSdk != null
+        ? "This extension requires a newer version of TuneLab.".Tr(TC.Dialog)
         : Error;
 }

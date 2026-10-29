@@ -59,8 +59,8 @@
 "Format" = "Formato"
 "Import" = "Importar"
 "Max Parallel Synthesis Tasks (0 = auto)" = "Máximo de Tarefas de Síntese Paralelas (0 = automático)"
-"Multiple packages provide the same extension. Choose which one to use. Changes apply after restart." = "Vários pacotes fornecem a mesma extensão. Escolha qual usar. As mudanças são aplicadas após reiniciar."
-"No conflicting extensions. (Conflicts appear here when multiple packages provide the same engine id or file format.)" = "Nenhuma extensão em conflito. (Conflitos aparecem aqui quando vários pacotes fornecem o mesmo id de engine ou formato de arquivo.)"
+"Multiple extensions provide the same feature. Choose one. Takes effect after restart." = "Várias extensões fornecem o mesmo recurso. Escolha uma. Entra em vigor após reiniciar."
+"No extension conflicts." = "Nenhum conflito de extensões."
 "Voice" = "Voz"
 "Instrument" = "Instrumento"
 "Extension Routing" = "Roteamento de extensões"
@@ -117,7 +117,7 @@
 "Tips" = "Dica"
 "Error" = "Erro"
 "Failed to load script:" = "Falha ao carregar o script:"
-"Host error:" = "Erro do host:"
+"TuneLab internal error:" = "Erro interno do TuneLab:"
 "All changes were rolled back; the project is unchanged." = "Todas as mudanças foram revertidas; o projeto permanece inalterado."
 "Program crashed last time. Open auto-backup file?" = "Houve um crash na última sessão.\n Abrir o auto-backup?"
 "The project has not been saved.\n Do you want to save it?" = "O projeto não foi salvo.\n Deseja salvar?"
@@ -184,8 +184,8 @@
 "Failed" = "Falhou"
 "Failed: " = "Falhou: "
 "Installed: " = "Instalado: "
-"Requires a newer TuneLab: this extension needs SDK {0}, this TuneLab provides {1}." = "É necessária uma versão mais recente do TuneLab: esta extensão precisa do SDK {0}, e este TuneLab oferece {1}."
-"Installed, but needs a newer TuneLab (current SDK {0}) — update TuneLab to use it: " = "Instalada, mas precisa de uma versão mais recente do TuneLab (SDK atual {0}) — atualize o TuneLab para usá-la: "
+"This extension requires a newer version of TuneLab." = "Esta extensão requer uma versão mais recente do TuneLab."
+"Installed, but requires a newer version of TuneLab: " = "Instalada, mas requer uma versão mais recente do TuneLab: "
 "Partial" = "Parcial"
 "Skipped" = "Ignorado"
 "Reset to Default" = "Redefinir para o padrão"
@@ -195,7 +195,7 @@
 "Apply the agent's {0} change(s) to the project?" = "Aplicar as {0} alteração(ões) do agent ao projeto?"
 "Settings" = "Opções"
 "Open in External Editor" = "Abrir em editor externo"
-"This is a legacy extension. It ships no manifest metadata, so TuneLab discovers its capabilities by scanning — there is no author-provided documentation to show." = "Esta é uma extensão legacy. Ela não fornece metadados de manifest, então o TuneLab descobre seus recursos por varredura — não há documentação fornecida pelo autor."
+"This extension includes no introduction." = "Esta extensão não inclui uma descrição."
 "This extension has no documentation." = "Esta extensão não tem documentação."
 "{0} extension(s) installed" = "{0} extensão(ões) instalada(s)"
 "{0} of {1} extension(s)" = "{0} de {1} extensão(ões)"
@@ -400,7 +400,7 @@
 "Stopped" = "Parado"
 "Submit" = "Enviar"
 "Tips" = "Dica"
-"Total of {0} model calls this turn (tool round-trips repeat the prefix)\nInput {1:N0} · Output {2:N0}\nLast call context ~{3:N0} tokens" = "Total de {0} chamadas ao modelo neste turno (idas e voltas de ferramentas repetem o prefixo)\nEntrada {1:N0} · Saída {2:N0}\nContexto da última chamada ~{3:N0} tokens"
+"Total of {0} model calls this turn\nInput {1:N0} · Output {2:N0}\nLast call context ~{3:N0} tokens" = "Total de {0} chamadas ao modelo neste turno\nEntrada {1:N0} · Saída {2:N0}\nContexto da última chamada ~{3:N0} tokens"
 "Type a message..." = "Digite uma mensagem..."
 "Untitled" = "Sem Título"
 "Agent authorization" = "Autorização do agent"
@@ -446,11 +446,11 @@
 "The agent wants to uninstall the extension \"{0}\". Its files are removed when TuneLab restarts." = "O agent quer desinstalar a extensão “{0}”. Os arquivos dela são removidos quando o TuneLab reiniciar."
 "The agent wants to keep the extension \"{0}\" after all, taking back its pending uninstall." = "O agent quer manter a extensão “{0}” afinal, cancelando a desinstalação pendente."
 "The agent wants to save the project back to its own file:\n{0}" = "O agent quer salvar o projeto de volta no arquivo dele:\n{0}"
-"This really saves — it overwrites that file. This can't be undone." = "Isso salva de verdade — sobrescreve esse arquivo. Isso não pode ser desfeito."
+"This overwrites the original file and cannot be undone." = "O arquivo original será sobrescrito. Isso não pode ser desfeito."
 "The agent wants to save the project as:\n{0}" = "O agent quer salvar o projeto como:\n{0}"
 "From then on that is the file the project saves to." = "A partir daí, é nesse arquivo que o projeto será salvo."
 "The agent wants to render the project's audio to:\n{0}" = "O agent quer renderizar o áudio do projeto em:\n{0}"
-"This runs the full synthesis and mixdown first, which can take several minutes. TuneLab is unusable until it finishes." = "Primeiro executa a síntese completa e a mixagem, o que pode levar vários minutos. O TuneLab fica inutilizável até terminar."
+"Full synthesis and mixdown run first, which may take several minutes. TuneLab cannot be used in the meantime." = "Primeiro são feitas a síntese completa e a mixagem, o que pode levar alguns minutos. Nesse período, o TuneLab não pode ser usado."
 "The agent wants to open this project, closing the one you have open now:\n{0}" = "O agent quer abrir este projeto e fechar o que você tem aberto agora:\n{0}"
 "The undo history of the current project goes with it." = "O histórico de desfazer do projeto atual se perde junto."
 "The agent wants to reset {0} to its sound source's defaults." = "O agent quer redefinir {0} para os padrões da fonte de som dela."
@@ -459,7 +459,7 @@
 "The agent wants to delete the preset \"{0}\". This can't be undone." = "O agent quer excluir o preset “{0}”. Isso não pode ser desfeito."
 "The agent wants to rename the preset \"{0}\" to \"{1}\"." = "O agent quer renomear o preset “{0}” para “{1}”."
 "The agent wants to run the editor action \"{0}\"." = "O agent quer executar a ação do editor “{0}”."
-"The agent wants to run the editor action \"{0}\", which discards work that the undo history cannot bring back." = "O agent quer executar a ação do editor “{0}”, que descarta trabalho que o histórico de desfazer não consegue recuperar."
+"The agent wants to run \"{0}\". This discards changes that cannot be restored with undo." = "O agent quer executar “{0}”. Serão perdidas alterações que não podem ser recuperadas com desfazer."
 "You have unapplied changes. Apply them?" = "Há alterações não aplicadas. Aplicá-las?"
 
 [AgentTurnView]
@@ -499,10 +499,10 @@
 "Untitled" = "Sem Título"
 "No project is open." = "Nenhum projeto aberto."
 "Script is empty." = "O script está vazio."
-"Host error: " = "Erro do host: "
+"TuneLab internal error: " = "Erro interno do TuneLab: "
 
 [ComboBoxController]
-"Stored value \"{0}\" is not among the current options.\nThe plugin decides how to treat it (usually as default).\nSelect an option to overwrite it." = "O valor salvo \"{0}\" não está entre as opções atuais.\nO plugin decide como tratá-lo (geralmente como padrão).\nSelecione uma opção para sobrescrevê-lo."
+"Current value \"{0}\" is not among the options.\nSelecting any option replaces it." = "O valor atual \"{0}\" não está entre as opções.\nSelecionar qualquer opção o substitui."
 
 [SliderController]
 "Randomize" = "Aleatorizar"
@@ -527,10 +527,11 @@
 "No matches" = "Nenhum resultado"
 
 [TagController]
-"Stored value \"{0}\" is not among the current tags.\nThe plugin decides how to treat it." = "O valor salvo \"{0}\" não está entre as tags atuais.\nO plugin decide como tratá-lo."
+"Current value \"{0}\" is not among the available tags." = "O valor atual \"{0}\" não está entre as tags disponíveis."
 "Only some of the selected items have this tag. Pick it from + to add it to all of them." = "Apenas alguns dos itens selecionados têm esta tag. Escolha-a no + para adicioná-la a todos."
 
 [PropertyObjectController]
+"(Unsupported element type: {0})" = "(Tipo de elemento não suportado: {0})"
 "Reset to Default" = "Redefinir para o padrão"
 "{0} items" = "{0} itens"
 "On" = "Ligado"

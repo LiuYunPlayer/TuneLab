@@ -59,8 +59,8 @@
 "Format" = "형식"
 "Import" = "가져오기"
 "Max Parallel Synthesis Tasks (0 = auto)" = "최대 병렬 합성 작업 수 (0 = 자동)"
-"Multiple packages provide the same extension. Choose which one to use. Changes apply after restart." = "여러 패키지가 동일한 확장을 제공합니다. 사용할 항목을 선택하세요. 변경 사항은 재시작 후에 적용됩니다."
-"No conflicting extensions. (Conflicts appear here when multiple packages provide the same engine id or file format.)" = "충돌하는 확장이 없습니다. (여러 패키지가 동일한 엔진 ID 또는 파일 형식을 제공하면 여기에 충돌이 표시됩니다.)"
+"Multiple extensions provide the same feature. Choose one. Takes effect after restart." = "여러 확장이 같은 기능을 제공합니다. 하나를 선택하세요. 재시작 후 적용됩니다."
+"No extension conflicts." = "확장 충돌이 없습니다."
 "Voice" = "보이스"
 "Instrument" = "인스트루먼트"
 "Extension Routing" = "확장 라우팅"
@@ -117,7 +117,7 @@
 "Tips" = "팁"
 "Error" = "오류"
 "Failed to load script:" = "스크립트를 불러오지 못했습니다:"
-"Host error:" = "호스트 오류:"
+"TuneLab internal error:" = "TuneLab 내부 오류:"
 "All changes were rolled back; the project is unchanged." = "모든 변경 사항이 롤백되었습니다. 프로젝트는 변경되지 않았습니다."
 "Program crashed last time. Open auto-backup file?" = "프로그램이 비정상 종료되었습니다. 자동 백업 파일을 열까요?"
 "The project has not been saved.\n Do you want to save it?" = "프로젝트가 저장되지 않았습니다.\n저장하시겠습니까?"
@@ -184,8 +184,8 @@
 "Failed" = "실패"
 "Failed: " = "실패: "
 "Installed: " = "설치됨: "
-"Requires a newer TuneLab: this extension needs SDK {0}, this TuneLab provides {1}." = "TuneLab 업데이트가 필요합니다: 이 확장은 SDK {0}이(가) 필요하지만 현재 TuneLab은 {1}을(를) 제공합니다."
-"Installed, but needs a newer TuneLab (current SDK {0}) — update TuneLab to use it: " = "설치했지만 사용하려면 TuneLab을 업데이트해야 합니다(현재 SDK {0}): "
+"This extension requires a newer version of TuneLab." = "이 확장에는 최신 버전의 TuneLab이 필요합니다."
+"Installed, but requires a newer version of TuneLab: " = "설치했지만 사용하려면 TuneLab을 업데이트해야 합니다: "
 "Partial" = "부분 완료"
 "Skipped" = "건너뜀"
 "Reset to Default" = "기본값으로 초기화"
@@ -195,7 +195,7 @@
 "Apply the agent's {0} change(s) to the project?" = "에이전트의 변경 {0}건을 프로젝트에 적용할까요?"
 "Settings" = "설정"
 "Open in External Editor" = "외부 편집기로 열기"
-"This is a legacy extension. It ships no manifest metadata, so TuneLab discovers its capabilities by scanning — there is no author-provided documentation to show." = "레거시 확장입니다. manifest 메타데이터를 제공하지 않아 TuneLab이 스캔으로 기능을 찾아냅니다 — 제작자가 제공한 문서가 없습니다."
+"This extension includes no introduction." = "이 확장에는 소개가 포함되어 있지 않습니다."
 "This extension has no documentation." = "이 확장에는 문서가 없습니다."
 "{0} extension(s) installed" = "확장 {0}개 설치됨"
 "{0} of {1} extension(s)" = "확장 {1}개 중 {0}개"
@@ -400,7 +400,7 @@
 "Stopped" = "중지됨"
 "Submit" = "제출"
 "Tips" = "팁"
-"Total of {0} model calls this turn (tool round-trips repeat the prefix)\nInput {1:N0} · Output {2:N0}\nLast call context ~{3:N0} tokens" = "이번 턴에서 모델 호출 총 {0}회 (도구 왕복은 접두어를 반복함)\n입력 {1:N0} · 출력 {2:N0}\n마지막 호출 컨텍스트 ~{3:N0} 토큰"
+"Total of {0} model calls this turn\nInput {1:N0} · Output {2:N0}\nLast call context ~{3:N0} tokens" = "이번 턴에서 모델 호출 총 {0}회\n입력 {1:N0} · 출력 {2:N0}\n마지막 호출 컨텍스트 ~{3:N0} 토큰"
 "Type a message..." = "메시지를 입력하세요..."
 "Untitled" = "제목 없음"
 "Agent authorization" = "에이전트 권한"
@@ -446,11 +446,11 @@
 "The agent wants to uninstall the extension \"{0}\". Its files are removed when TuneLab restarts." = "에이전트가 확장 “{0}”을 제거하려고 합니다. 파일은 TuneLab을 다시 시작할 때 삭제됩니다."
 "The agent wants to keep the extension \"{0}\" after all, taking back its pending uninstall." = "에이전트가 확장 “{0}”을 그대로 두고, 대기 중인 제거를 취소하려고 합니다."
 "The agent wants to save the project back to its own file:\n{0}" = "에이전트가 프로젝트를 원래 파일에 저장하려고 합니다:\n{0}"
-"This really saves — it overwrites that file. This can't be undone." = "이것은 실제 저장입니다 — 해당 파일을 덮어씁니다. 이 작업은 되돌릴 수 없습니다."
+"This overwrites the original file and cannot be undone." = "원본 파일을 덮어씁니다. 이 작업은 되돌릴 수 없습니다."
 "The agent wants to save the project as:\n{0}" = "에이전트가 프로젝트를 다음 이름으로 저장하려고 합니다:\n{0}"
 "From then on that is the file the project saves to." = "이후 프로젝트는 그 파일에 저장됩니다."
 "The agent wants to render the project's audio to:\n{0}" = "에이전트가 프로젝트의 오디오를 다음 위치로 렌더링하려고 합니다:\n{0}"
-"This runs the full synthesis and mixdown first, which can take several minutes. TuneLab is unusable until it finishes." = "먼저 전체 합성과 믹스다운을 실행하므로 몇 분이 걸릴 수 있습니다. 끝날 때까지 TuneLab을 사용할 수 없습니다."
+"Full synthesis and mixdown run first, which may take several minutes. TuneLab cannot be used in the meantime." = "먼저 전체 합성과 믹스다운을 수행하므로 몇 분이 걸릴 수 있으며, 그동안 TuneLab을 사용할 수 없습니다."
 "The agent wants to open this project, closing the one you have open now:\n{0}" = "에이전트가 이 프로젝트를 열고, 지금 열려 있는 프로젝트를 닫으려고 합니다:\n{0}"
 "The undo history of the current project goes with it." = "현재 프로젝트의 실행 취소 기록도 함께 사라집니다."
 "The agent wants to reset {0} to its sound source's defaults." = "에이전트가 {0}을(를) 음원의 기본값으로 되돌리려고 합니다."
@@ -459,7 +459,7 @@
 "The agent wants to delete the preset \"{0}\". This can't be undone." = "에이전트가 프리셋 “{0}”을 삭제하려고 합니다. 이 작업은 되돌릴 수 없습니다."
 "The agent wants to rename the preset \"{0}\" to \"{1}\"." = "에이전트가 프리셋 “{0}”의 이름을 “{1}”(으)로 바꾸려고 합니다."
 "The agent wants to run the editor action \"{0}\"." = "에이전트가 편집기 동작 “{0}”을 실행하려고 합니다."
-"The agent wants to run the editor action \"{0}\", which discards work that the undo history cannot bring back." = "에이전트가 편집기 동작 “{0}”을 실행하려고 합니다. 이 동작은 실행 취소 기록으로 되돌릴 수 없는 작업을 버립니다."
+"The agent wants to run \"{0}\". This discards changes that cannot be restored with undo." = "에이전트가 “{0}”을(를) 실행하려고 합니다. 실행 취소로 복구할 수 없는 변경 사항이 사라집니다."
 "You have unapplied changes. Apply them?" = "적용하지 않은 변경이 있습니다. 적용할까요?"
 
 [AgentTurnView]
@@ -499,10 +499,10 @@
 "Untitled" = "제목 없음"
 "No project is open." = "열린 프로젝트가 없습니다."
 "Script is empty." = "스크립트가 비어 있습니다."
-"Host error: " = "호스트 오류: "
+"TuneLab internal error: " = "TuneLab 내부 오류: "
 
 [ComboBoxController]
-"Stored value \"{0}\" is not among the current options.\nThe plugin decides how to treat it (usually as default).\nSelect an option to overwrite it." = "저장된 값 \"{0}\"이(가) 현재 옵션에 없습니다.\n플러그인이 처리 방식을 결정합니다(보통 기본값으로 처리).\n옵션을 선택하면 덮어씁니다."
+"Current value \"{0}\" is not among the options.\nSelecting any option replaces it." = "현재 값 \"{0}\"이(가) 옵션에 없습니다.\n옵션을 선택하면 대체됩니다."
 
 [SliderController]
 "Randomize" = "무작위화"
@@ -527,10 +527,11 @@
 "No matches" = "일치하는 항목 없음"
 
 [TagController]
-"Stored value \"{0}\" is not among the current tags.\nThe plugin decides how to treat it." = "저장된 값 \"{0}\"이(가) 현재 태그에 없습니다.\n플러그인이 처리 방식을 결정합니다."
+"Current value \"{0}\" is not among the available tags." = "현재 값 \"{0}\"이(가) 선택 가능한 태그에 없습니다."
 "Only some of the selected items have this tag. Pick it from + to add it to all of them." = "선택한 항목 중 일부만 이 태그를 가지고 있습니다. +에서 선택하면 모두에 추가됩니다."
 
 [PropertyObjectController]
+"(Unsupported element type: {0})" = "(지원되지 않는 요소 유형: {0})"
 "Reset to Default" = "기본값으로 초기화"
 "{0} items" = "{0}개 항목"
 "On" = "켬"
