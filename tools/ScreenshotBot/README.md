@@ -1,7 +1,7 @@
 # ScreenshotBot —— 用户手册的插图生成器
 
 把**真实的 TuneLab 界面**渲染成 PNG，供 [docs/user-manual.zh-CN.md](../../docs/user-manual.zh-CN.md) 使用；
-顺带从运行中的命令注册表导出快捷键表。手册里的插图不是手工截屏，改了界面重跑一次即可。
+顺带从运行中的命令注册表导出快捷键表。手册里的插图不是手工截屏，发版前统一重跑一次即可（开发期改了界面不必每次跑，记下哪些图过时了就行）。
 
 ```powershell
 pwsh tools/ScreenshotBot/shoot.ps1

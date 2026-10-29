@@ -58,7 +58,7 @@ pwsh tools/ScreenshotBot/shoot.ps1     # -> docs/images/manual/*.png + docs/gene
 ```
 
 它用 Avalonia headless + 真 Skia 渲染跑真实的 `App`/`MainWindow`（不开真窗口），数据目录经 `TUNELAB_DATA_DIR`
-重定向到临时沙盒（不读也不写开发机的 `%APPDATA%\TuneLab`）。**改了界面就重跑一次。**
+重定向到临时沙盒（不读也不写开发机的 `%APPDATA%\TuneLab`）。**发版前统一跑一次**——开发期界面还可能再改，每改一次就跑会白跑；改了界面时只记下哪些图过时了，发版前一并重跑。
 原理、怎么加图、已知的坑见 [tools/ScreenshotBot/README.md](tools/ScreenshotBot/README.md)。
 
 ## Release notes 不能出现代码语法
