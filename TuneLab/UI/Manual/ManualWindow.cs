@@ -5,6 +5,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Controls.Primitives;
+using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using TuneLab.Animation;
@@ -48,7 +49,10 @@ internal sealed class ManualWindow : Window
                 mInstance = null;
         };
         if (owner != null)
+        {
+            window.FitToScreen(owner);
             window.Show(owner);
+        }
         else
             window.Show();
     }
@@ -76,6 +80,10 @@ internal sealed class ManualWindow : Window
         root.AddDock(BuildBody());
         Content = root;
 
+        // 默认高度让目录一屏放下、不出滚动：标题栏 + 分隔线 + 目录上下留白 + 每章一行 + 底部按钮区。
+        // 按章数算而不是写死，手册加了章也不会又滚起来。屏幕放不下时开窗前再收（见 FitToScreen）。
+        Height = Math.Max(Height, TitleBarHeight + 1 + TocPadding * 2 + mSections.Count * TocRowHeight + mTocFooterHeight + 4);
+
         mScrollAnimation.ValueChanged += OnScrollAnimationTick;
         if (mPage != null && mPage.Children.Count == 0)
             BuildPage();
@@ -86,7 +94,7 @@ internal sealed class ManualWindow : Window
     // 顶栏：居中标题 + 右侧关闭键，空白处可拖动移窗（同扩展详情窗）。
     Control BuildTitleBar()
     {
-        var bar = new Grid { Height = 40, Background = Style.INTERFACE.ToBrush() };
+        var bar = new Grid { Height = TitleBarHeight, Background = Style.INTERFACE.ToBrush() };
 
         bar.Children.Add(new TextBlock
         {
@@ -115,6 +123,7 @@ internal sealed class ManualWindow : Window
         close.Clicked += Close;
         bar.Children.Add(close);
 
+
         bar.PointerPressed += (_, e) =>
         {
             if (!ReferenceEquals(e.Source, bar))
@@ -123,6 +132,51 @@ internal sealed class ManualWindow : Window
                 BeginMoveDrag(e);
         };
         return bar;
+    }
+
+    // 开窗前：默认高度超出所在屏幕的可用高度时收到屏幕内（小屏、高缩放下目录照样可以滚动）。
+    void FitToScreen(Window owner)
+    {
+        if (owner.Screens.ScreenFromWindow(owner) is not { } screen)
+            return;
+        double available = screen.WorkingArea.Height / screen.Scaling - ScreenMargin * 2;
+        if (Height > available)
+            Height = Math.Max(MinHeight, available);
+    }
+
+    const double TitleBarHeight = 40;
+    const double TocRowHeight = 36;
+    const double TocPadding = 8;
+    const double ScreenMargin = 24;
+    double mTocFooterHeight;
+
+    // 文字按钮：样式同扩展详情页的操作按钮（圆角底色）。撑满所在容器的宽度、文字居中。
+    static Control TextButton(string label, Action onClick)
+    {
+        var btn = new Border
+        {
+            Background = Style.BUTTON_NORMAL.ToBrush(),
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(12, 5),
+            Cursor = new Cursor(StandardCursorType.Hand),
+            Child = new TextBlock
+            {
+                Text = label,
+                FontSize = 12,
+                Foreground = Style.LIGHT_WHITE.ToBrush(),
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+            },
+        };
+        btn.PointerEntered += (_, _) => btn.Background = Style.BUTTON_NORMAL_HOVER.ToBrush();
+        btn.PointerExited += (_, _) => btn.Background = Style.BUTTON_NORMAL.ToBrush();
+        btn.PointerPressed += (_, e) =>
+        {
+            e.Handled = true;
+            onClick();
+        };
+        return btn;
     }
 
     Control BuildBody()
@@ -149,7 +203,7 @@ internal sealed class ManualWindow : Window
         if (mSections.Count == 0)
             return panel;
 
-        var list = new StackPanel { Orientation = Orientation.Vertical, Margin = new Thickness(0, 8) };
+        var list = new StackPanel { Orientation = Orientation.Vertical, Margin = new Thickness(0, TocPadding) };
         for (int i = 0; i < mSections.Count; i++)
         {
             int index = i;
@@ -173,7 +227,7 @@ internal sealed class ManualWindow : Window
                 IsHitTestVisible = false,
             };
 
-            var row = new Button { Height = 36 }
+            var row = new Button { Height = TocRowHeight }
                 .AddContent(new()
                 {
                     Item = new BorderItem { CornerRadius = 0 },
@@ -197,6 +251,18 @@ internal sealed class ManualWindow : Window
             Content = list,
         };
         mSidebarScrollBars = new OverlayScrollBars(scroll, horizontal: false, vertical: true);
+        // 目录栏底部：用系统默认程序打开随包的手册文件（同扩展详情页的「用外部编辑器打开」），与目录同宽，上方一条分隔线。
+        if (ManualLibrary.FilePath is { } manualPath)
+        {
+            var open = TextButton("Open in External Editor".Tr(TC.Dialog), () => ProcessHelper.OpenFile(manualPath));
+            var footer = new DockPanel();
+            footer.AddDock(new Border { Height = 1, Background = Style.DARK.ToBrush() }, Dock.Top);
+            footer.AddDock(new Border { Padding = new Thickness(12), Child = open });
+            panel.AddDock(footer, Dock.Bottom);
+            footer.Measure(Size.Infinity);
+            mTocFooterHeight = footer.DesiredSize.Height;
+        }
+
         panel.AddDock(scroll);
         return panel;
     }
@@ -288,7 +354,7 @@ internal sealed class ManualWindow : Window
                 Margin = new Thickness(0, i == 0 ? 0 : 36, 0, 12),
                 TextWrapping = TextWrapping.Wrap,
             });
-            block.Children.Add(ChatMarkdownRenderer.Render(section.Body, ManualLibrary.BaseDir));
+            block.Children.Add(ChatMarkdownRenderer.Render(section.Body, ManualLibrary.BaseDir, OnLink));
             mPage.Children.Add(block);
             mSectionBlocks.Add(block);
         }
@@ -296,6 +362,26 @@ internal sealed class ManualWindow : Window
         mCachedBlocks.Clear();
         mCachedBlocks.AddRange(mSectionBlocks);
         Highlight(0);
+    }
+
+    // 正文里的链接：手册内的 #锚点 跳到本页对应的章（三级标题跳到它所在的章）；指向仓库里其他文档的相对路径
+    //（插件开发文档、生成的快捷键表……）不随软件发布，改为在浏览器里打开 GitHub 上的同名页面。
+    // 手册源文件里保持相对路径——在 GitHub 上看手册时这些链接本来就能用。其余（http 等）交回系统打开。
+    bool OnLink(string url)
+    {
+        if (url.StartsWith('#'))
+        {
+            int index = ManualLibrary.IndexOfAnchor(mSections, Uri.UnescapeDataString(url[1..]));
+            if (index >= 0)
+                ScrollToSection(index);
+            return true;
+        }
+        if (!url.Contains("://", StringComparison.Ordinal) && !url.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase))
+        {
+            ProcessHelper.OpenUrl(AppInfo.GitHubUrl + "/blob/master/docs/" + url.TrimStart('.', '/'));
+            return true;
+        }
+        return false;
     }
 
     // 目录点击 → 平滑滚到该章（章标题落在视口顶端）。动画而非瞬移：跨十几章的一跳若是瞬移，

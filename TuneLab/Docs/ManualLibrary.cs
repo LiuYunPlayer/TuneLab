@@ -33,6 +33,9 @@ internal static class ManualLibrary
 
     public static bool IsAvailable => ResolvePath() != null;
 
+    // 当前语言那份手册文件的绝对路径（应用内手册窗「用外部编辑器打开」用）；手册没随包时为 null。
+    public static string? FilePath => ResolvePath();
+
     // 手册实际用的语言（可能因缺失而回退），如 "zh-CN"；没有手册时为 null。
     public static string? Language
     {
@@ -189,6 +192,43 @@ internal static class ManualLibrary
 
         // 「目录」章对读者是导航、对模型是重复信息，两处都用不上：本类自己就给目录。
         return sections.Where(s => s.Id != "toc" && s.Title != "目录" && s.Title != "Contents").ToList();
+    }
+
+    // 手册里的 #锚点 → 它所在章的序号（三级标题落到所在的章）；找不到返回 -1。锚点按 GitHub 给标题生成锚点的规则算
+    //（AnchorOf）。章标题解析时去掉了章号（「15. 扩展管理」→「扩展管理」），锚点里却带着（#15-扩展管理）：比章标题时
+    // 先去掉锚点开头的「数字-」。应用内手册窗口用它把正文里的跳转链接滚到对应章。
+    public static int IndexOfAnchor(IReadOnlyList<ManualSection> sections, string anchor)
+    {
+        var withoutNumber = Regex.Replace(anchor, @"^\d+-", string.Empty);
+        for (int i = 0; i < sections.Count; i++)
+        {
+            var title = AnchorOf(sections[i].Title);
+            if (title == anchor || title == withoutNumber)
+                return i;
+        }
+        for (int i = 0; i < sections.Count; i++)
+        {
+            foreach (var heading in sections[i].Subheadings)
+            {
+                if (AnchorOf(heading) == anchor)
+                    return i;
+            }
+        }
+        return -1;
+    }
+
+    // GitHub 的标题锚点：转小写，去掉字母、数字、空格、连字符与下划线以外的字符（中文算字母），空格换成连字符。
+    public static string AnchorOf(string heading)
+    {
+        var sb = new StringBuilder();
+        foreach (char c in heading.Trim().ToLowerInvariant())
+        {
+            if (char.IsLetterOrDigit(c) || c == '-' || c == '_')
+                sb.Append(c);
+            else if (c == ' ')
+                sb.Append('-');
+        }
+        return sb.ToString();
     }
 
     static string Slug(string title)

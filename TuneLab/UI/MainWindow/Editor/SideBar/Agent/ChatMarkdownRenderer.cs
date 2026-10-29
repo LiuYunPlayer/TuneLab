@@ -52,7 +52,27 @@ internal static class ChatMarkdownRenderer
 
     // baseDir 非空时：Markdown 里的相对图片按它（= 内容所在目录，如插件包目录）解析并就地渲染本地图片；
     // baseDir 为空则沿用「不渲染图片」的旧行为。远程 http(s) 图片一律不抓取（避免意外网络请求）。
-    public static Control Render(string markdown, string? baseDir)
+    public static Control Render(string markdown, string? baseDir) => Render(markdown, baseDir, null);
+
+    // onLink：链接被点击时先交给它，返回 true = 已处理（如应用内手册把 #锚点 跳到本页章节）；不给或返回 false 就交给系统打开。
+    public static Control Render(string markdown, string? baseDir, Func<string, bool>? onLink)
+    {
+        var previous = sLinkHandler;
+        sLinkHandler = onLink;
+        try
+        {
+            return RenderDocument(markdown, baseDir);
+        }
+        finally
+        {
+            sLinkHandler = previous;
+        }
+    }
+
+    // 渲染期间的链接处理器：链接控件建出来时捕获它（点击发生在渲染结束之后），免得为它把参数穿过每一层渲染函数。只在 UI 线程上渲染。
+    [ThreadStatic] static Func<string, bool>? sLinkHandler;
+
+    static Control RenderDocument(string markdown, string? baseDir)
     {
         var panel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 4 };
         var doc = Markdig.Markdown.Parse(markdown ?? string.Empty, Pipeline);
@@ -397,13 +417,15 @@ internal static class ChatMarkdownRenderer
         };
         if (!string.IsNullOrEmpty(url))
         {
+            var onLink = sLinkHandler;
             ToolTip.SetTip(tb, url);
             tb.PointerEntered += (_, _) => tb.Foreground = Colors.White.ToBrush();
             tb.PointerExited += (_, _) => tb.Foreground = Style.HIGH_LIGHT.ToBrush();
             tb.PointerPressed += (_, e) =>
             {
                 e.Handled = true;
-                ProcessHelper.OpenUrl(url);
+                if (onLink?.Invoke(url) != true)
+                    ProcessHelper.OpenUrl(url);
             };
         }
         return new InlineUIContainer(tb) { BaselineAlignment = BaselineAlignment.TextBottom };
