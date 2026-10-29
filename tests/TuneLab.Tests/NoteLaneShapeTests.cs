@@ -212,17 +212,36 @@ public class NoteLaneShapeTests
             var part = SamplePart();
             var color = part.NoteLaneConfigs["timeline"].Color;
             part.Notes.Last().Pitch.Set(60);   // 两个 note 都是低音了：谁都不声明 timeline
-            part.RefreshPinnedLaneConfigs();
+            part.Commit();
             Assert.False(part.NoteLaneConfigs.ContainsKey("timeline"));
 
             part.Notes.Last().Pitch.Set(64);
-            part.RefreshPinnedLaneConfigs();
+            part.Commit();
             Assert.True(part.NoteLaneConfigs.TryGetValue("timeline", out var back));
             Assert.Equal(color, back.Color);
         });
     }
 
     // 音素声明要等引擎对音素表态：还有 note 没表态（这里从没合成过）时，出现过的音素级时间轴画布保留，音源一换才清。
+    // 编辑进行中（文档里有未提交的改动，如拖动）不重新询问单 note 声明，落定（提交）后才问：画一笔不至于逐帧把全部声明重问一遍。
+    [Fact]
+    public void NoteDeclarationsAreAskedAgainOnlyWhenTheEditSettles()
+    {
+        OnDataThread(() =>
+        {
+            var part = SamplePart();
+            var high = part.Notes.Last();
+            high.Pitch.Set(63);   // 开始编辑（第一笔到达时文档里还没有未提交的命令，照常作废）
+            var before = part.GetNotePropertyConfig(high);
+            high.Pitch.Set(60);   // 还在编辑：上一笔没提交——不重问
+            high.Pitch.Set(61);
+            Assert.Same(before, part.GetNotePropertyConfig(high));
+            part.Commit();
+            Assert.NotSame(before, part.GetNotePropertyConfig(high));
+            Assert.False(part.TryGetNoteLaneShape(high, "adv", out _));   // 落定后按低音的声明：没有 adv
+        });
+    }
+
     [Fact]
     public void PhonemeTimelineCanvasStaysWhileSomeNoteHasNoPhonemeAnswer()
     {

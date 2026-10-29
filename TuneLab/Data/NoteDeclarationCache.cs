@@ -10,6 +10,7 @@ namespace TuneLab.Data;
 //
 // 失效只能按 part 整体：声明 context 经 Part 能读到整个 part（全部 note、自动化曲线、part 参数，SDK 明文允许据此条件化），
 // 任何一处变了都可能改任何一个 note 的回答。失效只清表、不重新询问——用到哪个 note 再声明哪个（视口内的、侧栏选中的）。
+// 时机是编辑落定（提交 / 放弃 / 撤销 / 重做），不是每次改动：拖动途中不逐帧重问（见 MidiPart.OnNoteDeclarationInputsModified）。
 internal sealed class NoteDeclarationCache(MidiPart part)
 {
     public ObjectConfig NoteConfig(INote note)

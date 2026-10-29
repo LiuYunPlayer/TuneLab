@@ -167,6 +167,8 @@ internal partial class AutomationRenderer : View
         // 条件自动化轨集合随参数 commit 变（轨随值显隐）→ 重绘曲线 + 刷新锚点输入框；
         // 否则轨集合变了但本视图无失效源，要等下次鼠标事件才触发重绘（曲线滞留/慢一拍）。
         mDependency.PartHolder.When(p => p.AutomationConfigsModified).Subscribe(InvalidateVisual, s);
+        // 编辑落定后宿主重新询问声明（note / 音素 lane 的形状、画布的声明都可能变）：重画一帧取新的。
+        mDependency.PartHolder.When(p => p.DeclarationsInvalidated).Subscribe(_ => InvalidateVisual(), s);
         mDependency.PartHolder.When(p => p.AutomationConfigsModified).Subscribe(UpdateAnchorValueInput, s);
         mDependency.PianoTool.Modified.Subscribe(Update, s);
         mDependency.PianoTool.Modified.Subscribe(UpdateAnchorValueInput, s);

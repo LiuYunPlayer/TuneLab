@@ -109,9 +109,9 @@ internal class MidiPart : Part, IMidiPart
         // 时基入口（见下 Pos 订阅）。合成产物是运行时字段、不在任何失效源内，天然不触发——顺带机械
         // 强制"判定禁依赖产物"。
         Modified.AsEverytime().Subscribe(_ => mContinuationDirty = true);
-        // 单 note 声明缓存同一个失效面（声明 context 经 Part 读得到整个 part）：含 merge 中间态——拖拽期 lane 照样逐 note 读形状。
-        // 只清表、不重新询问，用到再取。注册在一切 UI 订阅之前，UI 的刷新读到的已是清过的缓存。
-        Modified.AsEverytime().Subscribe(_ => mNoteDeclarations.Invalidate());
+        // 单 note 声明缓存同一个失效面（声明 context 经 Part 读得到整个 part），但**编辑落定才作废**（同 part 级声明，见
+        // OnNoteDeclarationInputsModified）。只清表、不重新询问，用到再取。注册在一切 UI 订阅之前，UI 的刷新读到的已是清过的缓存。
+        Modified.AsEverytime().Subscribe(_ => OnNoteDeclarationInputsModified());
         // 声明输入变了（见 OnDocumentStatusChanged）：只记一笔，提交时才重新询问声明。
         Modified.AsEverytime().Subscribe(_ => OnDeclarationInputsModified());
         // part 平移 → 时基重建（兑现 VoiceSynthesisContext 既定设计的另一半）：平移跨 bpm 段会改
@@ -234,6 +234,17 @@ internal class MidiPart : Part, IMidiPart
             mDocument = document;
             document.StatusChanged += OnDocumentStatusChanged;
         }
+    }
+
+    // 编辑进行中（拖动等：文档里有未提交的改动）不作废单 note 声明缓存，落定时由 InvalidateDeclarations 统一作废、重算 lane、
+    // 通知 UI（与 part 级声明同一个时机）。否则画一笔曲线每一帧都把视口里全部 note / 音素的声明重问一遍，画布实例也逐帧重建。
+    // 代价：拖动途中声明滞后到松手（插件按曲线值条件化的声明、拖动改了音高的 note 的 lane 形状，都在松手后才更新）；
+    // 拖动中新出现的 note 不受影响（缓存里没有它，当场去问）。没有落定通知可等时（未激活 / 不在文档里，如测试）照旧立即作废。
+    void OnNoteDeclarationInputsModified()
+    {
+        if (mHostInvalidator != null && (Track?.Project as Project)?.Document is { HasUncommittedChanges: true })
+            return;
+        mNoteDeclarations.Invalidate();
     }
 
     void OnDocumentStatusChanged()
