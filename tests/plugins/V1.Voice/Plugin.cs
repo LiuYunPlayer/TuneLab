@@ -105,6 +105,8 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
         // 分工——普通用户调偏差轨（Energy），重度用户切到实参轨（Energy (Actual)）在模型输出这条底上直接覆盖。
         map.Add(("energy", "Energy (Actual)"), mEnergyActualConfig);
         map.Add(("energy_offset", "Energy"), mEnergyOffsetConfig);
+        // 默认不在标签栏显示（过时 / 高级参数的用法）：照常声明、照常参与合成，用户在标签栏右键里勾上才出现。
+        map.Add(("legacy_curve", "Legacy Curve"), mLegacyCurveConfig);
         return map;
     }
 
@@ -237,6 +239,7 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
 
     readonly OrderedMap<string, VoiceSourceInfo> mVoiceInfos = new();
     readonly OrderedMap<PropertyKey, AutomationConfig> mGrowlConfigs = new();
+    static readonly AutomationConfig mLegacyCurveConfig = AutomationConfig.Create(0, 1).WithDefault(0.5).WithShownByDefault(false);
     readonly OrderedMap<PropertyKey, IControllerConfig> mPartProperties = new();
     readonly OrderedMap<PropertyKey, IControllerConfig> mNoteProperties = new();
     readonly OrderedMap<PropertyKey, IControllerConfig> mCorePhonemeProperties = new();

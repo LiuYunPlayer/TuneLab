@@ -37,6 +37,11 @@ public sealed class AutomationConfig : IValueConfig<double>
     // 可随机：UI 默认值面板（滑条）右侧给随机入口，在量程内重新取值。
     public bool Randomizable { get; private set; }
 
+    // 用户没设过时，这条轨在参数面板的标签栏上是否显示（默认 true）。只是默认值：用户在标签栏里显式显示 / 隐藏过，就按用户的
+    //（按声源记，跨工程）。只管标签栏——不影响声明集、合成、求值与存储，隐藏的轨照常参与合成。
+    // 用途：过时参数（为兼容老数据保留声明、不再推荐用）、高级参数（默认收起，界面更清爽、需要时用户自己打开）。
+    public bool ShownByDefault { get; private set; } = true;
+
     // 量程由标度定义，沿用 slider 同一换算（约定标度单调递增）。
     public double MinValue => Scale.ToValue(0);
     public double MaxValue => Scale.ToValue(1);
@@ -63,6 +68,7 @@ public sealed class AutomationConfig : IValueConfig<double>
     public AutomationConfig WithMinLabel(string label) { var c = Clone(); c.MinLabel = label; return c; }
     public AutomationConfig WithMaxLabel(string label) { var c = Clone(); c.MaxLabel = label; return c; }
     public AutomationConfig WithRandomizable(bool value = true) { var c = Clone(); c.Randomizable = value; return c; }
+    public AutomationConfig WithShownByDefault(bool shown) { var c = Clone(); c.ShownByDefault = shown; return c; }
 
     // 恒实现 IValueConfig（叶子 config），但分段轨此处返回 NaN 表「无基线」——消费方须先判 IsPiecewise，
     // 不得把 NaN 当真默认值写回（见 IValueConfig 注释）。automation 不流经属性面板 / preset 的 GetDefaultValue 通道，

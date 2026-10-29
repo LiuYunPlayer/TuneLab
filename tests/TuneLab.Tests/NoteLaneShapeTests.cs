@@ -35,7 +35,8 @@ public class NoteLaneShapeTests
         public void Init() { }
         public void Destroy() { }
         public IVoiceSynthesisSession CreateSession(IVoiceSynthesisContext context) => mEmpty.CreateSession(context);
-        public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IVoiceSynthesisPartPropertyContext context) => new OrderedMap<PropertyKey, AutomationConfig>();
+        public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IVoiceSynthesisPartPropertyContext context)
+            => new OrderedMap<PropertyKey, AutomationConfig> { { "legacy", AutomationConfig.Create(0, 1).WithDefault(0).WithShownByDefault(false) } };
         public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IVoiceSynthesisPartPropertyContext context) => new OrderedMap<PropertyKey, AutomationConfig>();
         public ObjectConfig GetPartPropertyConfig(IVoiceSynthesisPartPropertyContext context) => ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>());
         // 高音 note 的核音素（slot 0）声明一个时间轴画布。
@@ -222,7 +223,6 @@ public class NoteLaneShapeTests
         });
     }
 
-    // 音素声明要等引擎对音素表态：还有 note 没表态（这里从没合成过）时，出现过的音素级时间轴画布保留，音源一换才清。
     // 编辑进行中（文档里有未提交的改动，如拖动）不重新询问单 note 声明，落定（提交）后才问：画一笔不至于逐帧把全部声明重问一遍。
     [Fact]
     public void NoteDeclarationsAreAskedAgainOnlyWhenTheEditSettles()
@@ -242,6 +242,7 @@ public class NoteLaneShapeTests
         });
     }
 
+    // 音素声明要等引擎对音素表态：还有 note 没表态（这里从没合成过）时，出现过的音素级时间轴画布保留，音源一换才清。
     [Fact]
     public void PhonemeTimelineCanvasStaysWhileSomeNoteHasNoPhonemeAnswer()
     {
@@ -291,6 +292,34 @@ public class NoteLaneShapeTests
                 ParameterHiding.SetHidden(part, timeline, false);
             }
             Assert.False(ParameterHiding.IsHidden(part, volume));
+        });
+    }
+
+    // 声明说默认不显示：用户没设过就藏着；用户显式显示 / 隐藏过就按用户的。已在目标态的操作不记成显式（仍跟着声明走）。
+    [Fact]
+    public void ShownByDefaultIsOnlyTheDefault_TheUsersChoiceWins()
+    {
+        OnDataThread(() =>
+        {
+            var part = SamplePart();
+            var legacy = AutomationKey.Voice("legacy");
+            var volume = AutomationKey.Voice(ConstantDefine.PreCommonAutomationConfigs[0].Key.Id);
+            try
+            {
+                Assert.True(ParameterHiding.IsHidden(part, legacy));
+                Assert.False(ParameterHiding.SetHidden(part, legacy, true));   // 本来就藏着：什么都不做
+                Assert.True(ParameterHiding.SetHidden(part, legacy, false));   // 用户打开
+                Assert.False(ParameterHiding.IsHidden(part, legacy));
+                Assert.False(ParameterHiding.IsHidden(SamplePart(), legacy));  // 按声源记
+
+                Assert.False(ParameterHiding.SetHidden(part, volume, false));  // 默认显示的、本来就显示
+                Assert.False(ParameterHiding.IsHidden(part, volume));
+            }
+            finally
+            {
+                ParameterHiding.SetHidden(part, legacy, true);
+            }
+            Assert.True(ParameterHiding.IsHidden(part, legacy));
         });
     }
 }

@@ -270,3 +270,5 @@ TuneLab.SDK.TimelineCanvasConfig.DefaultValue.get -> TuneLab.Foundation.Property
 TuneLab.SDK.TimelineCanvasConfig.Summary.get -> string?
 TuneLab.SDK.TimelineCanvasConfig.WithColor(string! color) -> TuneLab.SDK.TimelineCanvasConfig!
 TuneLab.SDK.TimelineCanvasConfig.WithSummary(string! summary) -> TuneLab.SDK.TimelineCanvasConfig!
+TuneLab.SDK.AutomationConfig.ShownByDefault.get -> bool
+TuneLab.SDK.AutomationConfig.WithShownByDefault(bool shown) -> TuneLab.SDK.AutomationConfig!
