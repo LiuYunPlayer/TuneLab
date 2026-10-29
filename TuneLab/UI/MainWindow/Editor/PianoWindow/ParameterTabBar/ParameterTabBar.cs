@@ -57,8 +57,9 @@ internal class ParameterTabBar : Panel
         mPitchButton.State = ParameterButton.ButtonState.Visible;
         mPitchButton.StateChangeAsked += (state) => { mPitchButton.State = state; };
 
-        // 左右各让出钢琴键列宽：左侧留给波形开关与「+」（避免轨多时居中流式布局铺过来重叠），右侧对称、保持轨按钮相对窗口居中。
-        mAutomationLayout = new() { Orientation = Orientation.Horizontal, HorizontalAlignment=Avalonia.Layout.HorizontalAlignment.Center, Margin = new Thickness(PianoWindow.ROLL_WIDTH, 9) };
+        // 左侧让出钢琴键列宽，留给波形开关与「+」（避免轨多时居中流式布局铺过来重叠）；右侧只让出「显示哪些参数」按钮那一格
+        //（按钮宽 + 两侧边距），多留给轨按钮——轨按钮因此相对剩下的区域居中、比窗口正中略偏右。
+        mAutomationLayout = new() { Orientation = Orientation.Horizontal, HorizontalAlignment=Avalonia.Layout.HorizontalAlignment.Center, Margin = new Thickness(PianoWindow.ROLL_WIDTH, 9, RightReserve, 9) };
         Children.Add(mAutomationLayout);
 
         // 左侧两个按钮的配色照工具栏：开关（同钢琴窗工具按钮）开 = 高亮圆角底 + 白图标、关 = 无底 + 半透明图标；
@@ -93,6 +94,15 @@ internal class ParameterTabBar : Panel
                 mDependency.AddParameterPanel();
         };
         Children.Add(mAddPanelButton);
+
+        // 最右侧（只占一格，见 RightReserve）：「显示哪些参数」——点开的是与空白处右键同一张勾选列表（见 OpenParameterMenu）。
+        // 看得见的入口：用户不必去猜右键；右键空白处留作熟手的快捷方式。
+        mParameterMenuButton = new TuneLab.GUI.Components.Button() { Width = 24, Height = 24 }
+            .AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, ColorSet = new() { HoveredColor = hoverBack, PressedColor = hoverBack } })
+            .AddContent(new() { Item = new IconItem() { Icon = Assets.Checklist }, ColorSet = new() { Color = Colors.White } });
+        mParameterMenuButton.SetupToolTip("Parameters in Tab Bar".Tr(TC.Menu));
+        mParameterMenuButton.Clicked += () => OpenParameterMenu(mParameterMenuButton);
+        Children.Add(mParameterMenuButton);
 
         // 标签栏空白处右键：标签栏上显示哪些参数（隐藏常驻的 / 钉可钉的；按音源记、跨所有面板生效，所以挂在标签栏而不是
         // 某块面板上，见 OnContextRequested）。标签按钮自己的右键是开关可见（小眼睛），不在这里弹菜单。
@@ -137,6 +147,9 @@ internal class ParameterTabBar : Panel
         double left = (PianoWindow.ROLL_WIDTH - (mWaveformToggle.Width + LeftButtonGap + mAddPanelButton.Width)) / 2;
         mWaveformToggle.Arrange(new Rect(left, (finalSize.Height - mWaveformToggle.Height) / 2, mWaveformToggle.Width, mWaveformToggle.Height));
         mAddPanelButton.Arrange(new Rect(left + mWaveformToggle.Width + LeftButtonGap, (finalSize.Height - mAddPanelButton.Height) / 2, mAddPanelButton.Width, mAddPanelButton.Height));
+        // 「显示哪些参数」在右侧那一格里居中（离右缘 = RightButtonMargin）。
+        double right = finalSize.Width - RightButtonMargin - mParameterMenuButton.Width;
+        mParameterMenuButton.Arrange(new Rect(right, (finalSize.Height - mParameterMenuButton.Height) / 2, mParameterMenuButton.Width, mParameterMenuButton.Height));
         return finalSize;
     }
 
@@ -153,9 +166,16 @@ internal class ParameterTabBar : Panel
     {
         if (!ReferenceEquals(e.Source, this) && !ReferenceEquals(e.Source, mAutomationLayout))
             return;
+        if (OpenParameterMenu(null))
+            e.Handled = true;
+    }
+
+    // anchor = null：在指针处弹（右键空白处）；否则贴着这个按钮向上弹（标签栏在参数区底下，往上才不出窗口）。返回是否弹出了。
+    bool OpenParameterMenu(Control? anchor)
+    {
         var part = Part;
         if (part == null)
-            return;
+            return false;
 
         var groups = new List<(string Name, List<MenuItem> Items)>();
 
@@ -219,9 +239,14 @@ internal class ParameterTabBar : Panel
                 menu.Items.Add(item);
         }
         if (menu.Items.Count == 0)
-            return;
-        menu.Open(this);
-        e.Handled = true;
+            return false;
+        if (anchor != null)
+        {
+            menu.PlacementTarget = anchor;
+            menu.Placement = PlacementMode.TopEdgeAlignedRight;
+        }
+        menu.Open(anchor ?? this);
+        return true;
     }
 
     // 点一项不关菜单、可以连续勾选，所以按存储此刻的状态切换（不用打开菜单那一刻的），勾选态也按它回填——
@@ -441,7 +466,11 @@ internal class ParameterTabBar : Panel
     readonly WrapPanel mAutomationLayout;
     readonly Toggle mWaveformToggle;
     readonly TuneLab.GUI.Components.Button mAddPanelButton;
+    readonly TuneLab.GUI.Components.Button mParameterMenuButton;
     const double LeftButtonGap = 4;
+    // 右侧只让出一格：按钮宽 24 + 两侧边距（边距同左侧那组按钮离左缘的距离 6）。
+    const double RightButtonMargin = 6;
+    const double RightReserve = 24 + RightButtonMargin * 2;
     readonly ParameterButton mPitchButton;
     readonly OrderedMap<AutomationKey, ParameterButton> mAutomationButtons = new();
     readonly Map<AutomationKey, ParameterButton> mCacheParameterButtons = new();

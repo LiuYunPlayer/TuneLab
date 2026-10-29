@@ -336,6 +336,7 @@
 "Hide from Tab Bar" = "タブバーから隠す"
 "Show in Tab Bar" = "タブバーに表示"
 "Has Data" = "データあり"
+"Parameters in Tab Bar" = "タブバーに表示するパラメータ"
 "Octave Up" = "一オクターブ上げる"
 "Octave Down" = "一オクターブ下げる"
 "Move Lyrics Forward" = "歌詞を前に移動"
