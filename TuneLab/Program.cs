@@ -32,6 +32,8 @@ class Program
         // 构建标识：版本号在一个版本的整个开发/测试期里不变，光看它无法判断用户跑的是哪次构建
         // （排查时收到日志的第一件事就是确认这个）。用主程序集的 mtime 做唯一标识。
         Log.Info("Build: " + BuildStamp());
+        // 扩展 SDK 版本：插件作者从用户发来的日志里一眼看到宿主提供哪一版（扩展需要更高版本时会被跳过）。
+        Log.Info("SDK: " + TuneLab.Extensions.ExtensionManager.SdkVersion);
 
         // 异步缓冲日志需在退出 / 崩溃时刷盘，否则丢失未落盘日志。崩溃时顺带记下异常（自动归因到肇事插件）。
         AppDomain.CurrentDomain.ProcessExit += (_, _) => Log.Shutdown();

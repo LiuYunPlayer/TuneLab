@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Text;
+using TuneLab.Extensions;
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
@@ -20,7 +21,8 @@ internal sealed class AppInfoCommand : ICommand
     public string Brief => "Version, data dir, log file, where to report a bug";
 
     public string Documentation =>
-        "Facts about the TuneLab this command is running in: version and build, where its user data and log file live, "
+        "Facts about the TuneLab this command is running in: version and build, the extension SDK version it provides "
+        + "(an extension whose manifest asks for a newer sdk-version is skipped), where its user data and log file live, "
         + "whether it has an editor (a window and a user in front of it), and where problems get reported. "
         + "Use it when you are about to tell the user something is broken: quote the version and build, the relevant lines from the log file named here, "
         + "the output of list_extensions, and the smallest script that reproduces it — then let the USER file it. "
@@ -40,6 +42,8 @@ internal sealed class AppInfoCommand : ICommand
         {
             ["version"] = AppInfo.VersionString,
             ["build"] = AppInfo.Build,
+            // 扩展 SDK 版本（manifest 的 sdk-version 与它比）：插件作者排查"装了却没加载"时要的就是它。
+            ["sdk"] = ExtensionManager.SdkVersion.ToString(),
             ["dataDir"] = PathManager.TuneLabFolder,
             // 这个进程正在写的那一份，以及它们所在的目录（要看上一次崩溃就得去目录里找更早的）。
             ["logFile"] = PathManager.LogFilePath,
@@ -63,6 +67,7 @@ internal sealed class AppInfoCommand : ICommand
         if (Text("build") is { Length: > 0 } build)
             sb.Append(" (build ").Append(build).Append(')');
         sb.AppendLine(" — the TuneLab these commands run in.");
+        sb.Append("  extension SDK: ").AppendLine(Text("sdk"));
         sb.Append("  data directory: ").AppendLine(Text("dataDir"));
         sb.Append("  log file: ").AppendLine(Text("logFile"));
         sb.Append("  earlier logs: ").AppendLine(Text("logsDir"));
