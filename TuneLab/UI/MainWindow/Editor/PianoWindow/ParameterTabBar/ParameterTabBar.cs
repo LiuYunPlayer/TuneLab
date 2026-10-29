@@ -156,7 +156,7 @@ internal class ParameterTabBar : Panel
     // 标签栏上显示哪些参数：右键直接弹出一张勾选列表，打勾 = 在标签栏上，点一下切换、菜单不关（可连续勾选）。只认空白处
     //（标签栏本身或按钮行的空隙）：按钮上的右键冒泡上来时不弹。勾选的含义统一，背后是两类存储（见 ParameterHiding）：
     // · 原本常驻的——音源的自动化轨、各效果器的自动化轨、时间轴画布：取消勾选 = 隐藏（ParameterHiding.SetHidden）。
-    //   有数据的标一句「有数据」：藏起来它照样参与合成，别让人忘了它还在起作用。
+    //   有数据的在行尾标一个强调色小圆点：藏起来它照样参与合成，别让人忘了它还在起作用。
     // · 原本不显示的——可钉属性：勾上 = 钉选（ParameterPinning.SetPinned，同侧栏属性右键、同命令面的 parameter.pin / unpinProperty）。
     //   列表 = 此刻能钉的（各 note 声明的并集，与 parameter.pinProperty 同一份口径）+ 已钉但引擎不再声明的孤儿（取自钉选存储，
     //   标签栏里连按钮都没有，只能在这里清掉）。
@@ -181,8 +181,8 @@ internal class ParameterTabBar : Panel
 
         MenuItem HideableItem(AutomationKey key, string name)
         {
-            var label = HasData(part, key) ? name + " (" + "Has Data".Tr(TC.Menu) + ")" : name;
-            return CheckItem(label, () => !ParameterHiding.IsHidden(part, key), () => ParameterHiding.SetHidden(part, key, !ParameterHiding.IsHidden(part, key)));
+            return CheckItem(name, () => !ParameterHiding.IsHidden(part, key), () => ParameterHiding.SetHidden(part, key, !ParameterHiding.IsHidden(part, key)),
+                hasData: HasData(part, key));
         }
 
         var voice = new List<MenuItem>();
@@ -251,7 +251,8 @@ internal class ParameterTabBar : Panel
 
     // 点一项不关菜单、可以连续勾选，所以按存储此刻的状态切换（不用打开菜单那一刻的），勾选态也按它回填——
     // 推迟到这次点击处理完再填：菜单项自己在点击时也会翻转勾选态，两者先后不定，以最后回填的为准。
-    static MenuItem CheckItem(string label, Func<bool> isChecked, Action toggle)
+    // hasData：行尾右对齐一个强调色小圆点（各行的点排成一列，好扫）。
+    static MenuItem CheckItem(string label, Func<bool> isChecked, Action toggle, bool hasData = false)
     {
         MenuItem? item = null;
         item = new MenuItem() { ToggleType = MenuItemToggleType.CheckBox, IsChecked = isChecked(), StaysOpenOnClick = true }.SetName(label).SetAction(() =>
@@ -259,8 +260,27 @@ internal class ParameterTabBar : Panel
             toggle();
             Avalonia.Threading.Dispatcher.UIThread.Post(() => item!.IsChecked = isChecked());
         });
+        if (hasData)
+        {
+            var dot = new Avalonia.Controls.Shapes.Ellipse
+            {
+                Width = DataDotSize,
+                Height = DataDotSize,
+                Fill = Style.HIGH_LIGHT.ToBrush(),
+                Margin = new Thickness(16, 0, 0, 0),
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                UseLayoutRounding = true,
+            };
+            DockPanel.SetDock(dot, Dock.Right);
+            var header = new DockPanel { LastChildFill = true };
+            header.Children.Add(dot);
+            header.Children.Add(new TextBlock { Text = label, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center });
+            item.Header = header;
+        }
         return item;
     }
+
+    const double DataDotSize = 6;
 
     // 这条参数此刻有没有用户写的数据（隐藏了也照样参与合成）：自动化轨 = 有点 / 基线改过，分段轨 = 有段，
     // 时间轴画布 = 有哪个 note / 钉死的音素写过它。
