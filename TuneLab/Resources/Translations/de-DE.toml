@@ -59,8 +59,8 @@
 "Format" = "Format"
 "Import" = "Import"
 "Max Parallel Synthesis Tasks (0 = auto)" = "Maximale parallele Synthese-Aufgaben (0 = automatisch)"
-"Multiple packages provide the same extension. Choose which one to use. Changes apply after restart." = "Mehrere Pakete stellen dieselbe Erweiterung bereit. Wähle aus, welche verwendet werden soll. Änderungen werden nach dem Neustart übernommen."
-"No conflicting extensions. (Conflicts appear here when multiple packages provide the same engine id or file format.)" = "Keine widersprüchlichen Erweiterungen. (Konflikte erscheinen hier, wenn mehrere Pakete dieselbe Engine-ID oder dasselbe Dateiformat bereitstellen.)"
+"Multiple extensions provide the same feature. Choose one. Takes effect after restart." = "Mehrere Erweiterungen stellen dieselbe Funktion bereit. Wählen Sie eine aus. Wirksam nach dem Neustart."
+"No extension conflicts." = "Keine Erweiterungskonflikte."
 "Voice" = "Stimme"
 "Instrument" = "Instrument"
 "Extension Routing" = "Erweiterungs-Routing"
@@ -117,7 +117,7 @@
 "Tips" = "Tipps"
 "Error" = "Fehler"
 "Failed to load script:" = "Skript konnte nicht geladen werden:"
-"Host error:" = "Host-Fehler:"
+"TuneLab internal error:" = "Interner TuneLab-Fehler:"
 "All changes were rolled back; the project is unchanged." = "Alle Änderungen wurden rückgängig gemacht; das Projekt ist unverändert."
 "Program crashed last time. Open auto-backup file?" = "Program ist letztes mal abgestürzt. Auto-backup Datei öffnen?"
 "The project has not been saved.\n Do you want to save it?" = "Das Projekt ist nicht gespeichert.\n Wollen sie es speichern?"
@@ -184,8 +184,8 @@
 "Failed" = "Fehlgeschlagen"
 "Failed: " = "Fehlgeschlagen: "
 "Installed: " = "Installiert: "
-"Requires a newer TuneLab: this extension needs SDK {0}, this TuneLab provides {1}." = "Neuere TuneLab-Version erforderlich: Diese Erweiterung benötigt SDK {0}, dieses TuneLab bietet {1}."
-"Installed, but needs a newer TuneLab (current SDK {0}) — update TuneLab to use it: " = "Installiert, benötigt aber eine neuere TuneLab-Version (aktuelles SDK {0}) – aktualisiere TuneLab, um sie zu nutzen: "
+"This extension requires a newer version of TuneLab." = "Diese Erweiterung erfordert eine neuere TuneLab-Version."
+"Installed, but requires a newer version of TuneLab: " = "Installiert, erfordert aber eine neuere TuneLab-Version: "
 "Partial" = "Teilweise"
 "Skipped" = "Übersprungen"
 "Reset to Default" = "Auf Standard zurücksetzen"
@@ -195,7 +195,7 @@
 "Apply the agent's {0} change(s) to the project?" = "Die {0} Änderung(en) des Agents auf das Projekt anwenden?"
 "Settings" = "Einstellungen"
 "Open in External Editor" = "In externem Editor öffnen"
-"This is a legacy extension. It ships no manifest metadata, so TuneLab discovers its capabilities by scanning — there is no author-provided documentation to show." = "Dies ist eine Legacy-Erweiterung. Sie liefert keine Manifest-Metadaten, daher erkennt TuneLab ihre Funktionen durch Scannen – es gibt keine vom Autor bereitgestellte Dokumentation."
+"This extension includes no introduction." = "Diese Erweiterung enthält keine Beschreibung."
 "This extension has no documentation." = "Diese Erweiterung hat keine Dokumentation."
 "{0} extension(s) installed" = "{0} Erweiterung(en) installiert"
 "{0} of {1} extension(s)" = "{0} von {1} Erweiterung(en)"
@@ -403,7 +403,7 @@
 "Stopped" = "Gestoppt"
 "Submit" = "Senden"
 "Tips" = "Tipps"
-"Total of {0} model calls this turn (tool round-trips repeat the prefix)\nInput {1:N0} · Output {2:N0}\nLast call context ~{3:N0} tokens" = "Insgesamt {0} Modellaufrufe in dieser Runde (Werkzeug-Roundtrips wiederholen das Präfix)\nEingabe {1:N0} · Ausgabe {2:N0}\nKontext des letzten Aufrufs ~{3:N0} Tokens"
+"Total of {0} model calls this turn\nInput {1:N0} · Output {2:N0}\nLast call context ~{3:N0} tokens" = "Insgesamt {0} Modellaufrufe in dieser Runde\nEingabe {1:N0} · Ausgabe {2:N0}\nKontext des letzten Aufrufs ~{3:N0} Tokens"
 "Type a message..." = "Nachricht eingeben..."
 "Untitled" = "Unbenannt"
 "Agent authorization" = "Agent-Berechtigung"
@@ -449,11 +449,11 @@
 "The agent wants to uninstall the extension \"{0}\". Its files are removed when TuneLab restarts." = "Der Agent möchte die Erweiterung „{0}“ deinstallieren. Ihre Dateien werden beim Neustart von TuneLab entfernt."
 "The agent wants to keep the extension \"{0}\" after all, taking back its pending uninstall." = "Der Agent möchte die Erweiterung „{0}“ doch behalten und die ausstehende Deinstallation zurücknehmen."
 "The agent wants to save the project back to its own file:\n{0}" = "Der Agent möchte das Projekt in seine eigene Datei zurückspeichern:\n{0}"
-"This really saves — it overwrites that file. This can't be undone." = "Das ist ein echtes Speichern – die Datei wird überschrieben. Das kann nicht rückgängig gemacht werden."
+"This overwrites the original file and cannot be undone." = "Die Originaldatei wird überschrieben. Dies kann nicht rückgängig gemacht werden."
 "The agent wants to save the project as:\n{0}" = "Der Agent möchte das Projekt speichern unter:\n{0}"
 "From then on that is the file the project saves to." = "Von da an speichert das Projekt in diese Datei."
 "The agent wants to render the project's audio to:\n{0}" = "Der Agent möchte das Audio des Projekts rendern nach:\n{0}"
-"This runs the full synthesis and mixdown first, which can take several minutes. TuneLab is unusable until it finishes." = "Dabei laufen zuerst die vollständige Synthese und der Mixdown, was mehrere Minuten dauern kann. Bis dahin ist TuneLab nicht benutzbar."
+"Full synthesis and mixdown run first, which may take several minutes. TuneLab cannot be used in the meantime." = "Zuerst werden die vollständige Synthese und der Mixdown ausgeführt; das kann einige Minuten dauern. In dieser Zeit ist TuneLab nicht bedienbar."
 "The agent wants to open this project, closing the one you have open now:\n{0}" = "Der Agent möchte dieses Projekt öffnen und das derzeit geöffnete schließen:\n{0}"
 "The undo history of the current project goes with it." = "Der Rückgängig-Verlauf des aktuellen Projekts geht dabei verloren."
 "The agent wants to reset {0} to its sound source's defaults." = "Der Agent möchte {0} auf die Standardwerte seiner Klangquelle zurücksetzen."
@@ -462,7 +462,7 @@
 "The agent wants to delete the preset \"{0}\". This can't be undone." = "Der Agent möchte das Preset „{0}“ löschen. Das kann nicht rückgängig gemacht werden."
 "The agent wants to rename the preset \"{0}\" to \"{1}\"." = "Der Agent möchte das Preset „{0}“ in „{1}“ umbenennen."
 "The agent wants to run the editor action \"{0}\"." = "Der Agent möchte die Editor-Aktion „{0}“ ausführen."
-"The agent wants to run the editor action \"{0}\", which discards work that the undo history cannot bring back." = "Der Agent möchte die Editor-Aktion „{0}“ ausführen, die Arbeit verwirft, welche der Rückgängig-Verlauf nicht zurückholen kann."
+"The agent wants to run \"{0}\". This discards changes that cannot be restored with undo." = "Der Agent möchte „{0}“ ausführen. Dabei gehen Änderungen verloren, die sich nicht rückgängig machen lassen."
 "You have unapplied changes. Apply them?" = "Es gibt nicht angewendete Änderungen. Anwenden?"
 
 [AgentTurnView]
@@ -502,10 +502,10 @@
 "Untitled" = "Unbenannt"
 "No project is open." = "Kein Projekt geöffnet."
 "Script is empty." = "Das Skript ist leer."
-"Host error: " = "Host-Fehler: "
+"TuneLab internal error: " = "Interner TuneLab-Fehler: "
 
 [ComboBoxController]
-"Stored value \"{0}\" is not among the current options.\nThe plugin decides how to treat it (usually as default).\nSelect an option to overwrite it." = "Der gespeicherte Wert \"{0}\" gehört nicht zu den aktuellen Optionen.\nDas Plugin entscheidet, wie er behandelt wird (meist als Standard).\nWählen Sie eine Option, um ihn zu überschreiben."
+"Current value \"{0}\" is not among the options.\nSelecting any option replaces it." = "Der aktuelle Wert \"{0}\" ist keine der Optionen.\nDie Auswahl einer Option ersetzt ihn."
 
 [SliderController]
 "Randomize" = "Zufällig"
@@ -530,11 +530,12 @@
 "No matches" = "Keine Treffer"
 
 [TagController]
-"Stored value \"{0}\" is not among the current tags.\nThe plugin decides how to treat it." = "Der gespeicherte Wert \"{0}\" gehört nicht zu den aktuellen Tags.\nDas Plugin entscheidet, wie er behandelt wird."
+"Current value \"{0}\" is not among the available tags." = "Der aktuelle Wert \"{0}\" ist kein verfügbarer Tag."
 "Only some of the selected items have this tag. Pick it from + to add it to all of them." = "Nur einige der ausgewählten Elemente haben diesen Tag. Wähle ihn über + aus, um ihn allen hinzuzufügen."
 
 [PropertyObjectController]
 "(Timeline canvases are not supported here)" = "(Zeitleisten-Leinwände werden hier nicht unterstützt)"
+"(Unsupported element type: {0})" = "(Nicht unterstützter Elementtyp: {0})"
 "Reset to Default" = "Auf Standard zurücksetzen"
 "{0} items" = "{0} Einträge"
 "On" = "An"

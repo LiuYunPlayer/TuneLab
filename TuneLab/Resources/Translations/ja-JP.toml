@@ -59,8 +59,8 @@
 "Format" = "フォーマット"
 "Import" = "インポート"
 "Max Parallel Synthesis Tasks (0 = auto)" = "最大並列合成タスク数（0 = 自動）"
-"Multiple packages provide the same extension. Choose which one to use. Changes apply after restart." = "複数のパッケージが同じ拡張機能を提供しています。使用するものを選択してください。変更は再起動後に適用されます。"
-"No conflicting extensions. (Conflicts appear here when multiple packages provide the same engine id or file format.)" = "競合する拡張機能はありません。（複数のパッケージが同じエンジンIDまたはファイルフォーマットを提供している場合に、ここに競合が表示されます。）"
+"Multiple extensions provide the same feature. Choose one. Takes effect after restart." = "複数の拡張機能が同じ機能を提供しています。いずれかを選択してください。再起動後に有効になります。"
+"No extension conflicts." = "拡張機能の競合はありません。"
 "Voice" = "ボイス"
 "Instrument" = "インストゥルメント"
 "Extension Routing" = "拡張機能のルーティング"
@@ -117,7 +117,7 @@
 "Tips" = "ヒント"
 "Error" = "エラー"
 "Failed to load script:" = "スクリプトの読み込みに失敗しました："
-"Host error:" = "ホストエラー："
+"TuneLab internal error:" = "TuneLab 内部エラー："
 "All changes were rolled back; the project is unchanged." = "すべての変更がロールバックされ、プロジェクトは変更されていません。"
 "Program crashed last time. Open auto-backup file?" = "前回、異常終了しました。自動バックアップファイルを開きますか？"
 "The project has not been saved.\n Do you want to save it?" = "このプロジェクトは保存されていません。\n保存しますか？"
@@ -184,8 +184,8 @@
 "Failed" = "失敗"
 "Failed: " = "失敗： "
 "Installed: " = "インストール済み： "
-"Requires a newer TuneLab: this extension needs SDK {0}, this TuneLab provides {1}." = "TuneLab の更新が必要です：この拡張機能には SDK {0} が必要ですが、この TuneLab は {1} です。"
-"Installed, but needs a newer TuneLab (current SDK {0}) — update TuneLab to use it: " = "インストールしましたが、使用するには TuneLab の更新が必要です（現在の SDK {0}）："
+"This extension requires a newer version of TuneLab." = "この拡張機能には新しいバージョンの TuneLab が必要です。"
+"Installed, but requires a newer version of TuneLab: " = "インストールしましたが、使用するには TuneLab の更新が必要です："
 "Partial" = "一部"
 "Skipped" = "スキップ"
 "Reset to Default" = "デフォルトに戻す"
@@ -195,7 +195,7 @@
 "Apply the agent's {0} change(s) to the project?" = "エージェントによる {0} 件の変更をプロジェクトに適用しますか？"
 "Settings" = "設定"
 "Open in External Editor" = "外部エディタで開く"
-"This is a legacy extension. It ships no manifest metadata, so TuneLab discovers its capabilities by scanning — there is no author-provided documentation to show." = "これはレガシー拡張機能です。manifest のメタデータを持たないため、TuneLab はスキャンで機能を検出しています——作者が提供するドキュメントはありません。"
+"This extension includes no introduction." = "この拡張機能には紹介文がありません。"
 "This extension has no documentation." = "この拡張機能にはドキュメントがありません。"
 "{0} extension(s) installed" = "{0} 個の拡張機能がインストール済み"
 "{0} of {1} extension(s)" = "{1} 個中 {0} 個の拡張機能"
@@ -403,7 +403,7 @@
 "Stopped" = "停止しました"
 "Submit" = "送信"
 "Tips" = "ヒント"
-"Total of {0} model calls this turn (tool round-trips repeat the prefix)\nInput {1:N0} · Output {2:N0}\nLast call context ~{3:N0} tokens" = "このターンで合計{0}回のモデル呼び出し（ツールの往復ごとにプレフィックスが繰り返されます）\n入力 {1:N0} · 出力 {2:N0}\n最後の呼び出しのコンテキスト 約{3:N0}トークン"
+"Total of {0} model calls this turn\nInput {1:N0} · Output {2:N0}\nLast call context ~{3:N0} tokens" = "このターンで合計{0}回のモデル呼び出し\n入力 {1:N0} · 出力 {2:N0}\n最後の呼び出しのコンテキスト 約{3:N0}トークン"
 "Type a message..." = "メッセージを入力..."
 "Untitled" = "無題"
 "Agent authorization" = "エージェントの権限"
@@ -449,11 +449,11 @@
 "The agent wants to uninstall the extension \"{0}\". Its files are removed when TuneLab restarts." = "エージェントが拡張機能「{0}」をアンインストールしようとしています。ファイルは TuneLab の再起動時に削除されます。"
 "The agent wants to keep the extension \"{0}\" after all, taking back its pending uninstall." = "エージェントが拡張機能「{0}」を残し、保留中のアンインストールを取り消そうとしています。"
 "The agent wants to save the project back to its own file:\n{0}" = "エージェントがプロジェクトを元のファイルに保存しようとしています：\n{0}"
-"This really saves — it overwrites that file. This can't be undone." = "これは実際の保存です——そのファイルを上書きします。この操作は取り消せません。"
+"This overwrites the original file and cannot be undone." = "元のファイルを上書きします。この操作は取り消せません。"
 "The agent wants to save the project as:\n{0}" = "エージェントがプロジェクトを次の名前で保存しようとしています：\n{0}"
 "From then on that is the file the project saves to." = "以後、プロジェクトはそのファイルに保存されます。"
 "The agent wants to render the project's audio to:\n{0}" = "エージェントがプロジェクトの音声を次の場所に書き出そうとしています：\n{0}"
-"This runs the full synthesis and mixdown first, which can take several minutes. TuneLab is unusable until it finishes." = "先に合成とミックスダウンを全て実行するため、数分かかることがあります。完了するまで TuneLab は操作できません。"
+"Full synthesis and mixdown run first, which may take several minutes. TuneLab cannot be used in the meantime." = "先に合成とミックスダウンをすべて実行するため、数分かかる場合があります。その間 TuneLab は操作できません。"
 "The agent wants to open this project, closing the one you have open now:\n{0}" = "エージェントがこのプロジェクトを開き、今開いているものを閉じようとしています：\n{0}"
 "The undo history of the current project goes with it." = "現在のプロジェクトの取り消し履歴も一緒に失われます。"
 "The agent wants to reset {0} to its sound source's defaults." = "エージェントが {0} を音源の既定値にリセットしようとしています。"
@@ -462,7 +462,7 @@
 "The agent wants to delete the preset \"{0}\". This can't be undone." = "エージェントがプリセット「{0}」を削除しようとしています。この操作は取り消せません。"
 "The agent wants to rename the preset \"{0}\" to \"{1}\"." = "エージェントがプリセット「{0}」の名前を「{1}」に変更しようとしています。"
 "The agent wants to run the editor action \"{0}\"." = "エージェントがエディター操作「{0}」を実行しようとしています。"
-"The agent wants to run the editor action \"{0}\", which discards work that the undo history cannot bring back." = "エージェントがエディター操作「{0}」を実行しようとしています。これは取り消し履歴で戻せない作業を破棄します。"
+"The agent wants to run \"{0}\". This discards changes that cannot be restored with undo." = "エージェントが「{0}」を実行しようとしています。この操作では、元に戻せない変更が失われます。"
 "You have unapplied changes. Apply them?" = "未適用の変更があります。適用しますか？"
 
 [AgentTurnView]
@@ -502,10 +502,10 @@
 "Untitled" = "無題"
 "No project is open." = "プロジェクトが開かれていません。"
 "Script is empty." = "スクリプトが空です。"
-"Host error: " = "ホストエラー： "
+"TuneLab internal error: " = "TuneLab 内部エラー： "
 
 [ComboBoxController]
-"Stored value \"{0}\" is not among the current options.\nThe plugin decides how to treat it (usually as default).\nSelect an option to overwrite it." = "保存された値 \"{0}\" は現在の選択肢にありません。\nプラグイン側で処理方法が決定されます（通常はデフォルトとして扱われます）。\n選択肢を選ぶと上書きされます。"
+"Current value \"{0}\" is not among the options.\nSelecting any option replaces it." = "現在の値 \"{0}\" は選択肢にありません。\nいずれかを選択すると置き換えられます。"
 
 [SliderController]
 "Randomize" = "ランダム化"
@@ -530,11 +530,12 @@
 "No matches" = "一致する項目がありません"
 
 [TagController]
-"Stored value \"{0}\" is not among the current tags.\nThe plugin decides how to treat it." = "保存された値 \"{0}\" は現在のタグにありません。\nプラグイン側で処理方法が決定されます。"
+"Current value \"{0}\" is not among the available tags." = "現在の値 \"{0}\" は選択可能なタグにありません。"
 "Only some of the selected items have this tag. Pick it from + to add it to all of them." = "選択中の一部の項目だけがこのタグを持っています。+ から選ぶとすべてに追加されます。"
 
 [PropertyObjectController]
 "(Timeline canvases are not supported here)" = "（ここではタイムラインキャンバスは使えません）"
+"(Unsupported element type: {0})" = "（サポートされていない要素の種類：{0}）"
 "Reset to Default" = "デフォルトに戻す"
 "{0} items" = "{0} 項目"
 "On" = "オン"

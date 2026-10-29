@@ -323,7 +323,7 @@ internal sealed class ScriptSideBarContentProvider
 
         ScriptRunResult result;
         try { result = ScriptRunner.Run(project, mCurrentPart, mQuantization, lang, mSelection, mPianoSelection, ScriptLimits.Interactive, code, CancellationToken.None, inputs, selectionWriter: mSelectionWriter); }
-        catch (Exception ex) { mOutputBox.Text = "Host error: ".Tr(this) + ex.Message; return; }
+        catch (Exception ex) { mOutputBox.Text = "TuneLab internal error: ".Tr(this) + ex.Message; return; }
 
         var sb = new System.Text.StringBuilder();
         if (result.Ok)

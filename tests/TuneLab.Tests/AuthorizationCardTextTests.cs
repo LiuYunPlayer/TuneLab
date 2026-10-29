@@ -90,9 +90,9 @@ public class AuthorizationCardTextTests
 
     // 保存与导出的分野要在卡片上：export 只写一份副本，save 是真的保存。
     [Fact]
-    public void SavingSaysItIsARealSaveAndSaveAsSaysThePathMoves()
+    public void SavingSaysItOverwritesTheFileAndSaveAsSaysThePathMoves()
     {
-        Assert.Contains("really saves", AuthorizationCardText.For(Sample(WriteKind.ProjectSave), Id));
+        Assert.Contains("overwrites the original file", AuthorizationCardText.For(Sample(WriteKind.ProjectSave), Id));
         Assert.Contains("that is the file the project saves to", AuthorizationCardText.For(Sample(WriteKind.ProjectSaveAs), Id));
     }
 
@@ -102,7 +102,7 @@ public class AuthorizationCardTextTests
     {
         var text = AuthorizationCardText.For(Sample(WriteKind.ProjectExportAudio), Id);
         Assert.Contains("several minutes", text);
-        Assert.Contains("unusable until it finishes", text);
+        Assert.Contains("cannot be used in the meantime", text);
     }
 
     // 换工程要说清丢的是什么（当前文档 + 它的撤销历史）。

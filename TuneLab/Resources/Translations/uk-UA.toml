@@ -59,8 +59,8 @@
 "Format" = "Формат"
 "Import" = "Імпорт"
 "Max Parallel Synthesis Tasks (0 = auto)" = "Максимум паралельних завдань синтезу (0 = авто)"
-"Multiple packages provide the same extension. Choose which one to use. Changes apply after restart." = "Кілька пакетів надають одне й те саме розширення. Виберіть, яке використовувати. Зміни застосовуються після перезапуску."
-"No conflicting extensions. (Conflicts appear here when multiple packages provide the same engine id or file format.)" = "Немає конфліктних розширень. (Конфлікти з'являються тут, коли кілька пакетів надають той самий id рушія або формат файлу.)"
+"Multiple extensions provide the same feature. Choose one. Takes effect after restart." = "Кілька розширень надають ту саму функцію. Виберіть одне. Набуде чинності після перезапуску."
+"No extension conflicts." = "Конфліктів розширень немає."
 "Voice" = "Голос"
 "Instrument" = "Інструмент"
 "Extension Routing" = "Маршрутизація розширень"
@@ -117,7 +117,7 @@
 "Tips" = "Поради"
 "Error" = "Помилка"
 "Failed to load script:" = "Не вдалося завантажити скрипт:"
-"Host error:" = "Помилка хоста:"
+"TuneLab internal error:" = "Внутрішня помилка TuneLab:"
 "All changes were rolled back; the project is unchanged." = "Усі зміни скасовано; проект залишився без змін."
 "Program crashed last time. Open auto-backup file?" = "Минулого разу програма зазнала збою. Відкрити файл резервного копіювання?"
 "The project has not been saved.\n Do you want to save it?" = "Проект не був збережений.\nЗберегти його?"
@@ -184,8 +184,8 @@
 "Failed" = "Помилка"
 "Failed: " = "Помилка: "
 "Installed: " = "Встановлено: "
-"Requires a newer TuneLab: this extension needs SDK {0}, this TuneLab provides {1}." = "Потрібна новіша версія TuneLab: цьому розширенню потрібен SDK {0}, а цей TuneLab надає {1}."
-"Installed, but needs a newer TuneLab (current SDK {0}) — update TuneLab to use it: " = "Встановлено, але потрібна новіша версія TuneLab (поточний SDK {0}) — оновіть TuneLab, щоб користуватися: "
+"This extension requires a newer version of TuneLab." = "Для цього розширення потрібна новіша версія TuneLab."
+"Installed, but requires a newer version of TuneLab: " = "Встановлено, але потрібна новіша версія TuneLab: "
 "Partial" = "Частково"
 "Skipped" = "Пропущено"
 "Reset to Default" = "Скинути до типового"
@@ -195,7 +195,7 @@
 "Apply the agent's {0} change(s) to the project?" = "Застосувати {0} змін агента до проєкту?"
 "Settings" = "Налаштування"
 "Open in External Editor" = "Відкрити у зовнішньому редакторі"
-"This is a legacy extension. It ships no manifest metadata, so TuneLab discovers its capabilities by scanning — there is no author-provided documentation to show." = "Це застаріле (legacy) розширення. Воно не містить метаданих manifest, тому TuneLab визначає його можливості скануванням — документації від автора немає."
+"This extension includes no introduction." = "Це розширення не містить опису."
 "This extension has no documentation." = "Це розширення не має документації."
 "{0} extension(s) installed" = "Встановлено розширень: {0}"
 "{0} of {1} extension(s)" = "{0} з {1} розширень"
@@ -403,7 +403,7 @@
 "Stopped" = "Зупинено"
 "Submit" = "Надіслати"
 "Tips" = "Поради"
-"Total of {0} model calls this turn (tool round-trips repeat the prefix)\nInput {1:N0} · Output {2:N0}\nLast call context ~{3:N0} tokens" = "Усього викликів моделі за цей хід: {0} (виклики інструментів повторюють префікс)\nВхід {1:N0} · Вихід {2:N0}\nКонтекст останнього виклику ~{3:N0} токенів"
+"Total of {0} model calls this turn\nInput {1:N0} · Output {2:N0}\nLast call context ~{3:N0} tokens" = "Усього викликів моделі за цей хід: {0}\nВхід {1:N0} · Вихід {2:N0}\nКонтекст останнього виклику ~{3:N0} токенів"
 "Type a message..." = "Введіть повідомлення..."
 "Untitled" = "Без назви"
 "Agent authorization" = "Права агента"
@@ -449,11 +449,11 @@
 "The agent wants to uninstall the extension \"{0}\". Its files are removed when TuneLab restarts." = "Агент хоче видалити розширення «{0}». Його файли буде видалено після перезапуску TuneLab."
 "The agent wants to keep the extension \"{0}\" after all, taking back its pending uninstall." = "Агент хоче все ж залишити розширення «{0}», скасувавши заплановане видалення."
 "The agent wants to save the project back to its own file:\n{0}" = "Агент хоче зберегти проєкт назад у його власний файл:\n{0}"
-"This really saves — it overwrites that file. This can't be undone." = "Це справжнє збереження — той файл буде перезаписано. Цю дію не можна скасувати."
+"This overwrites the original file and cannot be undone." = "Вихідний файл буде перезаписано. Цю дію не можна скасувати."
 "The agent wants to save the project as:\n{0}" = "Агент хоче зберегти проєкт як:\n{0}"
 "From then on that is the file the project saves to." = "Відтоді проєкт зберігатиметься саме в цей файл."
 "The agent wants to render the project's audio to:\n{0}" = "Агент хоче відрендерити звук проєкту в:\n{0}"
-"This runs the full synthesis and mixdown first, which can take several minutes. TuneLab is unusable until it finishes." = "Спочатку виконується повний синтез і зведення, що може тривати кілька хвилин. До завершення TuneLab недоступний."
+"Full synthesis and mixdown run first, which may take several minutes. TuneLab cannot be used in the meantime." = "Спочатку виконуються повний синтез і зведення; це може тривати кілька хвилин. Тим часом TuneLab недоступний."
 "The agent wants to open this project, closing the one you have open now:\n{0}" = "Агент хоче відкрити цей проєкт і закрити той, що відкритий зараз:\n{0}"
 "The undo history of the current project goes with it." = "Історію скасування поточного проєкту буде втрачено разом із ним."
 "The agent wants to reset {0} to its sound source's defaults." = "Агент хоче скинути {0} до типових значень його джерела звуку."
@@ -462,7 +462,7 @@
 "The agent wants to delete the preset \"{0}\". This can't be undone." = "Агент хоче видалити пресет «{0}». Цю дію не можна скасувати."
 "The agent wants to rename the preset \"{0}\" to \"{1}\"." = "Агент хоче перейменувати пресет «{0}» на «{1}»."
 "The agent wants to run the editor action \"{0}\"." = "Агент хоче виконати дію редактора «{0}»."
-"The agent wants to run the editor action \"{0}\", which discards work that the undo history cannot bring back." = "Агент хоче виконати дію редактора «{0}», яка відкидає роботу, що її історія скасування не може повернути."
+"The agent wants to run \"{0}\". This discards changes that cannot be restored with undo." = "Агент хоче виконати «{0}». Буде втрачено зміни, які не можна повернути скасуванням."
 "You have unapplied changes. Apply them?" = "Є незастосовані зміни. Застосувати їх?"
 
 [AgentTurnView]
@@ -502,10 +502,10 @@
 "Untitled" = "Без назви"
 "No project is open." = "Немає відкритого проекту."
 "Script is empty." = "Скрипт порожній."
-"Host error: " = "Помилка хоста: "
+"TuneLab internal error: " = "Внутрішня помилка TuneLab: "
 
 [ComboBoxController]
-"Stored value \"{0}\" is not among the current options.\nThe plugin decides how to treat it (usually as default).\nSelect an option to overwrite it." = "Збережене значення \"{0}\" відсутнє серед поточних варіантів.\nПлагін сам вирішує, як його обробити (зазвичай як типове).\nВиберіть варіант, щоб перезаписати його."
+"Current value \"{0}\" is not among the options.\nSelecting any option replaces it." = "Поточне значення \"{0}\" відсутнє серед варіантів.\nВибір будь-якого варіанта замінить його."
 
 [SliderController]
 "Randomize" = "Випадкове значення"
@@ -530,11 +530,12 @@
 "No matches" = "Немає збігів"
 
 [TagController]
-"Stored value \"{0}\" is not among the current tags.\nThe plugin decides how to treat it." = "Збережене значення \"{0}\" відсутнє серед поточних тегів.\nПлагін сам вирішує, як його обробити."
+"Current value \"{0}\" is not among the available tags." = "Поточне значення \"{0}\" відсутнє серед доступних тегів."
 "Only some of the selected items have this tag. Pick it from + to add it to all of them." = "Цей тег є лише в частини вибраних елементів. Виберіть його в +, щоб додати всім."
 
 [PropertyObjectController]
 "(Timeline canvases are not supported here)" = "(Полотна на часовій шкалі тут не підтримуються)"
+"(Unsupported element type: {0})" = "(Непідтримуваний тип елемента: {0})"
 "Reset to Default" = "Скинути до типового"
 "{0} items" = "Елементів: {0}"
 "On" = "Увімк"

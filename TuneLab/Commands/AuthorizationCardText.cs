@@ -77,7 +77,7 @@ internal static class AuthorizationCardText
             // 保存：与导出的分野必须说出来——export 只写一份副本，这几条是真的保存（改写那个文件、
             // 把工程的保存路径挪过去、清掉未保存标记），撤销栈救不回其中任何一件。
             WriteKind.ProjectSave => string.Format(tr("The agent wants to save the project back to its own file:\n{0}"), target)
-                + "\n" + tr("This really saves — it overwrites that file. This can't be undone."),
+                + "\n" + tr("This overwrites the original file and cannot be undone."),
             WriteKind.ProjectSaveAs => string.Format(tr("The agent wants to save the project as:\n{0}"), target)
                 + "\n" + tr("From then on that is the file the project saves to."),
             WriteKind.ProjectSaveAsOverwrite => string.Format(tr("The agent wants to save the project as:\n{0}"), target)
@@ -86,9 +86,9 @@ internal static class AuthorizationCardText
 
             // 渲染音频：这一条还要占住机器几分钟，那句代价必须在卡片上——用户是据它决定现在放不放行的。
             WriteKind.ProjectExportAudio => string.Format(tr("The agent wants to render the project's audio to:\n{0}"), target)
-                + "\n" + tr("This runs the full synthesis and mixdown first, which can take several minutes. TuneLab is unusable until it finishes."),
+                + "\n" + tr("Full synthesis and mixdown run first, which may take several minutes. TuneLab cannot be used in the meantime."),
             WriteKind.ProjectExportAudioOverwrite => string.Format(tr("The agent wants to render the project's audio to:\n{0}"), target)
-                + "\n" + tr("This runs the full synthesis and mixdown first, which can take several minutes. TuneLab is unusable until it finishes.")
+                + "\n" + tr("Full synthesis and mixdown run first, which may take several minutes. TuneLab cannot be used in the meantime.")
                 + "\n" + tr("A file already exists there and will be replaced. This can't be undone."),
 
             // 换工程：丢掉的是用户此刻开着的那份文档，连同它的撤销历史。
@@ -105,7 +105,7 @@ internal static class AuthorizationCardText
 
             // 编辑器动作：卡片要点名是哪一条（本地化显示名），"跑一下某个动作"说了等于没说。
             WriteKind.EditorAction => string.Format(tr("The agent wants to run the editor action \"{0}\"."), ActionLabel(request)),
-            WriteKind.EditorActionDestructive => string.Format(tr("The agent wants to run the editor action \"{0}\", which discards work that the undo history cannot bring back."), ActionLabel(request)),
+            WriteKind.EditorActionDestructive => string.Format(tr("The agent wants to run \"{0}\". This discards changes that cannot be restored with undo."), ActionLabel(request)),
 
             _ => null,
         };

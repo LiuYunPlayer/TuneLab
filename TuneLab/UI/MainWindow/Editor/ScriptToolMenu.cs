@@ -268,7 +268,7 @@ internal static class ScriptToolMenu
         try { result = ScriptRunner.Run(project, sCurrentPart, sQuantization, Lang, sSelection, sPianoSelection, ScriptLimits.Interactive, code, CancellationToken.None, inputs, selectionWriter: sSelectionWriter); }
         catch (Exception ex)
         {
-            _ = anchor.ShowMessage("Script".Tr(TC.Menu), "Host error:".Tr(TC.Dialog) + " " + ex.Message);
+            _ = anchor.ShowMessage("Script".Tr(TC.Menu), "TuneLab internal error:".Tr(TC.Dialog) + " " + ex.Message);
             return;
         }
 

@@ -59,8 +59,8 @@
 "Format" = "Μορφή"
 "Import" = "Εισαγωγή"
 "Max Parallel Synthesis Tasks (0 = auto)" = "Μέγιστες Παράλληλες Εργασίες Σύνθεσης (0 = αυτόματο)"
-"Multiple packages provide the same extension. Choose which one to use. Changes apply after restart." = "Πολλά πακέτα παρέχουν την ίδια επέκταση. Επιλέξτε ποιο θα χρησιμοποιηθεί. Οι αλλαγές εφαρμόζονται μετά την επανεκκίνηση."
-"No conflicting extensions. (Conflicts appear here when multiple packages provide the same engine id or file format.)" = "Καμία διένεξη επεκτάσεων. (Οι διενέξεις εμφανίζονται εδώ όταν πολλά πακέτα παρέχουν το ίδιο engine id ή μορφή αρχείου.)"
+"Multiple extensions provide the same feature. Choose one. Takes effect after restart." = "Πολλές επεκτάσεις παρέχουν την ίδια λειτουργία. Επιλέξτε μία. Ισχύει μετά την επανεκκίνηση."
+"No extension conflicts." = "Δεν υπάρχουν διενέξεις επεκτάσεων."
 "Voice" = "Φωνή"
 "Instrument" = "Όργανο"
 "Extension Routing" = "Δρομολόγηση Επεκτάσεων"
@@ -117,7 +117,7 @@
 "Tips" = "Συμβουλή"
 "Error" = "Σφάλμα"
 "Failed to load script:" = "Αποτυχία φόρτωσης script:"
-"Host error:" = "Σφάλμα host:"
+"TuneLab internal error:" = "Εσωτερικό σφάλμα TuneLab:"
 "All changes were rolled back; the project is unchanged." = "Όλες οι αλλαγές αναιρέθηκαν· το έργο παραμένει αμετάβλητο."
 "Program crashed last time. Open auto-backup file?" = "Το πρόγραμμα κατέρρευσε την τελευταία φορά.\n Θέλετε να ανοίξετε το αρχείο αυτόματου backup;"
 "The project has not been saved.\n Do you want to save it?" = "Αυτό το έργο δεν είχε αποθηκευτεί.\n Θέλετε να το αποθηκεύσετε;"
@@ -184,8 +184,8 @@
 "Failed" = "Απέτυχε"
 "Failed: " = "Απέτυχε: "
 "Installed: " = "Εγκαταστάθηκε: "
-"Requires a newer TuneLab: this extension needs SDK {0}, this TuneLab provides {1}." = "Απαιτείται νεότερο TuneLab: αυτή η επέκταση χρειάζεται SDK {0}, αυτό το TuneLab παρέχει {1}."
-"Installed, but needs a newer TuneLab (current SDK {0}) — update TuneLab to use it: " = "Εγκαταστάθηκε, αλλά χρειάζεται νεότερο TuneLab (τρέχον SDK {0}) — ενημερώστε το TuneLab για να τη χρησιμοποιήσετε: "
+"This extension requires a newer version of TuneLab." = "Αυτή η επέκταση απαιτεί νεότερη έκδοση του TuneLab."
+"Installed, but requires a newer version of TuneLab: " = "Εγκαταστάθηκε, αλλά απαιτεί νεότερη έκδοση του TuneLab: "
 "Partial" = "Μερικώς"
 "Skipped" = "Παραλείφθηκε"
 "Reset to Default" = "Επαναφορά στις προεπιλογές"
@@ -195,7 +195,7 @@
 "Apply the agent's {0} change(s) to the project?" = "Να εφαρμοστούν οι {0} αλλαγές του agent στο έργο;"
 "Settings" = "Ρυθμίσεις"
 "Open in External Editor" = "Άνοιγμα σε εξωτερικό επεξεργαστή"
-"This is a legacy extension. It ships no manifest metadata, so TuneLab discovers its capabilities by scanning — there is no author-provided documentation to show." = "Αυτή είναι μια legacy επέκταση. Δεν παρέχει μεταδεδομένα manifest, οπότε το TuneLab ανακαλύπτει τις δυνατότητές της με σάρωση — δεν υπάρχει τεκμηρίωση από τον δημιουργό."
+"This extension includes no introduction." = "Αυτή η επέκταση δεν περιλαμβάνει περιγραφή."
 "This extension has no documentation." = "Αυτή η επέκταση δεν έχει τεκμηρίωση."
 "{0} extension(s) installed" = "{0} επεκτάσεις εγκατεστημένες"
 "{0} of {1} extension(s)" = "{0} από {1} επεκτάσεις"
@@ -403,7 +403,7 @@
 "Stopped" = "Διακόπηκε"
 "Submit" = "Υποβολή"
 "Tips" = "Συμβουλή"
-"Total of {0} model calls this turn (tool round-trips repeat the prefix)\nInput {1:N0} · Output {2:N0}\nLast call context ~{3:N0} tokens" = "Σύνολο {0} κλήσεων μοντέλου σε αυτόν τον γύρο (οι κλήσεις εργαλείων επαναλαμβάνουν το πρόθεμα)\nΕίσοδος {1:N0} · Έξοδος {2:N0}\nΠλαίσιο τελευταίας κλήσης ~{3:N0} tokens"
+"Total of {0} model calls this turn\nInput {1:N0} · Output {2:N0}\nLast call context ~{3:N0} tokens" = "Σύνολο {0} κλήσεων μοντέλου σε αυτόν τον γύρο\nΕίσοδος {1:N0} · Έξοδος {2:N0}\nΠλαίσιο τελευταίας κλήσης ~{3:N0} tokens"
 "Type a message..." = "Πληκτρολογήστε ένα μήνυμα..."
 "Untitled" = "Χωρίς Τίτλο"
 "Agent authorization" = "Εξουσιοδότηση agent"
@@ -449,11 +449,11 @@
 "The agent wants to uninstall the extension \"{0}\". Its files are removed when TuneLab restarts." = "Ο agent θέλει να απεγκαταστήσει την επέκταση «{0}». Τα αρχεία της αφαιρούνται όταν γίνει επανεκκίνηση του TuneLab."
 "The agent wants to keep the extension \"{0}\" after all, taking back its pending uninstall." = "Ο agent θέλει τελικά να κρατήσει την επέκταση «{0}», ακυρώνοντας την εκκρεμή απεγκατάσταση."
 "The agent wants to save the project back to its own file:\n{0}" = "Ο agent θέλει να αποθηκεύσει το έργο πίσω στο δικό του αρχείο:\n{0}"
-"This really saves — it overwrites that file. This can't be undone." = "Αυτό αποθηκεύει στ' αλήθεια — αντικαθιστά εκείνο το αρχείο. Αυτό δεν μπορεί να αναιρεθεί."
+"This overwrites the original file and cannot be undone." = "Το αρχικό αρχείο θα αντικατασταθεί. Αυτό δεν μπορεί να αναιρεθεί."
 "The agent wants to save the project as:\n{0}" = "Ο agent θέλει να αποθηκεύσει το έργο ως:\n{0}"
 "From then on that is the file the project saves to." = "Από εκεί και πέρα, το έργο αποθηκεύεται σε εκείνο το αρχείο."
 "The agent wants to render the project's audio to:\n{0}" = "Ο agent θέλει να αποδώσει τον ήχο του έργου στο:\n{0}"
-"This runs the full synthesis and mixdown first, which can take several minutes. TuneLab is unusable until it finishes." = "Πρώτα εκτελείται η πλήρης σύνθεση και η μίξη, που μπορεί να πάρει αρκετά λεπτά. Το TuneLab δεν είναι χρησιμοποιήσιμο μέχρι να τελειώσει."
+"Full synthesis and mixdown run first, which may take several minutes. TuneLab cannot be used in the meantime." = "Πρώτα εκτελούνται η πλήρης σύνθεση και η μίξη, κάτι που μπορεί να διαρκέσει μερικά λεπτά. Στο μεταξύ το TuneLab δεν μπορεί να χρησιμοποιηθεί."
 "The agent wants to open this project, closing the one you have open now:\n{0}" = "Ο agent θέλει να ανοίξει αυτό το έργο και να κλείσει εκείνο που έχεις ανοιχτό τώρα:\n{0}"
 "The undo history of the current project goes with it." = "Το ιστορικό αναίρεσης του τρέχοντος έργου χάνεται μαζί του."
 "The agent wants to reset {0} to its sound source's defaults." = "Ο agent θέλει να επαναφέρει το {0} στις προεπιλογές της πηγής ήχου του."
@@ -462,7 +462,7 @@
 "The agent wants to delete the preset \"{0}\". This can't be undone." = "Ο agent θέλει να διαγράψει το preset «{0}». Αυτό δεν μπορεί να αναιρεθεί."
 "The agent wants to rename the preset \"{0}\" to \"{1}\"." = "Ο agent θέλει να μετονομάσει το preset «{0}» σε «{1}»."
 "The agent wants to run the editor action \"{0}\"." = "Ο agent θέλει να εκτελέσει την ενέργεια επεξεργαστή «{0}»."
-"The agent wants to run the editor action \"{0}\", which discards work that the undo history cannot bring back." = "Ο agent θέλει να εκτελέσει την ενέργεια επεξεργαστή «{0}», η οποία απορρίπτει εργασία που το ιστορικό αναίρεσης δεν μπορεί να επαναφέρει."
+"The agent wants to run \"{0}\". This discards changes that cannot be restored with undo." = "Ο agent θέλει να εκτελέσει «{0}». Θα χαθούν αλλαγές που δεν μπορούν να ανακτηθούν με αναίρεση."
 "You have unapplied changes. Apply them?" = "Έχετε αλλαγές που δεν εφαρμόστηκαν. Να εφαρμοστούν;"
 
 [AgentTurnView]
@@ -502,10 +502,10 @@
 "Untitled" = "Χωρίς Τίτλο"
 "No project is open." = "Δεν υπάρχει ανοιχτό έργο."
 "Script is empty." = "Το Script είναι κενό."
-"Host error: " = "Σφάλμα host: "
+"TuneLab internal error: " = "Εσωτερικό σφάλμα TuneLab: "
 
 [ComboBoxController]
-"Stored value \"{0}\" is not among the current options.\nThe plugin decides how to treat it (usually as default).\nSelect an option to overwrite it." = "Η αποθηκευμένη τιμή \"{0}\" δεν βρίσκεται στις τρέχουσες επιλογές.\nΤο πρόσθετο αποφασίζει πώς θα τη χειριστεί (συνήθως ως προεπιλογή).\nΕπιλέξτε μια επιλογή για να την αντικαταστήσετε."
+"Current value \"{0}\" is not among the options.\nSelecting any option replaces it." = "Η τρέχουσα τιμή \"{0}\" δεν είναι μία από τις επιλογές.\nΗ επιλογή οποιασδήποτε επιλογής την αντικαθιστά."
 
 [SliderController]
 "Randomize" = "Τυχαιοποίηση"
@@ -530,11 +530,12 @@
 "No matches" = "Δεν βρέθηκαν αποτελέσματα"
 
 [TagController]
-"Stored value \"{0}\" is not among the current tags.\nThe plugin decides how to treat it." = "Η αποθηκευμένη τιμή \"{0}\" δεν βρίσκεται στις τρέχουσες ετικέτες.\nΤο πρόσθετο αποφασίζει πώς θα τη χειριστεί."
+"Current value \"{0}\" is not among the available tags." = "Η τρέχουσα τιμή \"{0}\" δεν είναι μία από τις διαθέσιμες ετικέτες."
 "Only some of the selected items have this tag. Pick it from + to add it to all of them." = "Μόνο ορισμένα από τα επιλεγμένα στοιχεία έχουν αυτήν την ετικέτα. Επιλέξτε την από το + για να την προσθέσετε σε όλα."
 
 [PropertyObjectController]
 "(Timeline canvases are not supported here)" = "(Οι καμβάδες χρονογραμμής δεν υποστηρίζονται εδώ)"
+"(Unsupported element type: {0})" = "(Μη υποστηριζόμενος τύπος στοιχείου: {0})"
 "Reset to Default" = "Επαναφορά στις προεπιλογές"
 "{0} items" = "{0} στοιχεία"
 "On" = "Ενεργό"

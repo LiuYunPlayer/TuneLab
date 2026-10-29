@@ -1735,7 +1735,7 @@ internal sealed class AgentSideBarContentProvider
                 Margin = new(0, 0, 16, 0), // 与右侧 Copy 留间距：短回复气泡窄时两者会贴到一起
             };
             ToolTip.SetTip(tokens, multi
-                ? string.Format("Total of {0} model calls this turn (tool round-trips repeat the prefix)\nInput {1:N0} · Output {2:N0}\nLast call context ~{3:N0} tokens".Tr(this),
+                ? string.Format("Total of {0} model calls this turn\nInput {1:N0} · Output {2:N0}\nLast call context ~{3:N0} tokens".Tr(this),
                     modelCalls, usage.PromptTokens, usage.CompletionTokens, lastContextTokens)
                 : string.Format("Input {0:N0} · Output {1:N0}".Tr(this), usage.PromptTokens, usage.CompletionTokens));
             DockPanel.SetDock(tokens, Dock.Left);
