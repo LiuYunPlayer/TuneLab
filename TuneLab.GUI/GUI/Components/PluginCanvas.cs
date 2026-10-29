@@ -228,10 +228,16 @@ internal sealed class PluginCanvas : Component
         return session;
     }
 
+    // 不收指针的画布（参数面板里作背景的画布：IsHitTestVisible = false）不补：PointerTracker 只按位置判，不看命中，
+    // 否则在激活参数上拖动时背景画布每换一次实例（每步提交都会换）就被补一次进入 + 移动，悬停跟着鼠标走。
+    // 返回 false 让调用方推迟一拍再试一次：刚建的画布在建好的那一帧可能还没被设成收指针（所在视图随后那一拍才按激活与否设）；
+    // 一拍后仍不收就不再补，等它重新收指针时由真实的指针事件（或 Prepare）补上进入。
     bool TryEnter(Session session)
     {
         if (mSession != session || session.Inside)
             return true;
+        if (!IsHitTestVisible)
+            return false;
         if (!PointerTracker.TryGetOver(this, out var position, out var modifiers))
             return false;
         Enter(session, ToPoint(position), ToModifiers(modifiers.ToModifierKeys()));
