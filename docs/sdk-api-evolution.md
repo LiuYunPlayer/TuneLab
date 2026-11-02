@@ -65,6 +65,24 @@ DIM 默认体的语义责任：默认体必须是**可长期成立的兜底行�
 - 实现集封闭在 SDK 内（config 类全 sealed + 私有构造 + 静态工厂/With，见既有"工厂化构造"约定）；宿主渲染器按具体类型分发，未知实现渲染为 unsupported 占位、不崩。
 - 加新 config 类型 = 纯加性（新类 + 宿主新 creator）；给既有 config 加字段走"工厂化构造 + `With` 流式"既有 ABI 韧性机制。
 
+### 会变的值怎么暴露：先看 `IReadOnlyNotifiableProperty<T>`
+
+设计「一个值 + 它变了的通知」时，**先判断能不能直接用 `IReadOnlyNotifiableProperty<T>`**（Foundation 通知面），而不是顺手写成
+`X { get; }` + `XChanged` 两个成员——那个接口就是为把这一对收成一个对象而设计的，值和通知绑在一起、可整体往下传、宿主的通用订阅
+工具直接可用。三条判据全满足才用它：
+
+1. **读值便宜（O(1)）**：叶子值。每次读都要现算的汇总（遍历拼一张表、现建状态列表）停在 `IReadOnlyNotifiable` 或「getter + 事件」，
+   不把 O(n) 伪装成属性 getter（见该接口注释）。
+2. **变化与通知在数据线程上对齐**：`WillModify` 里读得旧值、`Modified` 里读得新值、没有通知时值不变。源头若在别的线程变
+   （如播放头时间由音频线程按缓冲推进），宿主在数据线程维护一份快照、在两个事件之间更新它，就满足这一条——不要因此退回
+   「getter + 事件」。真正守不住这一条的（值在没有任何通知时也会变）才用「getter + 刷新信号事件」，并在事件注释写明它是信号。
+3. **由宿主实现**：Foundation 只公开接口、不公开实现类，插件实现面若用它，每个插件都得自己实现 `WillModify` / `Modified` 及其时序，
+   是纯负担。插件实现面（如合成会话）用「getter + 事件」。
+
+现状对照：音符的 `StartTime` / `EndTime` / `Pitch` / `BodyOffset` / `BodyPhonemes` 用它（宿主实现、O(1)、离散）；合成会话的
+`Status` / `SynthesizedParameters` / `SynthesizedPhonemes` / `SynthesizedPitch` 各配一个 `*Changed` 事件（插件实现、读时现算）——
+两边都是按上面的判据定的，不是遗漏。
+
 ## 2. 纯值 DTO：形态政策
 
 加字段的通用规矩：**带默认值、不标 `required`**——已编译插件构造的旧对象缺新字段时取默认，纯加性。（托管 struct 加字段同样是加性兼容：布局 JIT 期按加载类型现算，前提是既有字段不动。）

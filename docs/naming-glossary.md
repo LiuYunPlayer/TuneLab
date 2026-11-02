@@ -42,6 +42,8 @@
 | 一条动作要作用在哪个成员上（一个动词 × 一个闭集里的成员） | `argument`（`ActionParameter` / `ActionArgument` / `run_action` 的 `argument` 字段），那一批统称**选择器参数** selector parameter | 选择器参数 | 别写 `option` / `value` / `target` 指它；命令自己的入参仍叫 `parameter`（`ParametersJsonSchema`），动作的这一个是 `argument`——两个词分工见 command-surface.md §5.6 |
 | 右侧那条可开合的容器 + 它的页签 | `sidebar`（动作 id `sidebar.*` / `editor status` 的 `sidebars` 字段 / `SideTabBar`、`SideBarTab`） | 侧栏 | 「侧边栏」「抽屉」；容器叫**侧栏**，里面显示的那一块叫**面板**（`Part Panel`…），两个词别互换 |
 | 从一组固定候选里挑若干个值（有序、不重复）的字段及其候选 | `TagConfig` / `TagItem`（SDK）；`TagController`（GUI） | 标签 | `MultiSelect*`（「多选」在本仓指同时选中多个音符/片段，撞词）；`ChipConfig`（描述的是界面形态不是语义）；候选别复用 `ComboBoxItem`（两者各自演进） |
+| 时间轴上的一个点：以秒计 / 以 tick 计 | `Time`（秒：`StartTime` / `EndTime`、`Playback.Time`）/ `Pos`（tick：`NoteInfo.Pos`、`PartInfo.Pos`） | 时间 / 位置 | 秒别叫 `Position` / `Pos`、tick 别叫 `Time`；属性名不加 `Current`（属性读出来本来就是当前值，宿主内部的 `AudioEngine.CurrentTime` 是挂在大静态类上的历史写法） |
+| 只读的播放状态（播没播、播到哪）与播放控制（播放 / 暂停 / 跳转）的分工 | 状态：`Playback`（SDK `ITuneLabContext.Playback`，只读）；控制：`transport.*`（动作 id） | 播放状态 / 播放控制 | 状态面别叫 `Transport`（行话里指控制按钮，会让人以为能调 play / seek）、`Playhead`（只是一个位置，装不下「是否在播」） |
 
 ### 三条边界的说明
 
