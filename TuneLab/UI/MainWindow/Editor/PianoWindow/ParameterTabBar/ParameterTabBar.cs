@@ -300,7 +300,7 @@ internal class ParameterTabBar : Panel
             case AutomationSource.NoteLane:
                 foreach (var note in part.Notes)
                 {
-                    if (part.ResolveNoteLane(note, key.Id) is { } resolved && !LanePath.Read(note.Properties, resolved.Steps, PropertyValue.Null).IsNull())
+                    if (part.ResolveNoteLane(note, key.Id) is { } resolved && !LanePath.ReadRaw(note.Properties, resolved.Steps).IsNull())
                         return true;
                 }
                 return false;
@@ -310,7 +310,7 @@ internal class ParameterTabBar : Panel
                     for (int i = 0; i < note.Phonemes.Count; i++)
                     {
                         if (note.Phonemes[i].HasProperties && part.ResolvePhonemeLane(note, i, key.Id) is { } resolved
-                            && !LanePath.Read(note.Phonemes[i].Properties, resolved.Steps, PropertyValue.Null).IsNull())
+                            && !LanePath.ReadRaw(note.Phonemes[i].Properties, resolved.Steps).IsNull())
                             return true;
                     }
                 }

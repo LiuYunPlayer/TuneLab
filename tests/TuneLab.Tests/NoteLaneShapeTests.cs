@@ -44,7 +44,7 @@ public class NoteLaneShapeTests
         {
             var map = new Map<int, ObjectConfig>();
             if (context.Notes.Count > 0 && context.Notes.All(n => n.Pitch >= 62))
-                map.Add(0, ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig> { { "ptimeline", CanvasLaneConfig.Create(PropertyObject.Empty, _ => new NullControl()) } }));
+                map.Add(0, ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig> { { "ptimeline", CanvasLaneConfig.Create(_ => new NullControl()) } }));
             return map;
         }
 
@@ -56,9 +56,9 @@ public class NoteLaneShapeTests
             if (high)
             {
                 map.Add("adv", SliderConfig.Linear(0, -12, 12));
-                map.Add("timeline", CanvasLaneConfig.Create(PropertyObject.Empty, _ => new NullControl()));
+                map.Add("timeline", CanvasLaneConfig.Create(_ => new NullControl()));
             }
-            map.Add("side", CanvasConfig.Create(PropertyObject.Empty, 200, 80, _ => new NullControl()));
+            map.Add("side", CanvasConfig.Create(200, 80, _ => new NullControl()));
             return ObjectConfig.Create(map);
         }
 

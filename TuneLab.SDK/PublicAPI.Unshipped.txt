@@ -3,7 +3,7 @@ override TuneLab.SDK.TagItem.Equals(object? obj) -> bool
 override TuneLab.SDK.TagItem.GetHashCode() -> int
 static TuneLab.SDK.ButtonConfig.Create(string! text, System.Func<TuneLab.SDK.IButtonClickContext!, System.Threading.Tasks.Task!>! onClick) -> TuneLab.SDK.ButtonConfig!
 static TuneLab.SDK.CanvasBrush.Solid(TuneLab.Foundation.Color color) -> TuneLab.SDK.CanvasBrush!
-static TuneLab.SDK.CanvasConfig.Create(TuneLab.Foundation.PropertyValue defaultValue, double preferredWidth, double preferredHeight, System.Func<TuneLab.SDK.ICanvasHost!, TuneLab.SDK.ICanvasControl!>! createControl) -> TuneLab.SDK.CanvasConfig!
+static TuneLab.SDK.CanvasConfig.Create(double preferredWidth, double preferredHeight, System.Func<TuneLab.SDK.ICanvasHost!, TuneLab.SDK.ICanvasControl!>! createControl) -> TuneLab.SDK.CanvasConfig!
 static TuneLab.SDK.CanvasDrawingExtensions.DrawCircle(this TuneLab.SDK.ICanvasDrawing! drawing, TuneLab.Foundation.Point center, double radius, TuneLab.SDK.CanvasBrush? fill, TuneLab.SDK.CanvasPen? stroke) -> void
 static TuneLab.SDK.CanvasDrawingExtensions.DrawEllipse(this TuneLab.SDK.ICanvasDrawing! drawing, TuneLab.Foundation.Point center, double radiusX, double radiusY, TuneLab.SDK.CanvasBrush? fill, TuneLab.SDK.CanvasPen? stroke) -> void
 static TuneLab.SDK.CanvasDrawingExtensions.DrawPolygon(this TuneLab.SDK.ICanvasDrawing! drawing, System.Collections.Generic.IReadOnlyList<TuneLab.Foundation.Point>! points, TuneLab.SDK.CanvasBrush? fill, TuneLab.SDK.CanvasPen? stroke) -> void
@@ -38,7 +38,7 @@ static TuneLab.SDK.TagItem.implicit operator TuneLab.SDK.TagItem(long value) -> 
 static TuneLab.SDK.TagItem.implicit operator TuneLab.SDK.TagItem(string! value) -> TuneLab.SDK.TagItem
 static TuneLab.SDK.TagItem.implicit operator TuneLab.SDK.TagItem(TuneLab.Foundation.PropertyValue value) -> TuneLab.SDK.TagItem
 static TuneLab.SDK.TagItem.Separator(string? label = null) -> TuneLab.SDK.TagItem
-static TuneLab.SDK.CanvasLaneConfig.Create(TuneLab.Foundation.PropertyValue defaultValue, System.Func<TuneLab.SDK.ITimelineCanvasHost!, TuneLab.SDK.ICanvasControl!>! createControl) -> TuneLab.SDK.CanvasLaneConfig!
+static TuneLab.SDK.CanvasLaneConfig.Create(System.Func<TuneLab.SDK.ITimelineCanvasHost!, TuneLab.SDK.ICanvasControl!>! createControl) -> TuneLab.SDK.CanvasLaneConfig!
 TuneLab.SDK.ButtonConfig
 TuneLab.SDK.ButtonConfig.OnClick.get -> System.Func<TuneLab.SDK.IButtonClickContext!, System.Threading.Tasks.Task!>!
 TuneLab.SDK.ButtonConfig.Text.get -> string!
@@ -55,7 +55,6 @@ TuneLab.SDK.CanvasAlignment.RightTop = 2 -> TuneLab.SDK.CanvasAlignment
 TuneLab.SDK.CanvasBrush
 TuneLab.SDK.CanvasConfig
 TuneLab.SDK.CanvasConfig.CreateControl.get -> System.Func<TuneLab.SDK.ICanvasHost!, TuneLab.SDK.ICanvasControl!>!
-TuneLab.SDK.CanvasConfig.DefaultValue.get -> TuneLab.Foundation.PropertyValue
 TuneLab.SDK.CanvasConfig.PreferredHeight.get -> double
 TuneLab.SDK.CanvasConfig.PreferredWidth.get -> double
 TuneLab.SDK.CanvasConfig.Summary.get -> string?
@@ -266,7 +265,6 @@ TuneLab.SDK.TagItem.Value.get -> TuneLab.Foundation.PropertyValue
 TuneLab.SDK.CanvasLaneConfig
 TuneLab.SDK.CanvasLaneConfig.Color.get -> string!
 TuneLab.SDK.CanvasLaneConfig.CreateControl.get -> System.Func<TuneLab.SDK.ITimelineCanvasHost!, TuneLab.SDK.ICanvasControl!>!
-TuneLab.SDK.CanvasLaneConfig.DefaultValue.get -> TuneLab.Foundation.PropertyValue
 TuneLab.SDK.CanvasLaneConfig.Summary.get -> string?
 TuneLab.SDK.CanvasLaneConfig.WithColor(string! color) -> TuneLab.SDK.CanvasLaneConfig!
 TuneLab.SDK.CanvasLaneConfig.WithSummary(string! summary) -> TuneLab.SDK.CanvasLaneConfig!

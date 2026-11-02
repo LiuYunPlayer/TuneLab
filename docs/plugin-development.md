@@ -1149,15 +1149,15 @@ Reference implementations: `tests/plugins/V1.CustomWindow` + `tests/plugins/V1.C
 For edits the built-in controls can't express (say, a stretch curve inside a phoneme), declare a **canvas**: you draw it, you handle the mouse, and when the edit is done you commit the result to the field.
 
 ```csharp
-// In the declaration (GetNotePropertyConfig, say): take each selected object's value of this field (missing = the default)
+// In the declaration (GetNotePropertyConfig, say): take each selected object's value of this field (missing = unset: use your own default)
 // and hand it to the factory; compute the summary here too
 var values = context.Notes.Select(n => n.Properties.Map.TryGetValue("stretch", out var v) ? v : StretchCurveCanvas.Default).ToList();
-props.Add(("stretch", "Stretch Curve"), CanvasConfig.Create(StretchCurveCanvas.Default, 280, 96, host => new StretchCurveCanvas(host, values))
+props.Add(("stretch", "Stretch Curve"), CanvasConfig.Create(280, 96, host => new StretchCurveCanvas(host, values))
     .WithSummary(SummaryOf(values)));
 
 sealed class StretchCurveCanvas(ICanvasHost host, IReadOnlyList<PropertyValue> values) : ICanvasControl
 {
-    public static readonly PropertyValue Default = PropertyObject.Empty;   // value = { "points": [...] }, {} = unset
+    public static readonly PropertyValue Default = PropertyObject.Empty;   // value = { "points": [...] }; your own default for an unset field
     PropertyValue? mDraft;                                   // keep your own draft: the host doesn't read values back to the control
 
     public void Render(ICanvasDrawing d)
@@ -1192,13 +1192,13 @@ sealed class StretchCurveCanvas(ICanvasHost host, IReadOnlyList<PropertyValue> v
 
 ### 10.1 It is a value field
 
-- **You define the value's shape** (any `PropertyValue`, objects and arrays included); the host doesn't interpret it. Reset to default, presets, undo and multi-selection all work as usual — so **always validate what you read**: undo, presets and paste can bring in a value of any shape; treat whatever doesn't fit as the default.
-- **Default value**: it is the "unset" state and also fixes the field's type — a stored value of a different type reads as the default, so **keep the value's type fixed** (its shape may vary). The default can't be `PropertyValue.Null` / `PropertyValue.Multiple`; `Create` throws an argument error.
-- **Prefer an object at the top level** (default `{}`, like `{ "points": [...] }` above): adding a feature later is just one more member, old values are still objects and keep reading fine, and missing members fall back to your defaults. With an array or a scalar at the top, extending means changing the shape (which needs a new key — see §5.2, "Closures in declarations and evolving a field's shape"). For something that will only ever be a single number, a scalar is perfectly fine.
-- **The value comes from the declaration**: a declaration context carries each selected object's own values (a missing one means the default — use the same default constant you pass to `Create`); take them out and let the factory capture them for the control (as above). The host has no interface for reading the value. Within one instance's lifetime the project's value doesn't change (if it does, the instance is replaced, see §10.3), so what the constructor gets is exactly what it should show.
-- **Multi-selection**: you get every object's own value, and how to merge and present them is yours to decide — compare point by point, say, drawing points that agree as filled and points that differ as hollow. The host doesn't merge; only you know the shape. A commit writes the same value to every target; when the objects differ, which value an edit starts from (the first object's? the default?) is your call too, and the rest of each object's value is overwritten by it.
+- **You define the value's shape** (any `PropertyValue`, objects and arrays included); the host doesn't interpret it. Presets, undo and multi-selection all work as usual — so **always validate what you read**: undo, presets and paste can bring in a value of any shape; treat whatever doesn't fit as your default.
+- **No default value in the declaration**: the host never shows a canvas's value (you draw it), so it has no use for one. A field the user never set has no stored value — reading it gives nothing — and you substitute your own default, the same way you pass your own default when reading any other field (the host's defaults on other controls only fill what the control shows; your reads still see "no value"). **Reset to default removes the stored value**, and the side panel's "Default / Modified" is "nothing stored / something stored".
+- **Prefer an object at the top level** (your default `{}`, like `{ "points": [...] }` above): adding a feature later is just one more member, old values are still objects and keep reading fine, and missing members fall back to your defaults. With an array or a scalar at the top, extending means changing the shape (which needs a new key — see §5.2, "Closures in declarations and evolving a field's shape"). For something that will only ever be a single number, a scalar is perfectly fine.
+- **The value comes from the declaration**: a declaration context carries each selected object's own values (a missing one means unset — substitute your own default); take them out and let the factory capture them for the control (as above). The host has no interface for reading the value. Within one instance's lifetime the project's value doesn't change (if it does, the instance is replaced, see §10.3), so what the constructor gets is exactly what it should show.
+- **Multi-selection**: you get every object's own value, and how to merge and present them is yours to decide — compare point by point, say, drawing points that agree as filled and points that differ as hollow. The host doesn't merge; only you know the shape. A commit writes the same value to every target; when the objects differ, which value an edit starts from (the first object's? your default?) is your call too, and the rest of each object's value is overwritten by it.
 - **Collapsed summary**: `WithSummary(text)` — computed at declaration time from the values then (the field is declared again whenever its value changes, so the summary follows), including what to say for a mixed multi-selection. Without it the host shows "Default / Modified / Multiple".
-- **CLI / agent** can read and write the value as is (any JSON shape). The host doesn't know the shape, so it doesn't validate it — values the agent writes go through your read-time validation like any other. The host tells the agent to read your introduction first and, failing that, to infer the shape from the current or default value, so **describe this field's value shape and meaning in your introduction**: what each member is, its range, and how the shape varies with state (say, the element count depends on another setting). The declaration can't carry this; only your description can be exact.
+- **CLI / agent** can read and write the value as is (any JSON shape). The host doesn't know the shape, so it doesn't validate it — values the agent writes go through your read-time validation like any other. The host tells the agent to read your introduction first and, failing that, to infer the shape from the current value (writing null clears the field), so **describe this field's value shape and meaning in your introduction**: what each member is, its range, and how the shape varies with state (say, the element count depends on another setting). The declaration can't carry this; only your description can be exact.
 - **Placement**: only as a member of an `ObjectConfig` (same as buttons, see §9.1).
 
 ### 10.2 Editing, drafts and commits
@@ -1272,7 +1272,7 @@ over its own time span: width = that object's time span, height = the panel heig
 declaration has it; the user does not pin it.
 
 ```csharp
-props.Add(("mix", "Mix"), CanvasLaneConfig.Create(MixCanvas.Default, host => new MixCanvas(host, value))
+props.Add(("mix", "Mix"), CanvasLaneConfig.Create(host => new MixCanvas(host, value))
     .WithColor("#E58AC9"));   // leave the color unset and the host picks one from its palette (same as AutomationConfig)
 ```
 
@@ -1309,7 +1309,7 @@ props.Add(("mix", "Mix"), CanvasLaneConfig.Create(MixCanvas.Default, host => new
   when zoomed in). Draw a compact version when narrow or short (e.g. only the curve and a line of symbols, popping up a
   `PopupTextBox` on click); whether that is two control classes or one class branching on size is up to you. The host does not
   tell you "where" you are — only the size and the mapping.
-- **Keep the default neutral** (no effect when untouched), or define it only by positions relative to the object: unlocked
+- **Keep your default neutral** (no effect when untouched), or define it only by positions relative to the object: unlocked
   phonemes change length with synthesis, so a default whose effect depends on length makes objects the user never touched sound
   different after an edit elsewhere.
 - **How it looks in the parameter panel** (the host does this; nothing for you to do, but it helps your layout):

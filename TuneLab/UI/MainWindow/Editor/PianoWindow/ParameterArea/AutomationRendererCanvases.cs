@@ -131,8 +131,7 @@ internal partial class AutomationRenderer
     {
         var config = resolved.Leaf;
         canvas.Config = config;
-        var defaultValue = config is CanvasLaneConfig lane ? lane.DefaultValue : ((CanvasConfig)config).DefaultValue;
-        IDataProperty<PropertyValue> field = new LanePathField(slot.Note, slot.Phoneme ? slot.Index : -1, resolved.Steps, defaultValue);
+        IDataProperty<PropertyValue> field = new LanePathField(slot.Note, slot.Phoneme ? slot.Index : -1, resolved.Steps);
         canvas.View.Bind(field);
         if (config is CanvasLaneConfig t)
             canvas.View.SetTimelineFactory(t.CreateControl, canvas.Axis);
@@ -253,9 +252,10 @@ internal partial class AutomationRenderer
     // 读 = 路径上存的值，缺的节点读默认值（合成音素没有属性，也读默认值）；写 = 音素级先把这个 note 的音素钉死（合成 → 固定，
     // 保几何，同属性 lane 的写回范式），再沿路径写——没存过的数组 / 列表元素按元素默认值补齐。撤销根、提交、通知都借 note 的
     //（钉死与写值同在一个撤销步）。
-    sealed class LanePathField(INote note, int phonemeIndex, IReadOnlyList<LanePath.Step> steps, PropertyValue defaultValue) : IDataProperty<PropertyValue>, IRawValueProperty
+    // 画布没有默认值：按原值读，没存值 = Null。
+    sealed class LanePathField(INote note, int phonemeIndex, IReadOnlyList<LanePath.Step> steps) : IDataProperty<PropertyValue>, IRawValueProperty
     {
-        public PropertyValue RawValue => ReadRoot() is { } root ? LanePath.Read(root, steps, defaultValue) : defaultValue;
+        public PropertyValue RawValue => ReadRoot() is { } root ? LanePath.ReadRaw(root, steps) : PropertyValue.Null;
         public PropertyValue Value => RawValue;
         public PropertyValue GetInfo() => RawValue;
         public void SetInfo(PropertyValue value) => Set(value);

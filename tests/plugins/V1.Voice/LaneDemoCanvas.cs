@@ -22,7 +22,7 @@ sealed class LaneDemoCanvas(ITimelineCanvasHost host, PropertyValue value, strin
 
     // 摘要（侧栏那一行）：点数 + 语言，声明时按值算好。
     public static CanvasLaneConfig Config(PropertyValue value, string label)
-        => CanvasLaneConfig.Create(Default, host => new LaneDemoCanvas(host, value, label)).WithSummary(Summary(value));
+        => CanvasLaneConfig.Create(host => new LaneDemoCanvas(host, value, label)).WithSummary(Summary(value));
 
     static string Summary(PropertyValue value)
     {

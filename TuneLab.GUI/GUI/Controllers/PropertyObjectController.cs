@@ -1048,7 +1048,7 @@ internal class PropertyObjectController : StackPanel
             mTitle = CreateTitle(key.DisplayText ?? key.Id, 30);
             mCanvas = new PluginCanvas() { Margin = new(24, FieldGap, 24, 12) };
             Apply(config);
-            var field = parent.DataObject.ValueField(key.Id, config.DefaultValue);
+            var field = parent.DataObject.RawValueField(key.Id, PropertyValue.Null);   // 画布没有默认值：按原值读，没存值 = Null
             mCanvas.Bind(field);
             mFold = new FieldFold(mTitle, [mCanvas], parent.FoldKey(key),
                 summary: () => Summary(((IRawValueProperty)field).RawValue), watch: parent.DataObject);
@@ -1062,14 +1062,14 @@ internal class PropertyObjectController : StackPanel
             mCanvas.SetFactory(config.CreateControl);
         }
 
-        // 值的形状只有插件懂：插件在声明时算好了摘要就用它（多选怎么说也由它定），没给则只分"默认 / 已修改 / 多值"。
+        // 值的形状只有插件懂：插件在声明时算好了摘要就用它（多选怎么说也由它定），没给则只分"默认 / 已修改 / 多值"（看有没有存值）。
         string? Summary(PropertyValue value)
         {
             if (mConfig.Summary is { } summary)
                 return summary;
             if (value.IsMultiple())
                 return "(Multiple)";
-            return (value.Equals(mConfig.DefaultValue) ? "Default" : "Modified").Tr("PropertyObjectController");
+            return (value.IsNull() ? "Default" : "Modified").Tr("PropertyObjectController");
         }
 
         public override Type ConfigType => typeof(CanvasConfig);

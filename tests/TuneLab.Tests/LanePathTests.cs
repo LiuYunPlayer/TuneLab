@@ -13,7 +13,7 @@ public class LanePathTests
 {
     sealed class NullControl : ICanvasControl { }
 
-    static CanvasLaneConfig Canvas => CanvasLaneConfig.Create(PropertyObject.Empty, _ => new NullControl());
+    static CanvasLaneConfig Canvas => CanvasLaneConfig.Create(_ => new NullControl());
 
     // 音素混合式的形状：mixes = [{ curve: 画布 lane, gain: 滑条 }, …]（定长 2）+ 顶层一个滑条。
     static ObjectConfig Declaration => ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>
@@ -72,6 +72,23 @@ public class LanePathTests
         LanePath.Remove(root, gain.Steps);
         LanePath.Read(root, gain.Steps, PropertyValue.Create(0.5)).ToDouble(out var cleared);
         Assert.Equal(0.5, cleared);
+    }
+
+    // 画布没有默认值：按原值读，存了什么形状都读出来；没存 = Null。按类型过滤的 Read 拿 Null 当默认值会把任何存值都读成 Null
+    //（标签栏"有数据"圆点曾因此对画布 lane 永远不亮）。
+    [Fact]
+    public void ReadRawReturnsTheStoredCanvasValue_NullWhenUnset()
+    {
+        var root = new DataPropertyObject();
+        var curve = LanePath.Resolve(Declaration, "mixes/1/curve")!;
+        Assert.True(LanePath.ReadRaw(root, curve.Steps).IsNull());
+
+        var value = PropertyValue.Create(new PropertyObject(new Map<string, PropertyValue> { { "points", new PropertyArray([PropertyValue.Create(1.0)]) } }));
+        LanePath.Write(root, curve.Steps, value);
+        Assert.Equal(value, LanePath.ReadRaw(root, curve.Steps));
+        Assert.True(LanePath.Read(root, curve.Steps, PropertyValue.Null).IsNull());   // 类型门：别拿它读画布
+        // 补齐出来的第 1 个元素里没有画布键（对象默认值不占画布的键）。
+        Assert.True(LanePath.ReadRaw(root, LanePath.Resolve(Declaration, "mixes/0/curve")!.Steps).IsNull());
     }
 
     // 默认只显示末段 + 全部序号；重名才往前补祖先名，补出来的段带回自己的序号；顶层就是字段名。

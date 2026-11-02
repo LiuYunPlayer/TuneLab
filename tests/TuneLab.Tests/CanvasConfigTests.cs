@@ -10,8 +10,8 @@ using Xunit;
 
 namespace TuneLab.Tests;
 
-// CanvasConfig（插件自绘画布）的宿主侧封条：它是普通值字段（默认值递归 / preset / 恢复默认照常），工厂不在声明时调用，
-// 命令面只读、不替插件解读值。画布的渲染、事件与写回需要窗口，不在此测。
+// CanvasConfig（插件自绘画布）的宿主侧封条：值字段但没有默认值（没设过 = 不存值、恢复默认 = 删掉存值，插件自己补默认值），
+// 工厂不在声明时调用，命令面只读、不替插件解读值。画布的渲染、事件与写回需要窗口，不在此测。
 public class CanvasConfigTests
 {
     sealed class NullControl : ICanvasControl { }
@@ -37,38 +37,31 @@ public class CanvasConfigTests
         public IDialogService DialogService => throw new NotSupportedException();
     }
 
-    static PropertyValue Curve => new PropertyArray([PropertyValue.Create(0.0), PropertyValue.Create(1.0)]);
-
     [Fact]
     public void Create_ValidatesArguments()
     {
-        Assert.Throws<ArgumentNullException>(() => CanvasConfig.Create(Curve, 240, 80, null!));
-        Assert.Throws<ArgumentOutOfRangeException>(() => CanvasConfig.Create(Curve, 240, 0, _ => new NullControl()));
-        Assert.Throws<ArgumentOutOfRangeException>(() => CanvasConfig.Create(Curve, 240, double.NaN, _ => new NullControl()));
+        Assert.Throws<ArgumentNullException>(() => CanvasConfig.Create(240, 80, null!));
+        Assert.Throws<ArgumentOutOfRangeException>(() => CanvasConfig.Create(240, 0, _ => new NullControl()));
+        Assert.Throws<ArgumentOutOfRangeException>(() => CanvasConfig.Create(240, double.NaN, _ => new NullControl()));
         // 首选宽度眼下没有位置取用，但同样是契约：一样要求是正的有限数。
-        Assert.Throws<ArgumentOutOfRangeException>(() => CanvasConfig.Create(Curve, 0, 80, _ => new NullControl()));
-        Assert.Throws<ArgumentOutOfRangeException>(() => CanvasConfig.Create(Curve, double.PositiveInfinity, 80, _ => new NullControl()));
+        Assert.Throws<ArgumentOutOfRangeException>(() => CanvasConfig.Create(0, 80, _ => new NullControl()));
+        Assert.Throws<ArgumentOutOfRangeException>(() => CanvasConfig.Create(double.PositiveInfinity, 80, _ => new NullControl()));
     }
 
-    // 默认值就是未设状态、也定了字段类型：Null 作默认 = 永远存不进值，Multiple 绝不入存储——都当场报错。
-    // 标量 / 数组 / 对象都合法（顶层用对象只是建议）。
+    // 宿主不显示画布的值，用不着默认值：两种画布都不是 IValueConfig（不进"叶子自带默认值"那套递归）。
     [Fact]
-    public void Create_RejectsNullOrMultipleDefault()
+    public void Canvases_HaveNoDefaultValue()
     {
-        Assert.Throws<ArgumentException>(() => CanvasConfig.Create(PropertyValue.Null, 240, 80, _ => new NullControl()));
-        Assert.Throws<ArgumentException>(() => CanvasConfig.Create(PropertyValue.Multiple, 240, 80, _ => new NullControl()));
-        CanvasConfig.Create(PropertyValue.Create(0.5), 240, 80, _ => new NullControl());
-        CanvasConfig.Create(PropertyObject.Empty, 240, 80, _ => new NullControl());
+        Assert.IsNotAssignableFrom<IValueConfig>(CanvasConfig.Create(240, 80, _ => new NullControl()));
+        Assert.IsNotAssignableFrom<IValueConfig>(CanvasLaneConfig.Create(_ => new NullControl()));
     }
 
-    // 画布 lane 同一条默认值规矩；颜色默认全透明 = 不指定（宿主分配，同 AutomationConfig）。
+    // 颜色默认全透明 = 不指定（宿主分配，同 AutomationConfig）。
     [Fact]
-    public void CanvasLane_RejectsNullOrMultipleDefault_ColorUnassignedByDefault()
+    public void CanvasLane_ColorUnassignedByDefault()
     {
-        Assert.Throws<ArgumentNullException>(() => CanvasLaneConfig.Create(Curve, null!));
-        Assert.Throws<ArgumentException>(() => CanvasLaneConfig.Create(PropertyValue.Null, _ => new NullControl()));
-        Assert.Throws<ArgumentException>(() => CanvasLaneConfig.Create(PropertyValue.Multiple, _ => new NullControl()));
-        var config = CanvasLaneConfig.Create(PropertyObject.Empty, _ => new NullControl());
+        Assert.Throws<ArgumentNullException>(() => CanvasLaneConfig.Create(null!));
+        var config = CanvasLaneConfig.Create(_ => new NullControl());
         Assert.True(TuneLab.Configs.TrackColors.IsUnassigned(config.Color));
         Assert.Equal("#F1595B", config.WithColor("#F1595B").Color);
         Assert.True(TuneLab.Configs.TrackColors.IsUnassigned(config.Color));   // With 不改原对象
@@ -78,7 +71,7 @@ public class CanvasConfigTests
     public void Create_DoesNotCallTheFactory()
     {
         int calls = 0;
-        var config = CanvasConfig.Create(Curve, 240, 80, _ => { calls++; return new NullControl(); });
+        var config = CanvasConfig.Create(240, 80, _ => { calls++; return new NullControl(); });
         _ = ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig> { { "curve", config } }).GetDefaultValue();
         Assert.Equal(0, calls);   // 声明（含 agent / CLI 只读声明）不建控件
     }
@@ -86,7 +79,7 @@ public class CanvasConfigTests
     [Fact]
     public void WithSummary_ReturnsACopy()
     {
-        var plain = CanvasConfig.Create(Curve, 240, 80, _ => new NullControl());
+        var plain = CanvasConfig.Create(240, 80, _ => new NullControl());
         var summarized = plain.WithSummary("Linear");
         Assert.Null(plain.Summary);
         Assert.Equal("Linear", summarized.Summary);
@@ -95,22 +88,28 @@ public class CanvasConfigTests
         Assert.Same(plain.CreateControl, summarized.CreateControl);
     }
 
+    // 对象的默认值里不占键（没设过 = 不存）；数组 / 列表里的画布元素位置上是 Null（位置必须有值）。
     [Fact]
-    public void DefaultValueOfAnObject_IncludesTheCanvasValue()
+    public void DefaultValueOfAContainer_LeavesTheCanvasUnset()
     {
         var config = ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>
         {
-            { "curve", CanvasConfig.Create(Curve, 240, 80, _ => new NullControl()) },
+            { "curve", CanvasConfig.Create(240, 80, _ => new NullControl()) },
+            { "lane", CanvasLaneConfig.Create(_ => new NullControl()) },
+            { "takes", ArrayConfig.Create([CanvasLaneConfig.Create(_ => new NullControl())]) },
         });
 
         Assert.True(config.GetDefaultValue().ToObject(out var value));
-        Assert.Equal(Curve, value.Map["curve"]);   // 值字段：恢复默认 / preset 照常带上它
+        Assert.False(value.Map.ContainsKey("curve"));
+        Assert.False(value.Map.ContainsKey("lane"));
+        Assert.True(value.Map["takes"].ToArray(out var takes));
+        Assert.True(takes[0].IsNull());
     }
 
     [Fact]
     public void CommandSurface_PointsToTheIntroduction_AndTakesAnyJsonAsIs()
     {
-        var canvas = CanvasConfig.Create(Curve, 240, 80, _ => new NullControl());
+        var canvas = CanvasConfig.Create(240, 80, _ => new NullControl());
         var text = ConfigText.Describe(canvas);
         Assert.Contains("canvas", text);
         Assert.Contains("introduction", text);
@@ -125,8 +124,11 @@ public class CanvasConfigTests
         Assert.Equal("{\"points\": [0, 0.5, 1], \"mode\": \"smooth\"}", ConfigText.FormatValue(value));
         Assert.Equal(raw.RootElement.GetRawText().Replace(" ", ""), ConfigText.ToJson(value)!.ToJsonString());
 
+        // 画布没有默认值：null = 没设过，写 null 就是清掉。
         using var none = JsonDocument.Parse("null");
-        Assert.NotNull(ExtensionSettingsText.Normalize(canvas, none.RootElement, "curve").Error);
+        var cleared = ExtensionSettingsText.Normalize(canvas, none.RootElement, "curve");
+        Assert.Null(cleared.Error);
+        Assert.True(cleared.Value.IsNull());
     }
 
     // 一个插件控件只实现 Render：其余成员全走默认体（空），编译即证明 Render 也不是必须实现的。

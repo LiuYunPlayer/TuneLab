@@ -91,7 +91,7 @@ internal sealed class CanvasLaneRow
         }
         var value = mRawValue();
         mSummary.Text = value.IsMultiple() ? "(Multiple)".Tr("PropertyObjectController")
-            : (value.IsNull() || value.Equals(mConfig.DefaultValue) ? "Default" : "Modified").Tr("PropertyObjectController");
+            : (value.IsNull() ? "Default" : "Modified").Tr("PropertyObjectController");   // 画布没有默认值：没存值 = 默认
     }
 
     const double RowHeight = 30;

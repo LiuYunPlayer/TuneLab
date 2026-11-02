@@ -1147,14 +1147,14 @@ props.Add(("editor", "编辑器"), ButtonConfig.Create("打开...", async _ =>
 官方控件表达不了的编辑（比如音素内部的拉伸曲线），可以声明一块**画布**：你自己画、自己处理鼠标，编辑完把结果提交给这个字段。
 
 ```csharp
-// 在声明里（如 GetNotePropertyConfig）：取各选中对象这个字段的值（读不到 = 默认值）交给工厂，摘要也在这时算好
+// 在声明里（如 GetNotePropertyConfig）：取各选中对象这个字段的值（读不到 = 没设过，用你自己的默认值）交给工厂，摘要也在这时算好
 var values = context.Notes.Select(n => n.Properties.Map.TryGetValue("stretch", out var v) ? v : StretchCurveCanvas.Default).ToList();
-props.Add(("stretch", "拉伸曲线"), CanvasConfig.Create(StretchCurveCanvas.Default, 280, 96, host => new StretchCurveCanvas(host, values))
+props.Add(("stretch", "拉伸曲线"), CanvasConfig.Create(280, 96, host => new StretchCurveCanvas(host, values))
     .WithSummary(SummaryOf(values)));
 
 sealed class StretchCurveCanvas(ICanvasHost host, IReadOnlyList<PropertyValue> values) : ICanvasControl
 {
-    public static readonly PropertyValue Default = PropertyObject.Empty;   // 值 = { "points": [...] }，{} = 未设
+    public static readonly PropertyValue Default = PropertyObject.Empty;   // 值 = { "points": [...] }；字段没设过时用的你自己的默认值
     PropertyValue? mDraft;                                   // 草稿自己记着：宿主不把值读回给控件
 
     public void Render(ICanvasDrawing d)
@@ -1189,13 +1189,13 @@ sealed class StretchCurveCanvas(ICanvasHost host, IReadOnlyList<PropertyValue> v
 
 ### 10.1 它是一个值字段
 
-- **值的形状由你定**（任意 `PropertyValue`，可以是对象或数组），宿主不解读。恢复默认、preset、撤销、多选都照常参与，所以**读值时一律校验**——撤销、preset、粘贴都可能带来任意形状的值，形状不对的地方按默认处理。
-- **默认值**：就是"未设"状态，同时定了字段的类型——存值类型与默认值不同时按默认值处理，所以**值的类型要固定**（形状可以变）。默认值不能是 `PropertyValue.Null` / `PropertyValue.Multiple`，`Create` 会直接报参数错误。
-- **建议顶层用对象**（默认 `{}`，如上例的 `{ "points": [...] }`）：以后要加功能只是多一个成员，旧值仍是对象、照样读得出，缺的成员按你的默认处理；顶层是数组或标量的话，想扩展就只能换形状（得换新键，见 §5.2「声明里的闭包与字段演进」）。确定只存一个数之类的简单值时，用标量也完全正确。
-- **值在声明时取**：声明 context 带着每个选中对象各自的值（读不到 = 默认值，用和 `Create` 同一个默认值常量），取出来让工厂捕获、交给控件（如上例）；宿主没有读值的接口。一个实例的生命周期内工程里的值不变（变了就换实例，见 §10.3），所以构造时拿到的就是它该显示的值。
-- **多选**：你拿到的是每个对象各自的值，怎么合并、怎么呈现由你定——比如逐点比较，各对象一致的点画实心、不一致的画空心。宿主不合并，值的形状只有你懂。提交时把同一个值写到全部目标；各对象不一致时改值从哪个值开始（第一个对象的？默认值？）也由你定，各对象自己的其余部分会被这个值覆盖。
+- **值的形状由你定**（任意 `PropertyValue`，可以是对象或数组），宿主不解读。preset、撤销、多选都照常参与，所以**读值时一律校验**——撤销、preset、粘贴都可能带来任意形状的值，形状不对的地方按你的默认值处理。
+- **声明里没有默认值**：画布的值由你画，宿主从不显示它，也就用不着默认值。用户没设过的字段不存值——读不到——由你补上自己的默认值，和读其他字段时传你自己的默认值是同一回事（其他控件上宿主的默认值只是给控件显示用的兜底，你读到的照样是"没有值"）。**恢复默认 = 删掉存值**；侧栏的"默认 / 已修改"就是"没存值 / 存了值"。
+- **建议顶层用对象**（你的默认值用 `{}`，如上例的 `{ "points": [...] }`）：以后要加功能只是多一个成员，旧值仍是对象、照样读得出，缺的成员按你的默认处理；顶层是数组或标量的话，想扩展就只能换形状（得换新键，见 §5.2「声明里的闭包与字段演进」）。确定只存一个数之类的简单值时，用标量也完全正确。
+- **值在声明时取**：声明 context 带着每个选中对象各自的值（读不到 = 没设过，补上你自己的默认值），取出来让工厂捕获、交给控件（如上例）；宿主没有读值的接口。一个实例的生命周期内工程里的值不变（变了就换实例，见 §10.3），所以构造时拿到的就是它该显示的值。
+- **多选**：你拿到的是每个对象各自的值，怎么合并、怎么呈现由你定——比如逐点比较，各对象一致的点画实心、不一致的画空心。宿主不合并，值的形状只有你懂。提交时把同一个值写到全部目标；各对象不一致时改值从哪个值开始（第一个对象的？你的默认值？）也由你定，各对象自己的其余部分会被这个值覆盖。
 - **收起摘要**：`WithSummary(text)`——在声明时按当时的值算好（值一变就会重新声明，摘要随之更新），多选不一致时写什么也由你定。不给则宿主显示"默认 / 已修改 / 多值"。
-- **CLI / agent** 能原样读写这个值（任意 JSON 形状）。宿主不知道形状，也就不校验——agent 写入的值同样要经过你读值时的校验。宿主会提示 agent 先读你的 introduction、读不到再照当前值或默认值推断，所以**强烈建议在 introduction 里写清这个字段的值形状与含义**：每个成员是什么、取值范围、随状态变化的形状（如元素个数随别的设置变）。声明里给不出这些，只有你的说明能讲准确。
+- **CLI / agent** 能原样读写这个值（任意 JSON 形状）。宿主不知道形状，也就不校验——agent 写入的值同样要经过你读值时的校验。宿主会提示 agent 先读你的 introduction、读不到再照当前值推断（写 null 即清掉这个字段），所以**强烈建议在 introduction 里写清这个字段的值形状与含义**：每个成员是什么、取值范围、随状态变化的形状（如元素个数随别的设置变）。声明里给不出这些，只有你的说明能讲准确。
 - **位置**：只能作为 `ObjectConfig` 的成员（与按钮相同，见 §9.1）。
 
 ### 10.2 编辑状态、草稿与提交
@@ -1267,7 +1267,7 @@ if (picked is { } v && v.ToString(out var command) && command == "set")
 在自己的时间段上占一块，宽 = 这个对象的时间段，高 = 面板高度。标签栏里哪个 note 的声明有它就有它，不用用户去钉。
 
 ```csharp
-props.Add(("mix", "Mix"), CanvasLaneConfig.Create(MixCanvas.Default, host => new MixCanvas(host, value))
+props.Add(("mix", "Mix"), CanvasLaneConfig.Create(host => new MixCanvas(host, value))
     .WithColor("#E58AC9"));   // 不设颜色 = 宿主从调色板分配（同 AutomationConfig）
 ```
 
@@ -1292,7 +1292,7 @@ props.Add(("mix", "Mix"), CanvasLaneConfig.Create(MixCanvas.Default, host => new
   两者在合成结果回填后一致，只在改动后、合成回来前的过渡期不同，显示一更新宿主就重新 `Render`。
 - **按尺寸排版**：参数面板里可能很窄、很矮、也可能很宽（放大后上万像素）。窄、矮时画紧凑版（如只画曲线和一行符号、
   点字才弹 `PopupTextBox`）；要不要拆成两个控件类、还是一个类里按尺寸分支，你自己定。宿主不告诉你"在哪"，只给尺寸与换算。
-- **默认值宜中性**（未调即无效果），或只按对象内的相对位置定义：未钉住的音素长度随合成变化，默认值的作用若依赖长度，
+- **你的默认值宜中性**（未调即无效果），或只按对象内的相对位置定义：未钉住的音素长度随合成变化，默认值的作用若依赖长度，
   用户没碰过的对象会在别处编辑后听感改变。
 - **在参数面板里的样子**（宿主负责，你不用做什么，知道了好排版）：
   - 每块正好覆盖对象的时间段，**相邻两块之间不留缝**、底是透明的——要不要画分隔由你定。

@@ -141,6 +141,13 @@ internal static class LanePath
         return parent != null && key != null ? parent.GetValue(key, defaultValue) : defaultValue;
     }
 
+    // 按原值读（不按默认值的类型过滤）：画布没有默认值，存了什么形状都原样读出；路径上缺东西 / 没存值 = Null。
+    public static PropertyValue ReadRaw(IDataPropertyObject root, IReadOnlyList<Step> steps)
+    {
+        var (parent, key) = Navigate(root, steps, create: false);
+        return parent != null && key != null ? parent.GetRawValue(key) : PropertyValue.Null;
+    }
+
     // 写：路径上缺的数组 / 列表元素先按元素默认值补齐（同侧栏数组的懒补齐：首次写入时整段落地），再写到叶子上。
     public static void Write(IDataPropertyObject root, IReadOnlyList<Step> steps, PropertyValue value)
     {

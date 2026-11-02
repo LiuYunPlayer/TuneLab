@@ -1432,8 +1432,8 @@ internal static class ControllerConfigDefaults
                 var map = new Map<string, PropertyValue>();
                 foreach (var kvp in objectConfig.Properties)
                 {
-                    if (kvp.Value is ButtonConfig)
-                        continue;   // 按钮没有值，不占键
+                    if (kvp.Value is ButtonConfig or CanvasConfig or CanvasLaneConfig)
+                        continue;   // 按钮没有值、画布没有默认值（没设过 = 不存），都不占键
                     map.Add(kvp.Key.Id, kvp.Value.GetDefaultValue());
                 }
                 return PropertyValue.Create(new PropertyObject(map));
@@ -1443,7 +1443,11 @@ internal static class ControllerConfigDefaults
                 // 变长键控容器默认值 = 当前已声明键的默认值拼成的对象（同 ObjectConfig）。
                 var map = new Map<string, PropertyValue>();
                 foreach (var kvp in addableObjectConfig.Properties)
+                {
+                    if (kvp.Value is ButtonConfig or CanvasConfig or CanvasLaneConfig)
+                        continue;   // 同 ObjectConfig
                     map.Add(kvp.Key.Id, kvp.Value.GetDefaultValue());
+                }
                 return PropertyValue.Create(new PropertyObject(map));
             }
             case ArrayConfig arrayConfig:

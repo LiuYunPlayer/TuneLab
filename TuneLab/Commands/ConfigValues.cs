@@ -35,6 +35,9 @@ internal static class ConfigValues
     // path 用于报错点名（如 "voices[2].path"）。
     public static (PropertyValue Value, string? Error) Check(IControllerConfig config, PropertyValue value, string path)
     {
+        // 画布没有默认值：Null 就是"没设过"，写 Null = 清掉（数组里的画布元素位置上也是 Null）。
+        if (value.IsNull() && config is CanvasConfig or CanvasLaneConfig)
+            return (value, null);
         if (value.IsNull())
             return (default, string.Format("\"{0}\" needs a value.", path));
         if (value.IsMultiple())

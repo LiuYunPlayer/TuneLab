@@ -47,17 +47,16 @@
 ## 3. SDK 新增（纯加法，画布尚未发布）
 
 ```csharp
-// 画布 lane：只在参数面板里、按对象的时间段摆放的值字段。与 CanvasConfig 同一套值语义（恢复默认、preset、撤销照常；
-// 值的形状由插件定、读取时自行校验），可以在 note / 音素属性声明的任何位置（§9）。侧栏在它的位置显示摘要 + 编辑按钮（§9.4）。
+// 画布 lane：只在参数面板里、按对象的时间段摆放的值字段。与 CanvasConfig 同一套值语义（没有默认值、恢复默认 = 删掉存值，
+// preset、撤销照常；值的形状由插件定、读取时自行校验），可以在 note / 音素属性声明的任何位置（§9）。侧栏在它的位置显示摘要 + 编辑按钮（§9.4）。
 // 构造函数全封，只走静态工厂 + With（同 CanvasConfig）。
-public sealed class CanvasLaneConfig : IValueConfig
+public sealed class CanvasLaneConfig : IControllerConfig
 {
-    public PropertyValue DefaultValue { get; }
     public Func<ITimelineCanvasHost, ICanvasControl> CreateControl { get; }
     // 标签栏按钮与焦点圆点的颜色（hex）。与 AutomationConfig.Color 同一约定：默认透明（"#00000000"）= 不指定，
     // 宿主从调色板分配（确定性：按声明顺序、避开已占用色）；想定颜色就 WithColor。
     public string Color { get; }
-    public static CanvasLaneConfig Create(PropertyValue defaultValue, Func<ITimelineCanvasHost, ICanvasControl> createControl);
+    public static CanvasLaneConfig Create(Func<ITimelineCanvasHost, ICanvasControl> createControl);
     public CanvasLaneConfig WithColor(string color);
 }
 
@@ -153,7 +152,7 @@ public interface ICanvasTimeAxis
 3. **画布里以宿主的换算为准**，不要用插件自己合成时算出的音素时间来画：宿主给的是屏幕上显示的时间段（`DisplayPhonemes`），
    画布要与用户看到的音素块对齐。两者在合成结果回填后一致（未钉住的音素显示的就是引擎的结果，钉住的两边用同一个
    `PhonemeLayout`），只在改动后、合成回来前的过渡期不同；显示一更新宿主就重新 `Render`。
-4. 默认值宜**中性**（未调即无效果），或只按对象内的相对位置定义：未钉住的音素长度随合成变化，若默认值的作用依赖长度，
+4. 插件自己的默认值（没设过时读值补的那个）宜**中性**（未调即无效果），或只按对象内的相对位置定义：未钉住的音素长度随合成变化，若默认值的作用依赖长度，
    用户没碰过的对象会在别处编辑后听感改变。
 5. 选哪种：界面属于侧栏、与时间无关 → `CanvasConfig`；必须与时间轴对齐、逐个对象编辑 → `CanvasLaneConfig`。
    同一个字段只能选一种。
@@ -277,19 +276,18 @@ public interface ICanvasTimeAxis
   ```
   语义同 .NET 的 `List<T>.GetRange` / `ArrayList.SetRange`。按事实命名（读写某个区间），不按用途（复制 / 粘贴只是用途之一），
   四个场景都是它俩的组合：拆分 = `GetRange`；合并 = 造空母体后逐段 `SetRange`；粘贴 = `SetRange`；跟着音符搬（见下）= 原处 `GetRange`
-  后把原处恢复成默认值、再 `SetRange` 到新处。宿主内部的 `RangeInfo` / `PasteAt` 是宿主自己的用途命名，不进 SDK。
-  **删除一段 = 恢复成默认值的那一段**：`SetRange(target, s, e, GetRange(默认值, s, e))`，不另加 `ResetRange`，也不约定"传 Null = 删除"
-  （删除应回到"没编辑过"的样子，默认值未必是空的——同自动化轨删点后回落到默认值；Null 在术语表里是"没有值"，画布默认值也不许是 Null）。
-  默认值**删除时按当前上下文实时问声明**取（上下文、声源、插件版本都以此刻为准）。值里别处当初按旧默认值写进去的部分不跟着刷新——
-  这符合整块值的语义：编辑过的 part 拥有一整块属于它的值，同打开旧工程时存什么就是什么；不为此要求默认值"必须为空"（§7 第 4 条的"宜中性"足够）。
+  后把原处设成"没设过"、再 `SetRange` 到新处。宿主内部的 `RangeInfo` / `PasteAt` 是宿主自己的用途命名，不进 SDK。
+  **画布没有默认值**（§13）：没设过 = Null，两个函数都要接受 Null（作目标 = 整条都没设过，作片段 = 这一段没设过）。
+  **删除一段 = `SetRange(target, s, e, Null)`**：把这一段设成"没设过"，在自己的格式里怎么表达由插件定（如留空隙、读时按自己当前的默认值
+  补）——所以删掉的部分永远跟着插件此刻的默认值走，不存在"按哪个默认值写回去"的问题。不另加 `ResetRange`。
   声明是 SDK 封闭族、走既有 `With`，纯加法、无需默认体。**兼容靠"没提供 = 第一版行为"**：拆分各拿整值、粘贴跳过、合并取母体整值——
   第一版就按这套实现，老插件以后行为不变。两者须是纯函数（宿主会在撤销、预设、agent 写值等任意时刻调）；抛异常 = 宿主捕获、记警告、当没收。
 - **跟着音符搬：第一版不做，有了 `GetRange` / `SetRange` 后可以做**（§10.1 表里的"不跟"指的是没有这两个函数时宿主无从下手）。
 - **不按引擎拦截**：截出的数据一律交给插件，附上来源，由插件决定收不收（不收就原样返回目标）。宿主按引擎一刀切会挡掉合理的跨引擎
   情形（插件改过引擎 id 的新旧版本、同作者几个引擎共用格式）；唯一的风险"误收"（别家同 id、碰巧同形状的值）由来源信息让插件自防。
   与换声源一致——换声源时画布值按 id 保留，新声源读到的本来就可能是别家写的（§7：读取一律校验）。
-- **合并（逐 id）**：以按时间顺序第一个有该 id 的段为**母体**，用**母体所在段的声源的声明**——造一个空的（该声明的默认值，原点 = 合并后
-  part 的原点），再逐段（母体自己也一样）`GetRange` 它的贡献区间、`SetRange` 贴进去；没有该 id 的段跳过。各段都先截取，part 可见区间外藏着的旧内容
+- **合并（逐 id）**：以按时间顺序第一个有该 id 的段为**母体**，用**母体所在段的声源的声明**——从 Null（没设过，原点 = 合并后
+  part 的原点）起，再逐段（母体自己也一样）`GetRange` 它的贡献区间、`SetRange` 贴进去；没有该 id 的段跳过。各段都先截取，part 可见区间外藏着的旧内容
   就不会露进结果（与自动化轨合并按贡献区间裁剪同理）。母体所在段的声源也没声明它（本来就是孤儿数据）⇒ 整块保留母体、丢后面各段。
   第一版没有这两个函数 ⇒ 一律整块保留母体、丢后面各段。
 - **孤儿数据**：part 上的画布表与自动化轨一样不看当前声源的声明（声明只决定显示与会话拿不拿得到代理），没被声明的 id 原样存着、
@@ -409,3 +407,17 @@ public interface ICanvasTimeAxis
 
 **落地拆分**：画布侧（`ICanvasTimeAxis` 加 tick 换算与 `TempoMap`）改的是未发布 API，宜在画布合入 master 发布前做；合成侧（音符代理
 与快照加 `TempoMap`）是已发布接口上的纯加法（宿主实现面），可同批或单独提。
+
+## 13. 画布没有默认值（已实现）
+
+宿主持有默认值，是为了在控件上显示"当前值"——没存值时拿它顶上；插件读到的照样是"没有值"，读值时传自己的默认值、自己对齐口径。
+画布的值由插件自己画，宿主从不显示它，所以画布**没有默认值**：`CanvasConfig.Create(preferredWidth, preferredHeight, createControl)` /
+`CanvasLaneConfig.Create(createControl)`，两者都不实现 `IValueConfig`（推翻 2026-10-27 的"画布默认值不能是 Null"）。默认值是插件自己定的，
+宿主存起来再交回去等于绕一圈。
+
+- **没设过 = 不存值**：宿主按原值读（`RawValueField(key, Null)` / `LanePath.ReadRaw`，不走按默认值类型过滤的 `GetValue`——拿 Null 作
+  默认值会把任何存值都读成 Null），读不到就是 Null；插件读值时补自己的默认值。
+- **恢复默认 = 删掉存值**（侧栏右键、part 预设重置）；侧栏兜底摘要"默认 / 已修改"= 没存值 / 存了值；预设抓取时没存值的画布保持没存值。
+- **容器默认值**：对象 / 键控容器的默认值里不占画布的键（同按钮）；数组 / 列表里画布元素的位置上是 Null（位置必须有值）。
+- **agent / 命令**：画布字段接受 null（= 清掉）；字段说明不再写 default，提示照当前值推断形状。
+- 顺带修好：标签栏"有数据"圆点对画布 lane 原先用 `LanePath.Read(…, Null)`，被类型门读成 Null、永远不亮，改为按原值读。

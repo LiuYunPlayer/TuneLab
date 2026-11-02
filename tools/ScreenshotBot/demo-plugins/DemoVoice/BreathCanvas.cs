@@ -13,7 +13,7 @@ sealed class BreathCanvas(ITimelineCanvasHost host, PropertyValue value) : ICanv
     public static readonly PropertyValue Default = PropertyObject.Empty;
 
     public static CanvasLaneConfig Config(PropertyValue value)
-        => CanvasLaneConfig.Create(Default, host => new BreathCanvas(host, value));
+        => CanvasLaneConfig.Create(host => new BreathCanvas(host, value));
 
     static readonly CanvasPen Line = CanvasPen.Create(Color.FromHex("#7FD1C0"), 2);
     static readonly CanvasBrush Fill = CanvasBrush.Solid(Color.FromHex("#337FD1C0"));
