@@ -251,7 +251,8 @@ public interface ICanvasTimeAxis
   `CanvasLaneConfig`（原名 `TimelineCanvasConfig` 只说对了"画在时间轴上"一半，"依附对象、严格限在对象那一段"没体现）。
   插件文档讲清怎么选：这是某个音符 / 音素的属性 → `CanvasLaneConfig`；这是一条贯穿整个 part 的轨 → `TimelineCanvasConfig`。
 - **`Width` 对 part 级没有意义**（实数轴给不出宽度）：填钢琴窗可滚动总宽、仅供参考；绘制以 `VisibleBounds` 与时间轴换算为准。
-  待查宿主现有行为再定：part 裁剪外能不能编辑（同音符的规矩）、裁剪外的内容会不会出声（宿主混音时裁不裁音频）。
+  part 裁剪外**可以编辑**，与自动化轨一致；出不出声画布不用操心——part 本来只有裁剪范围内会在音频引擎里出声，合成取下一分片也按
+  裁剪范围取。
 
 ### 10.2 届时要接着定的（讨论过的要点，别从头推导）
 
@@ -262,8 +263,11 @@ public interface ICanvasTimeAxis
 - **改动说明**：要区分"改了画布里哪一样东西"时，再给改动记录加插件自定的说明，用 `PropertyValue` 不用 `object`（对纯数据自由度一样；
   合成侧数据一律可序列化、为跨进程留路），且须描述"哪里变了"而非"做了什么操作"（撤销时同一条记录原样重发）；Null = 不知道改了什么。
   效果器若要收到这份说明，得另开一条通知。第一版可以只有时间段，结构体保证以后加字段是纯加法。
-- **类型**：改动记录用专用类型（以后可能长字段，同 `SynthesisRange` 不拿通用区间替的理由）；通用区间 `Range` 暂缓（命名见术语表）。
-- **时间坐标**：值宿主不解读，挪不动——所以宿主随值存一个原点（tick），插件数据按局部 tick 存（见 §12）。挪动 part = 只改原点；
+- **范围的单位**：画布关心 tick——提交时插件按局部 tick 报；宿主换成全局秒，经代理对象的 `RangeModified` 报给关心秒的合成侧。
+  多段 = 每段触发一次（与 `ISynthesisAutomation` 同一签名），不另造改动记录类型；将来要附"改了什么"的说明再另开一条通知。
+- **时间坐标**：tick 一律相对 part，存储、交互都是，与自动化轨、音符一样（见 §12）。值宿主不解读、挪不动，所以宿主随值另存一个
+  偏移（平时 0）：拆分 / 合并后 part 锚点变了，自动化轨与音符是宿主逐点改写坐标，画布值改写不了，就只记下偏移，换算时算进去，
+  插件无感。挪动 part = 什么都不用改；
   **拆分** = 左右两半各拿一份完整的值、原点不变，各显示自己那段（数据冗余；再拉长 part 会露出原先看不见的部分，可接受）；
   **选区粘贴**进一个已有该画布值的 part：两块整值合不了 ⇒ 粘贴时跳过画布（与"不跟着音符搬"同理）。
 - **区间读写 `GetRange` / `SetRange`（以后加，第一版不做）**：声明上用 `.WithGetRange(...)` / `.WithSetRange(...)` 挂两个插件函数：
@@ -285,10 +289,34 @@ public interface ICanvasTimeAxis
   就不会露进结果（与自动化轨合并按贡献区间裁剪同理）。母体所在段的声源也没声明它（本来就是孤儿数据）⇒ 整块保留母体、丢后面各段。
   第一版没有这两个函数 ⇒ 一律整块保留母体、丢后面各段。
 - **孤儿数据**：part 上的画布表与自动化轨一样不看当前声源的声明（声明只决定显示与会话拿不拿得到代理），没被声明的 id 原样存着、
-  写进工程、不显示、不参与合成；换到声明了它的声源时重新出现，位置因原点随值存而正确。
-- **声明入口与 id**：现有声明入口返回的是 `AutomationConfig` 的表，新族要另开一个声明方法（插件实现面 ⇒ 带默认体返回空表）。
-  两族 id 共用一个命名空间（标签栏隐藏记录 `source:id`、lane 路径、agent 命令都按 id 定位）：同 id 两族都出现时宿主丢后者并记警告。
-- **工程格式 SDK**：`MidiPartInfo` / `EffectInfo` 加一张表存「原点 + 值」（DTO 加字段，纯加法）；格式插件不认识它，导出到别的格式会丢，文档写明。
+  写进工程、不显示、不参与合成；换到声明了它的声源时重新出现，位置因偏移随值存而正确。
+- **声明入口**：照 `GetAutomationConfigs` 平行开一个，声源 / 乐器 / 效果器三类引擎都有（效果器有自动化轨，声源怎么接它就怎么接）：
+  ```csharp
+  IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig> GetTimelineCanvasConfigs(<与 GetAutomationConfigs 同一个 context>) => 空表;
+  ```
+  引擎是插件实现面 ⇒ 带默认体。context 与询问时机都与 `GetAutomationConfigs` 相同；有序表的顺序 = 标签栏顺序。
+- **id**：与自动化轨**不强制不重名**——两族存储本来是分开的表（part 上、合成上下文、工程格式各一张）。实现要求是宿主里按 id 定位的地方
+  一律按「类别 + id」：标签栏隐藏记录、lane、各面板可见开关走 `AutomationKey`，它已有 source / effect / note / phoneme 的来源维度
+  （同 `NoteLane(id)` 与声源自动化轨分开），画布轨再加一种来源；agent / 命令的取值写法加前缀（如 `sourceCanvas:id`，届时定）。
+  插件给两族起同一个显示名会出现两个同名页签，属插件自己的选择。
+- **会话代理**：与 `ISynthesisAutomation` 同级，合成上下文上与 `Automations` 并列一张 `TimelineCanvases` 表（声源、乐器、效果器的上下文都有）：
+  ```csharp
+  public interface ISynthesisTimelineCanvas            // 宿主实现
+  {
+      PropertyValue Value { get; }
+      ITempoMap TempoMap { get; }                      // 局部 tick ↔ 全局秒；会话内不变（速度改动走会话重建）
+      IActionEvent<double, double> RangeModified { get; }   // 全局秒，同 ISynthesisAutomation
+  }
+  ```
+  `Value` 用普通 getter、不用可通知属性：变化通知必须带区间，`Modified` 不带参数，两个都给就重复（同自动化轨只有求值、没有 `Modified`）。
+  合成快照里对应一个只读快照类型，与 `SynthesisAutomationSnapshot` 同级。效果器照旧由宿主按区间相交标脏。
+- **界面**：标签栏按对象分组，跟在所属对象（声源 / 各效果器）的自动化轨后面；支持 `WithShownByDefault`（与自动化轨一致）；
+  part 属性面板里**不**放摘要那一行（自动化轨在那里是默认值滑条，画布内容宿主不知道，没有可摘要的东西）。
+- **agent 读写**：与其他画布类型一样可以读写值：值对宿主不透明，agent 先读插件文档弄清字段怎么拼、表示什么，再自己造数据。
+  agent 写入属宿主发起的写入（按整段标脏）；给 agent 的说明里要写明值里的 tick 相对 part。
+- **工程格式 SDK**：`MidiPartInfo` / `EffectInfo` 加一张表存「偏移 + 值」（DTO 加字段，纯加法）；格式插件不认识它，导出到别的格式会丢，文档写明。
+- **part 预设**：带「偏移 + 值」；tick 相对 part，套到别处不会错位。
+- **还没定**：存储（§11，动手前先跑基准）；钢琴窗选区删除时画布怎么处理（第一版跳过，有了 `SetRange` 写空片段即删除）。
 
 ## 11. 存储：画布的值整块存（候选，做前先测）
 
@@ -334,10 +362,9 @@ public interface ICanvasTimeAxis
 是一等公民，不该为画几条秒线先学局部 tick；插件按自己数据的单位选一组，不经另一单位中转。两组**都不承诺线性**：眼下横轴是 tick 轴、
 `PosToX` 恰好线性，但钢琴窗以后若能切成均匀时间轴，线性的就换成 `TimeToX`。
 
-合成侧：数据所属对象上挂可通知的局部映射 `IReadOnlyNotifiableProperty<ITempoMap> TempoMap`（O(1) 读一个不可变对象的引用、
-只在改速度 / 挪动时变、宿主实现——符合 sdk-api-evolution.md「会变的值怎么暴露」的判据）。改速度 = 宿主换一个新映射并通知，
-插件按"第一个改动点往后"标脏；合成快照里的对象直接带当时那份（不可变，后台线程可用）。宿主内部 `TempoManager` 已有不可变快照
-（`ToTick` / `ToSecond`），包一层即可。
+合成侧：数据所属对象上挂普通属性 `ITempoMap TempoMap { get; }`，**不需要可通知**——速度改动走会话整体重建（见 `ISynthesisAutomation`
+注释：时基变更不经区间通知），会话内映射恒定，重建后的新会话带新映射。合成快照里的对象直接带当时那份（不可变，后台线程可用）。
+画布侧照旧：速度一改宿主重新调 `Render`。宿主内部 `TempoManager` 已有不可变快照（`ToTick` / `ToSecond`），包一层即可。
 
 **定下的规则**
 
@@ -352,7 +379,7 @@ public interface ICanvasTimeAxis
 |---|---|---|---|
 | note 级画布 | `TimeAxis.TempoMap` | 音符代理上的 `TempoMap`（快照里的音符同样带） | 音符起点 |
 | 音素级画布 | 同上 | 同上（所属音符的） | 所属音符起点（音素位置由排版决定，不当原点） |
-| part 级画布（将来，§10） | 同上 | 代理对象上的 `TempoMap` | 宿主随值存的原点 |
+| part 级画布（将来，§10） | 同上 | 代理对象上的 `TempoMap` | part 锚点（宿主内部另存偏移，平时 0；拆分 / 合并后非 0，插件无感） |
 
 - **局部 tick 可以为负**：拆分后右半的原点仍在原处，它起点之前那段数据的局部 tick 是负的。插件读数据不能假设 ≥ 0。
 - **插值域要声明**：按 tick 定义的内容画布里用 `PosToX` / `XToPos`，按秒定义的用 `TimeToX` / `XToTime`；不在横轴线性的那个域里
