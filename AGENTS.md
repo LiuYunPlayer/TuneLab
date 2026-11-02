@@ -37,6 +37,10 @@ the txt files just to make the build green:
 Full evolution rules (interface classification, DTO shape policy, enum tolerance, release
 workflow): `docs/sdk-api-evolution.md`.
 
+When a new member is "a value plus a notification that it changed", check first whether it should be a
+single `IReadOnlyNotifiableProperty<T>` instead of a getter plus an `XChanged` event — the criteria are in
+`docs/sdk-api-evolution.md` (section on how changing values are exposed).
+
 Related invariants: `AssemblyVersion` of both assemblies is pinned to 2.0.0.0 forever (see
 csproj comments — do not "align" it with the release version); the manifest `sdk-version`
 gate (`ExtensionManager.SdkVersion`) is a separate version axis that moves **one step per release
