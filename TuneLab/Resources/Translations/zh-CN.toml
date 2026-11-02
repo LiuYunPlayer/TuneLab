@@ -534,7 +534,7 @@
 "Only some of the selected items have this tag. Pick it from + to add it to all of them." = "仅部分选中对象带有此标签。从 + 中选择可添加到全部对象。"
 
 [PropertyObjectController]
-"(Timeline canvases are not supported here)" = "（此处不支持时间轴画布）"
+"(This canvas is not supported here)" = "（此处不支持该画布）"
 "(Unsupported element type: {0})" = "（不支持的元素类型：{0}）"
 "Reset to Default" = "重置为默认"
 "{0} items" = "{0} 项"

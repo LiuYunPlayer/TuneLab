@@ -45,12 +45,13 @@
 | 一条动作要作用在哪个成员上（一个动词 × 一个闭集里的成员） | `argument`（`ActionParameter` / `ActionArgument` / `run_action` 的 `argument` 字段），那一批统称**选择器参数** selector parameter | 选择器参数 | 别写 `option` / `value` / `target` 指它；命令自己的入参仍叫 `parameter`（`ParametersJsonSchema`），动作的这一个是 `argument`——两个词分工见 command-surface.md §5.6 |
 | 右侧那条可开合的容器 + 它的页签 | `sidebar`（动作 id `sidebar.*` / `editor status` 的 `sidebars` 字段 / `SideTabBar`、`SideBarTab`） | 侧栏 | 「侧边栏」「抽屉」；容器叫**侧栏**，里面显示的那一块叫**面板**（`Part Panel`…），两个词别互换 |
 | 属性面板里由插件自己绘制、自己处理鼠标的值字段 | `CanvasConfig` / `ICanvas*`（SDK）；`PluginCanvas`（GUI） | 画布 | 「自定义 UI」「自定义控件」（太宽：插件自己的独立界面是另一回事，见插件文档 §9.3）；`handle`（不给插件原生窗口句柄） |
+| 参数面板里沿时间轴摆放的画布：① 逐对象、严格限在对象那一段（note / 音素属性）② 定义域是整条时间轴的 part 级轨（将来） | ① `CanvasLaneConfig`（一个声明 = 参数面板里一条 lane，每个对象一块）② `TimelineCanvasConfig`（将来，设计见 canvas-in-parameter-panel.md §10）；两者共用宿主接口 `ITimelineCanvasHost` | 开发文档：① 画布 lane ② 时间轴画布；**用户界面一律只叫「画布」** | ① 别再叫 `TimelineCanvasConfig` / 时间轴画布（画布发布前已改名：原名没体现"依附对象、有严格范围"）；② 别叫 `*Automation*`（收窄成参数曲线，实际可放任何时间轴相关的东西） |
 | 一个逻辑像素对应的物理像素数（随屏幕缩放） | `DevicePixelRatio`（SDK `ICanvasHost`） | 设备像素比 | `RenderScaling`（Avalonia 的叫法，宿主只在翻译层碰它）、`Scale` / `DpiScale`（含糊：没说清是谁比谁） |
 | 鼠标 / 键盘事件携带的修饰键集合（跨平台归一：macOS 的 Cmd 记作 Ctrl） | `ModifierKeys`（SDK `CanvasModifierKeys`；GUI `TuneLab.GUI.Input.ModifierKeys`），事件上的属性名 `Modifiers` | 修饰键 | `KeyModifiers`（那是 Avalonia 的物理按键枚举、带 Meta，语义不同；宿主只在翻译层碰它） |
 | 插件宣告"正在编辑"（锁住面板不刷新、实例不被换掉；与值无关，与草稿同时起作用） | `BeginEdit` / `EndEdit`（SDK `ICanvasHost`，计数可嵌套）；作用域写法 `EditScope()`（扩展方法） | 编辑状态 / 宣告编辑 | `Lock` / `Hold`（易误解成锁数据）；单独的 `Edit()`（动词，读着像"执行一次编辑"） |
 | 返回 `IDisposable`、`Dispose` 即结束的便利写法 | `*Scope()`（如 `EditScope`），做成扩展方法、不进接口 | 作用域写法 | 与原语同名的动词（`Edit()`）；`Defer*`（描述的是宿主那边的效果） |
 | 从一组固定候选里挑若干个值（有序、不重复）的字段及其候选 | `TagConfig` / `TagItem`（SDK）；`TagController`（GUI） | 标签 | `MultiSelect*`（「多选」在本仓指同时选中多个音符/片段，撞词）；`ChipConfig`（描述的是界面形态不是语义）；候选别复用 `ComboBoxItem`（两者各自演进） |
-| 把一条常驻参数（声源 / 效果器的自动化轨、时间轴画布）从标签栏拿掉（数据照常参与合成） | `ParameterHiding` / `SetHidden` / `IsHidden`；动作 `parameter.hideFromTabBar` / `showInTabBar`；插件声明的默认值 `AutomationConfig.ShownByDefault` / `WithShownByDefault` | 从标签栏隐藏 / 在标签栏显示 | `Visible` / 可见（那是面板里的小眼睛：作背景画不画，按面板记）；`Pin` / 钉选（那是把原本不在的可钉属性放上来，另一类存储） |
+| 把一条常驻参数（声源 / 效果器的自动化轨、画布 lane）从标签栏拿掉（数据照常参与合成） | `ParameterHiding` / `SetHidden` / `IsHidden`；动作 `parameter.hideFromTabBar` / `showInTabBar`；插件声明的默认值 `AutomationConfig.ShownByDefault` / `WithShownByDefault` | 从标签栏隐藏 / 在标签栏显示 | `Visible` / 可见（那是面板里的小眼睛：作背景画不画，按面板记）；`Pin` / 钉选（那是把原本不在的可钉属性放上来，另一类存储） |
 | 一段数值区间（只是起点 + 终点，不承载别的含义；单位写在用它的地方） | `Range`（Foundation，属性 `Start` / `End`；**暂缓**，等真有这种用处再加）。与 `System.Range` 撞名，届时插件与宿主一律写别名 `using Range = TuneLab.Foundation.Range;` | 区间 | `Interval`（音乐里是音程）、`TimeRange`（绑死时间）、`NumberRange` 等加修饰的变体、`Span`（撞 `Span<T>`）、`Segment`（已指音频承载段 / 状态段）。**可能不止起止的概念给自己的类型**、别拿 `Range` 替：如 `SynthesisRange`（描述"下一块合成"，以后可能长字段） |
 
 ### 三条边界的说明

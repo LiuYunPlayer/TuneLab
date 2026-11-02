@@ -43,7 +43,7 @@
 |---|---|---|
 | `1.0` | TuneLab 2.0.0 | V1 SDK 的全部初始面 |
 | `1.1` | TuneLab 2.1.0 | 路径选择控件（`PathPickerConfig` / `FileTypeFilter`）、多行文本框（`TextBoxConfig.WithMultiline`） |
-| `1.2` | 尚未发布 | 标签组（`TagConfig` / `TagItem`）、按钮（`ButtonConfig` / `IButtonClickContext` / `IDialogService` / `IProgressReporter`，见 §9）、声明失效（`InvalidatePart` / `InvalidateNotes` 及配套的 `PartId` / note `Id`，见 §5.2）、`+` 菜单与下拉的分组和分隔线（`AddableElement` / `AddableKey` 分组、`Separator`、`ComboBoxItem.Separator`）、自动化轨默认不在标签栏显示（`AutomationConfig.WithShownByDefault`）；以及**实验中**的画布（`CanvasConfig` / `TimelineCanvasConfig` / `ICanvasControl` / `ICanvasHost` / `ITimelineCanvasHost` / `ICanvasTimeAxis` / `ICanvasDrawing` / `CanvasImage` 及其事件类型，见 §10） |
+| `1.2` | 尚未发布 | 标签组（`TagConfig` / `TagItem`）、按钮（`ButtonConfig` / `IButtonClickContext` / `IDialogService` / `IProgressReporter`，见 §9）、声明失效（`InvalidatePart` / `InvalidateNotes` 及配套的 `PartId` / note `Id`，见 §5.2）、`+` 菜单与下拉的分组和分隔线（`AddableElement` / `AddableKey` 分组、`Separator`、`ComboBoxItem.Separator`）、自动化轨默认不在标签栏显示（`AutomationConfig.WithShownByDefault`）；以及**实验中**的画布（`CanvasConfig` / `CanvasLaneConfig` / `ICanvasControl` / `ICanvasHost` / `ITimelineCanvasHost` / `ICanvasTimeAxis` / `ICanvasDrawing` / `CanvasImage` 及其事件类型，见 §10） |
 
 插件级（描述「这个包提供什么」）。**身份内联进 manifest**：一个条目 = 一个具体可注册能力，自带身份（引擎 id / 文件扩展名）+ 实现类全名。宿主读完 manifest 即知插件提供什么、无需加载程序集反射。
 
@@ -1260,26 +1260,26 @@ if (picked is { } v && v.ToString(out var command) && command == "set")
 
 参考实现：`tests/plugins/V1.Voice/StretchCurveCanvas.cs`（note 面板与核音素面板上的拉伸曲线：按下即写草稿、拖动、双击复位、点上滚轮微调并推迟提交 / 空白处照常滚面板、多选合并值；画布有焦点时 ↑ / ↓ 微调指针所在的点、按住连调、松开提交，拖动中按 Esc 取消；右键菜单——在数值标签处弹文本框改值、多行备注、确认后全部复位）与 `tests/plugins/V1.Voice/ImageDemoCanvas.cs`（note 面板上的"Canvas Images"：编码位图与 SVG 的插件级缓存、按设备像素比自生成像素、圆角裁剪、透明度、旋转变换，← / → 旋转）。
 
-### 10.6 时间轴画布（TimelineCanvasConfig）
+### 10.6 画布 lane（CanvasLaneConfig）
 
-必须与时间轴对齐、逐个对象编辑的界面（如音素混合：一条随时间变化的曲线，加上符号与语言），声明成**时间轴画布**：
+必须与时间轴对齐、逐个对象编辑的界面（如音素混合：一条随时间变化的曲线，加上符号与语言），声明成**画布 lane**：
 编辑界面不在侧栏里（侧栏只有一行摘要，见下），而是常驻钢琴窗下方的参数面板——每个声明了它的对象（note 级字段 = 每个 note，音素级字段 = 每个音素）
 在自己的时间段上占一块，宽 = 这个对象的时间段，高 = 面板高度。标签栏里哪个 note 的声明有它就有它，不用用户去钉。
 
 ```csharp
-props.Add(("mix", "Mix"), TimelineCanvasConfig.Create(MixCanvas.Default, host => new MixCanvas(host, value))
+props.Add(("mix", "Mix"), CanvasLaneConfig.Create(MixCanvas.Default, host => new MixCanvas(host, value))
     .WithColor("#E58AC9"));   // 不设颜色 = 宿主从调色板分配（同 AutomationConfig）
 ```
 
-- **怎么选**：界面属于侧栏、与时间无关（或只按对象内的相对位置画）→ `CanvasConfig`；必须与时间轴对齐 → `TimelineCanvasConfig`。
-  同一个字段只能选一种。侧栏可以多选，多个对象没有一个共同的时间段，所以时间换算只有时间轴画布有。
+- **怎么选**：界面属于侧栏、与时间无关（或只按对象内的相对位置画）→ `CanvasConfig`；必须与时间轴对齐 → `CanvasLaneConfig`。
+  同一个字段只能选一种。侧栏可以多选，多个对象没有一个共同的时间段，所以时间换算只有画布 lane 有。
 - **其余与侧栏画布完全相同**：同一个 `ICanvasControl`、同一套绘制 / 事件 / 草稿 / 提交 / 弹出 / 弹窗（§10.1–10.5），值语义、实例寿命也一样。
   没有首选尺寸：宽由对象的时长定，高是用户调的面板高度。
 - **放在哪都行**：可以是 note / 音素属性声明的顶层成员，也可以在对象、定长数组、列表、键控容器的里面，任意嵌套
-  （如每层一块画布：`mixes: [{ curve: 时间轴画布, … }]`）。参数面板里按路径各成一条 lane，标签名取末段的显示名 + 路径上的序号
+  （如每层一块画布：`mixes: [{ curve: 画布 lane, … }]`）。参数面板里按路径各成一条 lane，标签名取末段的显示名 + 路径上的序号
   （「曲线 2」），与别的标签重名时才往前补祖先名（「音素混合 2 · 曲线」，序号跟着它所属的那一段），悬停显示完整路径——**叶子字段的显示名尽量别重名**，
   标签就一直最短。列表的下标随用户增删、调序而变，lane 按下标排。
-- **侧栏里那一行**：每个时间轴画布的位置（含数组 / 列表的每个元素里）在侧栏占一行：字段名 + 摘要 + 编辑按钮（跳到参数面板）。
+- **侧栏里那一行**：每个画布 lane 的位置（含数组 / 列表的每个元素里）在侧栏占一行：字段名 + 摘要 + 编辑按钮（跳到参数面板）。
   摘要用 `.WithSummary(text)` 在声明时按当时的值算好（多选写什么你定），不给则宿主显示「默认 / 已修改 / 多值」。
   列表照常在侧栏增删、调序；元素对象里别的普通字段照常显示、可以多选批量改。
 - **时间换算**：工厂收到的是 `ITimelineCanvasHost`，多一个 `TimeAxis`——`TimeToX(秒)` / `XToTime(x)`，秒是全局秒（与声明视图
@@ -1303,7 +1303,7 @@ props.Add(("mix", "Mix"), TimelineCanvasConfig.Create(MixCanvas.Default, host =>
   - 用户也可以把**侧栏画布**（`CanvasConfig`）钉进参数面板：那时同样每个对象一块，宽是对象的时长、高是面板高度，host 仍是
     `ICanvasHost`（没有时间轴）——侧栏画布本就要能接受任意宽高。
 
-参考实现：`tests/plugins/V1.Voice/TimelineDemoCanvas.cs`（音符级「Timeline Demo」与核音素级「Phoneme Timeline」：点按秒存、
+参考实现：`tests/plugins/V1.Voice/LaneDemoCanvas.cs`（音符级「Timeline Demo」与核音素级「Phoneme Timeline」：点按秒存、
 逐像素采样按秒插值、只算 `VisibleBounds` 露出的列；点空白加点、拖点、右键删点；点符号弹文本框、右键空白弹菜单选语言；
 窄矮时只画曲线）与 `tools/ScreenshotBot/demo-plugins/DemoVoice/BreathCanvas.cs`（只展示的最小写法）。
 

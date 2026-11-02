@@ -10,14 +10,14 @@ internal enum LaneKind
     Number,
     // 用户从侧栏钉进参数面板的侧栏画布（CanvasConfig）。
     Canvas,
-    // 插件声明的时间轴画布（TimelineCanvasConfig）：常驻，不经钉选。
-    TimelineCanvas,
+    // 插件声明的画布 lane（CanvasLaneConfig）：常驻，不经钉选。
+    CanvasLane,
 }
 
 // 参数面板 lane 的一条呈现快照（宿主消费形态）：值轴标度（量程 + 位置↔值映射，吸附标度即绘制吸附）
 // /默认值/显示格式/量程端点描述文本 + 宿主分配的轨色。lane 是「参数面板钉选」当前各种类的呈现形式
 //（钉选存储见 TuneLab.Configs.ParameterPinning，未来非 lane 形式的新种类另立自己的呈现快照）。
-// 由 MidiPart 按「各 note 声明的并集」物化（钉选的数值字段与侧栏画布 + 常驻的时间轴画布，见 MidiPart.RebuildLaneConfigs），
+// 由 MidiPart 按「各 note 声明的并集」物化（钉选的数值字段与侧栏画布 + 常驻的画布 lane，见 MidiPart.RebuildLaneConfigs），
 // 值本体在各 note.Properties / phoneme.Properties 里按 id 存取，本 entry 只带呈现所需的口径。
 // 画布条目（Kind != Number）没有值轴：Scale / DefaultValue / Format / 端点文本都不用，只有轨色与名字。
 // Resolved=false 是「未解析占位」：钉选在场但声明面暂不可得（如 phoneme lane 在合成音素产出前的信息真空）——
@@ -54,7 +54,7 @@ internal readonly record struct LaneEntry(INormalizedScale Scale, double Default
         }
     }
 
-    // 能被用户钉进参数面板的字段：有界数值，或侧栏画布。时间轴画布不在此列——它本就常驻，不用钉。
+    // 能被用户钉进参数面板的字段：有界数值，或侧栏画布。画布 lane 不在此列——它本就常驻，不用钉。
     public static bool TryGetPinnable(IControllerConfig config, out LaneEntry shape)
     {
         if (TryGetBoundedNumber(config, out shape))

@@ -534,7 +534,7 @@
 "Only some of the selected items have this tag. Pick it from + to add it to all of them." = "Bara några av de markerade objekten har den här taggen. Välj den under + för att lägga till den på alla."
 
 [PropertyObjectController]
-"(Timeline canvases are not supported here)" = "(Tidslinjedukar stöds inte här)"
+"(This canvas is not supported here)" = "(Den här duken stöds inte här)"
 "(Unsupported element type: {0})" = "(Elementtyp som inte stöds: {0})"
 "Reset to Default" = "Återställ till standard"
 "{0} items" = "{0} objekt"

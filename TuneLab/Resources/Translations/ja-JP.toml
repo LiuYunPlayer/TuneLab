@@ -534,7 +534,7 @@
 "Only some of the selected items have this tag. Pick it from + to add it to all of them." = "選択中の一部の項目だけがこのタグを持っています。+ から選ぶとすべてに追加されます。"
 
 [PropertyObjectController]
-"(Timeline canvases are not supported here)" = "（ここではタイムラインキャンバスは使えません）"
+"(This canvas is not supported here)" = "（このキャンバスはここでは使えません）"
 "(Unsupported element type: {0})" = "（サポートされていない要素の種類：{0}）"
 "Reset to Default" = "デフォルトに戻す"
 "{0} items" = "{0} 項目"

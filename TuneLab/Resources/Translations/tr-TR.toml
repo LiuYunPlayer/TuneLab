@@ -534,7 +534,7 @@
 "Only some of the selected items have this tag. Pick it from + to add it to all of them." = "Seçili öğelerin yalnızca bazılarında bu etiket var. Hepsine eklemek için + menüsünden seçin."
 
 [PropertyObjectController]
-"(Timeline canvases are not supported here)" = "(Zaman çizelgesi tuvalleri burada desteklenmez)"
+"(This canvas is not supported here)" = "(Bu tuval burada desteklenmez)"
 "(Unsupported element type: {0})" = "(Desteklenmeyen öğe türü: {0})"
 "Reset to Default" = "Varsayılana sıfırla"
 "{0} items" = "{0} öğe"

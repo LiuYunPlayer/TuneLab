@@ -534,7 +534,7 @@
 "Only some of the selected items have this tag. Pick it from + to add it to all of them." = "Μόνο ορισμένα από τα επιλεγμένα στοιχεία έχουν αυτήν την ετικέτα. Επιλέξτε την από το + για να την προσθέσετε σε όλα."
 
 [PropertyObjectController]
-"(Timeline canvases are not supported here)" = "(Οι καμβάδες χρονογραμμής δεν υποστηρίζονται εδώ)"
+"(This canvas is not supported here)" = "(Αυτός ο καμβάς δεν υποστηρίζεται εδώ)"
 "(Unsupported element type: {0})" = "(Μη υποστηριζόμενος τύπος στοιχείου: {0})"
 "Reset to Default" = "Επαναφορά στις προεπιλογές"
 "{0} items" = "{0} στοιχεία"

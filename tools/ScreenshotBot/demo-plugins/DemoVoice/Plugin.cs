@@ -67,7 +67,7 @@ public sealed class DemoVoiceEngine : IVoiceSynthesisEngine
     // 曲线数据经 IVoiceSynthesisSession.SynthesizedParameters 按同一 key（energy）承载；宿主作一等只读轨绘制。
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IVoiceSynthesisPartPropertyContext context) => mSynthesizedParameterConfigs;
     public ObjectConfig GetPartPropertyConfig(IVoiceSynthesisPartPropertyContext context) => ObjectConfig.Create(mPartProperties);
-    // 时间轴画布「呼吸」：只在参数面板里、每个音符一块（见 BreathCanvas）。参数面板里 context 只有这一个音符，值从它取。
+    // 画布 lane「呼吸」：只在参数面板里、每个音符一块（见 BreathCanvas）。参数面板里 context 只有这一个音符，值从它取。
     public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext context)
     {
         var properties = new OrderedMap<PropertyKey, IControllerConfig>();

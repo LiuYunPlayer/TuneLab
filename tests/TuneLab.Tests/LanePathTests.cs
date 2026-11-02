@@ -13,9 +13,9 @@ public class LanePathTests
 {
     sealed class NullControl : ICanvasControl { }
 
-    static TimelineCanvasConfig Canvas => TimelineCanvasConfig.Create(PropertyObject.Empty, _ => new NullControl());
+    static CanvasLaneConfig Canvas => CanvasLaneConfig.Create(PropertyObject.Empty, _ => new NullControl());
 
-    // 音素混合式的形状：mixes = [{ curve: 时间轴画布, gain: 滑条 }, …]（定长 2）+ 顶层一个滑条。
+    // 音素混合式的形状：mixes = [{ curve: 画布 lane, gain: 滑条 }, …]（定长 2）+ 顶层一个滑条。
     static ObjectConfig Declaration => ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>
     {
         { ("level", "Level"), SliderConfig.Linear(0, 0, 1) },
@@ -40,14 +40,14 @@ public class LanePathTests
     {
         var leaves = LanePath.Leaves(Declaration).ToList();
         Assert.Equal(["level", "mixes/0/curve", "mixes/0/gain", "mixes/1/curve", "mixes/1/gain"], leaves.Select(l => l.Path));
-        Assert.IsType<TimelineCanvasConfig>(leaves[3].Config);
+        Assert.IsType<CanvasLaneConfig>(leaves[3].Config);
         Assert.Equal("Mix 2 · Curve", LanePath.FullLabel(leaves[3].Label));   // 序号跟在它所属的那一段后面
     }
 
     [Fact]
     public void ResolveFindsTheLeafOrNothing()
     {
-        Assert.IsType<TimelineCanvasConfig>(LanePath.Resolve(Declaration, "mixes/1/curve")!.Leaf);
+        Assert.IsType<CanvasLaneConfig>(LanePath.Resolve(Declaration, "mixes/1/curve")!.Leaf);
         Assert.Null(LanePath.Resolve(Declaration, "mixes/2/curve"));   // 越界
         Assert.Null(LanePath.Resolve(Declaration, "mixes/1"));         // 不是叶子
         Assert.Null(LanePath.Resolve(Declaration, "nope"));

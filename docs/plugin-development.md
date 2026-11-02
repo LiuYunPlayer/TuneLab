@@ -43,7 +43,7 @@ Package level (top level):
 |---|---|---|
 | `1.0` | TuneLab 2.0.0 | Everything the V1 SDK shipped with |
 | `1.1` | TuneLab 2.1.0 | Path picker controls (`PathPickerConfig` / `FileTypeFilter`), multiline text boxes (`TextBoxConfig.WithMultiline`) |
-| `1.2` | Not released yet | Tag groups (`TagConfig` / `TagItem`), buttons (`ButtonConfig` / `IButtonClickContext` / `IDialogService` / `IProgressReporter`, see §9), declaration invalidation (`InvalidatePart` / `InvalidateNotes` with the matching `PartId` / note `Id`, see §5.2), groups and separators in `+` menus and drop-downs (`AddableElement` / `AddableKey` groups, `Separator`, `ComboBoxItem.Separator`), automation tracks hidden from the tab bar by default (`AutomationConfig.WithShownByDefault`); plus the **experimental** canvas (`CanvasConfig` / `TimelineCanvasConfig` / `ICanvasControl` / `ICanvasHost` / `ITimelineCanvasHost` / `ICanvasTimeAxis` / `ICanvasDrawing` / `CanvasImage` and their event types, see §10) |
+| `1.2` | Not released yet | Tag groups (`TagConfig` / `TagItem`), buttons (`ButtonConfig` / `IButtonClickContext` / `IDialogService` / `IProgressReporter`, see §9), declaration invalidation (`InvalidatePart` / `InvalidateNotes` with the matching `PartId` / note `Id`, see §5.2), groups and separators in `+` menus and drop-downs (`AddableElement` / `AddableKey` groups, `Separator`, `ComboBoxItem.Separator`), automation tracks hidden from the tab bar by default (`AutomationConfig.WithShownByDefault`); plus the **experimental** canvas (`CanvasConfig` / `CanvasLaneConfig` / `ICanvasControl` / `ICanvasHost` / `ITimelineCanvasHost` / `ICanvasTimeAxis` / `ICanvasDrawing` / `CanvasImage` and their event types, see §10) |
 
 Plugin level (describing "what this package provides"). **Identity is inlined into the manifest**: one entry = one concrete registrable capability, carrying its own identity (engine id / file extension) + the full name of the implementing class. After reading the manifest the host knows what the plugin provides without loading assemblies and reflecting.
 
@@ -1263,33 +1263,33 @@ if (picked is { } v && v.ToString(out var command) && command == "set")
 
 Reference implementation: `tests/plugins/V1.Voice/StretchCurveCanvas.cs` (a stretch curve on the note panel and the core-phoneme panel: a draft on press, drag, double-click to reset, wheel over a point to nudge with a deferred commit / over empty space to scroll the panel, merged multi-selection values; with the canvas focused, ↑ / ↓ nudge the point under the pointer — hold to repeat, commit on release — and Esc cancels a drag; a context menu — a text box popped over the value label to set a point, a multi-line note, reset-all after a confirmation) and `tests/plugins/V1.Voice/ImageDemoCanvas.cs` ("Canvas Images" on the note panel: plugin-level caching of an encoded bitmap and an SVG, pixels generated at the device pixel ratio, a rounded clip, opacity, a rotation transform, ← / → to rotate).
 
-### 10.6 Timeline canvas (TimelineCanvasConfig)
+### 10.6 Canvas lane (CanvasLaneConfig)
 
 An editor that must line up with the timeline and is edited one object at a time (e.g. a phoneme mix: a curve over time plus a
-symbol and a language) is declared as a **timeline canvas**. It is not edited in the side panel (which only shows a summary row, see below); it lives in the parameter panel under
+symbol and a language) is declared as a **canvas lane**. It is not edited in the side panel (which only shows a summary row, see below); it lives in the parameter panel under
 the piano roll — every object that declares it (note-level field = each note, phoneme-level field = each phoneme) gets a block
 over its own time span: width = that object's time span, height = the panel height. It shows in the tab bar whenever some note's
 declaration has it; the user does not pin it.
 
 ```csharp
-props.Add(("mix", "Mix"), TimelineCanvasConfig.Create(MixCanvas.Default, host => new MixCanvas(host, value))
+props.Add(("mix", "Mix"), CanvasLaneConfig.Create(MixCanvas.Default, host => new MixCanvas(host, value))
     .WithColor("#E58AC9"));   // leave the color unset and the host picks one from its palette (same as AutomationConfig)
 ```
 
 - **Which one**: the editor belongs to the side panel and has nothing to do with time (or only uses positions relative to the
-  object) → `CanvasConfig`; it must line up with the timeline → `TimelineCanvasConfig`. A field picks one. The side panel can
-  multi-select, and several objects have no single time span, so only the timeline canvas has a time mapping.
+  object) → `CanvasConfig`; it must line up with the timeline → `CanvasLaneConfig`. A field picks one. The side panel can
+  multi-select, and several objects have no single time span, so only the canvas lane has a time mapping.
 - **Everything else is the same as the side-panel canvas**: the same `ICanvasControl`, drawing / events / drafts / commits /
   popups / dialogs (§10.1–10.5), value semantics and instance lifetime. Top-level members of note / phoneme property
   declarations, or anywhere below them. No preferred size: the width comes from the object's duration, the height is the panel
   height the user set.
 - **Anywhere in the tree**: it can be a top-level member of a note / phoneme property declaration or sit inside objects, fixed
-  arrays, lists or keyed containers, nested to any depth (say one canvas per layer: `mixes: [{ curve: timeline canvas, … }]`). In
+  arrays, lists or keyed containers, nested to any depth (say one canvas per layer: `mixes: [{ curve: canvas lane, … }]`). In
   the parameter panel each one becomes a lane by its path; the tab shows the last segment's display name plus the indexes on the
   path ("Curve 2") and adds ancestor names only when it would clash with another tab ("Mix 2 · Curve" — the number stays with the segment it belongs to); hovering shows the full
   path — **avoid duplicate display names on leaf fields** and the tabs stay short. List indexes move as the user adds, removes or
   reorders elements; lanes go by index.
-- **Its row in the side panel**: every timeline canvas position (inside each array / list element too) takes one row in the side
+- **Its row in the side panel**: every canvas lane position (inside each array / list element too) takes one row in the side
   panel — field name, summary and an edit button that jumps to the parameter panel. Compute the summary at declaration time with
   `.WithSummary(text)` (what to show for a multi-selection is up to you); without it the host shows "Default / Modified /
   Multiple". Lists keep their add / remove / reorder in the side panel, and other plain fields in the element objects still show
@@ -1325,7 +1325,7 @@ props.Add(("mix", "Mix"), TimelineCanvasConfig.Create(MixCanvas.Default, host =>
     the object's duration as width and the panel height as height, and the host is still an `ICanvasHost` (no time axis) — a
     side-panel canvas has to cope with any size anyway.
 
-Reference implementations: `tests/plugins/V1.Voice/TimelineDemoCanvas.cs` (the note-level "Timeline Demo" and core-phoneme
+Reference implementations: `tests/plugins/V1.Voice/LaneDemoCanvas.cs` (the note-level "Timeline Demo" and core-phoneme
 "Phoneme Timeline": points stored in seconds, per-pixel sampling interpolated in seconds, only the columns `VisibleBounds` shows;
 click empty space to add a point, drag points, right-click to delete; click the symbol for a text box, right-click empty space
 for a language menu; only the curve when narrow or short) and `tools/ScreenshotBot/demo-plugins/DemoVoice/BreathCanvas.cs`

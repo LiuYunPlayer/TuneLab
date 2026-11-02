@@ -12,8 +12,8 @@ internal sealed class FieldHooks
     // 逐字段的右键菜单项（如钉进参数面板）：path = 字段的路径。返回 null / 空 = 不加。菜单在每次右键时现取。
     public Func<IReadOnlyList<string>, IControllerConfig, IReadOnlyList<MenuItem>?>? ItemMenu { get; init; }
 
-    // 时间轴画布在侧栏只有一行摘要 + 编辑按钮：按了就去参数面板编辑它（path = 它的路径）。null = 不显示编辑按钮。
-    public Action<IReadOnlyList<string>>? EditTimelineCanvas { get; init; }
+    // 画布 lane 在侧栏只有一行摘要 + 编辑按钮：按了就去参数面板编辑它（path = 它的路径）。null = 不显示编辑按钮。
+    public Action<IReadOnlyList<string>>? EditCanvasLane { get; init; }
 }
 
 // 一层控制器在树里的位置：共享的钩子 + 到本层的路径（现算：数组元素的下标随调序变）。

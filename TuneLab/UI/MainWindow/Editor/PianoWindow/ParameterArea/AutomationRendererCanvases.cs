@@ -12,7 +12,7 @@ using Size = Avalonia.Size;
 
 namespace TuneLab.UI;
 
-// 参数面板里的插件画布（时间轴画布 TimelineCanvasConfig 与钉进来的侧栏画布 CanvasConfig）：画布 lane 上每个声明了该字段的
+// 参数面板里的插件画布（画布 lane CanvasLaneConfig 与钉进来的侧栏画布 CanvasConfig）：画布 lane 上每个声明了该字段的
 // 对象（note 级 = 每个 note、音素级 = 每个显示音素）一块，横向正好占满它的时间段（不留缝）、纵向占满面板。
 //
 // 分工：每块是一个 PluginCanvas 子控件，负责输入、焦点、弹出与编辑状态；**画由本渲染器在自己的绘制里做**（RenderInto）——
@@ -38,7 +38,7 @@ internal partial class AutomationRenderer
         public bool Active;
     }
 
-    // 时间轴画布的换算：全局秒 ↔ 画布内横坐标，跟着钢琴窗的 tick 轴（速度变化处不均匀）。Left = 画布左缘在本渲染器里的 x。
+    // 画布 lane 的换算：全局秒 ↔ 画布内横坐标，跟着钢琴窗的 tick 轴（速度变化处不均匀）。Left = 画布左缘在本渲染器里的 x。
     sealed class CanvasTimeAxis(AutomationRenderer renderer) : ICanvasTimeAxis
     {
         public double Left;
@@ -96,7 +96,7 @@ internal partial class AutomationRenderer
     void DrawCanvas(DrawingContext context, CanvasSlot slot, LanePath.Resolved resolved, double startTick, double endTick, bool isActive)
     {
         var config = resolved.Leaf;
-        if (config is not (CanvasConfig or TimelineCanvasConfig))
+        if (config is not (CanvasConfig or CanvasLaneConfig))
             return;
         // 不留缝（数值 lane 留 1px 缝是因为段由宿主画）：画布正好覆盖对象的时间段，XToTime(0) / XToTime(Width) 就是它的起止，
         // 跨对象连续的内容也接得上；要不要分隔由插件自己画（底是透明的）。
@@ -131,10 +131,10 @@ internal partial class AutomationRenderer
     {
         var config = resolved.Leaf;
         canvas.Config = config;
-        var defaultValue = config is TimelineCanvasConfig timeline ? timeline.DefaultValue : ((CanvasConfig)config).DefaultValue;
+        var defaultValue = config is CanvasLaneConfig lane ? lane.DefaultValue : ((CanvasConfig)config).DefaultValue;
         IDataProperty<PropertyValue> field = new LanePathField(slot.Note, slot.Phoneme ? slot.Index : -1, resolved.Steps, defaultValue);
         canvas.View.Bind(field);
-        if (config is TimelineCanvasConfig t)
+        if (config is CanvasLaneConfig t)
             canvas.View.SetTimelineFactory(t.CreateControl, canvas.Axis);
         else
             canvas.View.SetFactory(((CanvasConfig)config).CreateControl);

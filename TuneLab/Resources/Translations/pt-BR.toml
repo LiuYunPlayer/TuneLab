@@ -534,7 +534,7 @@
 "Only some of the selected items have this tag. Pick it from + to add it to all of them." = "Apenas alguns dos itens selecionados têm esta tag. Escolha-a no + para adicioná-la a todos."
 
 [PropertyObjectController]
-"(Timeline canvases are not supported here)" = "(Telas de linha do tempo não são suportadas aqui)"
+"(This canvas is not supported here)" = "(Esta tela não é suportada aqui)"
 "(Unsupported element type: {0})" = "(Tipo de elemento não suportado: {0})"
 "Reset to Default" = "Redefinir para o padrão"
 "{0} items" = "{0} itens"

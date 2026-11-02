@@ -534,7 +534,7 @@
 "Only some of the selected items have this tag. Pick it from + to add it to all of them." = "Nur einige der ausgewählten Elemente haben diesen Tag. Wähle ihn über + aus, um ihn allen hinzuzufügen."
 
 [PropertyObjectController]
-"(Timeline canvases are not supported here)" = "(Zeitleisten-Leinwände werden hier nicht unterstützt)"
+"(This canvas is not supported here)" = "(Diese Leinwand wird hier nicht unterstützt)"
 "(Unsupported element type: {0})" = "(Nicht unterstützter Elementtyp: {0})"
 "Reset to Default" = "Auf Standard zurücksetzen"
 "{0} items" = "{0} Einträge"

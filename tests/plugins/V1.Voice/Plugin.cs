@@ -124,8 +124,8 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
         var properties = With(mPartProperties, ("analysis_summary", "Analysis"), ButtonConfig.Create("Summary", click => ShowPartSummary(click, partIds)));
         // 显示名给空串 = 无标题、按钮铺满整行（验证整行按钮形态）。
         properties = With(properties, ("analysis_run", ""), ButtonConfig.Create("Run Analysis", click => ShowPartSummary(click, partIds)));
-        // 反例：时间轴画布放在 part 声明里——这里没有时间轴，宿主应显示"此处不支持"并记一条警告，而不是一行改不了的摘要。
-        properties = With(properties, ("part_timeline", "Part Timeline"), TimelineDemoCanvas.Config(TimelineDemoCanvas.Default, "part"));
+        // 反例：画布 lane 放在 part 声明里——这里没有时间轴，宿主应显示"此处不支持"并记一条警告，而不是一行改不了的摘要。
+        properties = With(properties, ("part_timeline", "Part Timeline"), LaneDemoCanvas.Config(LaneDemoCanvas.Default, "part"));
         if (context.Parts.Any(p => IsBlinkVisible(p.PartId)))
             properties = With(properties, ("blink", "Blinking Slider"), mBlinkConfig);
         if (!context.Parts.Any(p => mAnalyses.TryGetValue(p.PartId, out var analysis) && analysis.HasTones))
@@ -151,21 +151,21 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
         var notes = context.Notes.Select(n => n.Properties).ToList();
         var properties = With(mNoteProperties, ("stretch", "Stretch Curve"), StretchCurveCanvas.Config(ValuesOf(notes, "stretch", StretchCurveCanvas.Default)));
         properties = With(properties, ("image_demo", "Canvas Images"), ImageDemoCanvas.Config(ValuesOf(notes, "image_demo", ImageDemoCanvas.Default)));
-        // 时间轴画布：侧栏不显示，参数面板里每个 note 一块（见 TimelineDemoCanvas）。参数面板里 context 只有这一个 note。
-        properties = With(properties, ("timeline_demo", "Timeline Demo"), TimelineDemoCanvas.Config(ValuesOf(notes, "timeline_demo", TimelineDemoCanvas.Default)[0], "note"));
-        // 嵌套位置的时间轴画布（参数面板里按路径各成一条 lane，侧栏在它的位置只有一行摘要 + 编辑按钮）：
-        // · Layers = 定长数组，元素是对象 { Curve: 时间轴画布, Gain: 滑条 }——画布是元素里的一个成员，Gain 照常在侧栏批量改；
-        // · Takes = 列表，元素本身就是时间轴画布，侧栏里增删、调序（没存过时给 2 项）。
+        // 画布 lane：侧栏不显示，参数面板里每个 note 一块（见 LaneDemoCanvas）。参数面板里 context 只有这一个 note。
+        properties = With(properties, ("timeline_demo", "Timeline Demo"), LaneDemoCanvas.Config(ValuesOf(notes, "timeline_demo", LaneDemoCanvas.Default)[0], "note"));
+        // 嵌套位置的画布 lane（参数面板里按路径各成一条 lane，侧栏在它的位置只有一行摘要 + 编辑按钮）：
+        // · Layers = 定长数组，元素是对象 { Curve: 画布 lane, Gain: 滑条 }——画布是元素里的一个成员，Gain 照常在侧栏批量改；
+        // · Takes = 列表，元素本身就是画布 lane，侧栏里增删、调序（没存过时给 2 项）。
         var first = notes.Count > 0 ? notes[0] : PropertyObject.Empty;
         var layers = Enumerable.Range(0, 2).Select(i => (IControllerConfig)ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>
         {
-            { ("curve", "Curve"), TimelineDemoCanvas.Config(Member(Element(first, "timeline_layers", i), "curve"), "layer " + (i + 1)) },
+            { ("curve", "Curve"), LaneDemoCanvas.Config(Member(Element(first, "timeline_layers", i), "curve"), "layer " + (i + 1)) },
             { ("gain", "Gain"), mLayerGainConfig },
         })).ToList();
         properties = With(properties, ("timeline_layers", "Layers"), ArrayConfig.Create(layers));
         int takeCount = first.Map.TryGetValue("timeline_takes", out var stored) && stored.ToArray(out var takesArray) ? takesArray.Count : 2;
-        var takes = Enumerable.Range(0, takeCount).Select(i => (IControllerConfig)TimelineDemoCanvas.Config(Element(first, "timeline_takes", i), "take " + (i + 1))).ToList();
-        properties = With(properties, ("timeline_takes", "Takes"), ListConfig.Create(takes, [new AddableElement(TimelineDemoCanvas.Config(TimelineDemoCanvas.Default, "take"))]));
+        var takes = Enumerable.Range(0, takeCount).Select(i => (IControllerConfig)LaneDemoCanvas.Config(Element(first, "timeline_takes", i), "take " + (i + 1))).ToList();
+        properties = With(properties, ("timeline_takes", "Takes"), ListConfig.Create(takes, [new AddableElement(LaneDemoCanvas.Config(LaneDemoCanvas.Default, "take"))]));
         properties = With(properties, ("inspect", "Inspect"), ButtonConfig.Create("Show Tones", click => ShowNoteTones(click, partId, noteIds)));
         if (IsBlinkVisible(partId))
             properties = With(properties, ("blink", "Blinking Slider"), mBlinkConfig);
@@ -226,9 +226,9 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
             }));
         if (IsBlinkVisible(context.Part.PartId))
             coreProperties = With(coreProperties, ("blink", "Blinking Slider"), mBlinkConfig);
-        // 音素级时间轴画布：参数面板里每个核音素一块。
+        // 音素级画布 lane：参数面板里每个核音素一块。
         coreProperties = With(coreProperties, ("phoneme_timeline", "Phoneme Timeline"),
-            TimelineDemoCanvas.Config(ValuesOf(context.Notes.Select(n => n.PhonemeAt(0)?.Properties), "phoneme_timeline", TimelineDemoCanvas.Default)[0], "core"));
+            LaneDemoCanvas.Config(ValuesOf(context.Notes.Select(n => n.PhonemeAt(0)?.Properties), "phoneme_timeline", LaneDemoCanvas.Default)[0], "core"));
         var core = ObjectConfig.Create(coreProperties);
         var consonant = ObjectConfig.Create(mConsonantPhonemeProperties);
         var map = new Map<int, ObjectConfig>();

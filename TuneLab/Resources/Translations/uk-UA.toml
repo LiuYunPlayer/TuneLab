@@ -534,7 +534,7 @@
 "Only some of the selected items have this tag. Pick it from + to add it to all of them." = "Цей тег є лише в частини вибраних елементів. Виберіть його в +, щоб додати всім."
 
 [PropertyObjectController]
-"(Timeline canvases are not supported here)" = "(Полотна на часовій шкалі тут не підтримуються)"
+"(This canvas is not supported here)" = "(Це полотно тут не підтримується)"
 "(Unsupported element type: {0})" = "(Непідтримуваний тип елемента: {0})"
 "Reset to Default" = "Скинути до типового"
 "{0} items" = "Елементів: {0}"

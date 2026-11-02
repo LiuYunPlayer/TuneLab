@@ -330,7 +330,7 @@ internal interface IEditorStateAccess
 `run_action` 收一个可选的 `argument`，被触发动作用 `EditorAction.Parameter`（`ActionParameter`）声明它接什么。
 今天有六条：`parameter.showSynthesizedTrack` / `hideSynthesizedTrack`（作用在一条合成参数轨上）、
 `parameter.pinProperty` / `unpinProperty`（作用在一个 note / phoneme 属性上）与
-`parameter.hideFromTabBar` / `showInTabBar`（作用在一条常驻标签栏的参数上：声源 / 效果器的自动化轨、时间轴画布）。六条口径：
+`parameter.hideFromTabBar` / `showInTabBar`（作用在一条常驻标签栏的参数上：声源 / 效果器的自动化轨、画布 lane）。六条口径：
 
 - **值域必须能自省**。动态成员集意味着调用方不可能预先知道合法值，故 `Values` 是闭包、`list_actions`
   把**此刻的合法值**连同每个值的当下状态（`shown` / `hidden` / `pinned`…）一起报出去（同 `setting list`

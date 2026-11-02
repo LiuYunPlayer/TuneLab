@@ -938,7 +938,7 @@ internal abstract class ElementWidget : IDisposable
         ArrayConfig c => new NestedArrayElement(dataObject, token, c, buttonRoot, buttonPath, path ?? FieldPath.Root(null), foldScope),
         ListConfig c => new NestedListElement(dataObject, token, c, buttonRoot, buttonPath, path ?? FieldPath.Root(null), foldScope),
         ExtensibleObjectConfig c => new NestedExtensibleObjectElement(dataObject, token, c, buttonRoot, buttonPath, path ?? FieldPath.Root(null), foldScope),
-        TimelineCanvasConfig c => new TimelineCanvasElement(dataObject, token, c, path ?? FieldPath.Root(null)),
+        CanvasLaneConfig c => new CanvasLaneElement(dataObject, token, c, path ?? FieldPath.Root(null)),
         _ => new UnknownElement(config),
     };
 
@@ -1181,27 +1181,27 @@ internal abstract class ElementWidget : IDisposable
         readonly ListController mController = new();
     }
 
-    // 时间轴画布元素：编辑界面在参数面板里，这里只有一行摘要 + 编辑按钮（同对象字段里的 TimelineCanvasCreator，只是没有标题——
+    // 画布 lane 元素：编辑界面在参数面板里，这里只有一行摘要 + 编辑按钮（同对象字段里的 CanvasLaneCreator，只是没有标题——
     // 元素行左侧的序号就是它的位置）。
-    sealed class TimelineCanvasElement : ElementWidget
+    sealed class CanvasLaneElement : ElementWidget
     {
-        public TimelineCanvasElement(IDataPropertyObject dataObject, string token, TimelineCanvasConfig config, FieldPath path)
+        public CanvasLaneElement(IDataPropertyObject dataObject, string token, CanvasLaneConfig config, FieldPath path)
         {
-            mRow = new TimelineCanvasRow(null, () => dataObject.GetRawValue(token), path.Hooks, path.Prefix);
+            mRow = new CanvasLaneRow(null, () => dataObject.GetRawValue(token), path.Hooks, path.Prefix);
             mRow.Apply(config);
             dataObject.Modified.Subscribe(mRow.RefreshSummary, mSubscriptions);
         }
 
         public override Control View => mRow.View;
-        public override Type ConfigType => typeof(TimelineCanvasConfig);
-        public override void Update(IControllerConfig config) => mRow.Apply((TimelineCanvasConfig)config);
+        public override Type ConfigType => typeof(CanvasLaneConfig);
+        public override void Update(IControllerConfig config) => mRow.Apply((CanvasLaneConfig)config);
         public override void Dispose()
         {
             base.Dispose();
             mSubscriptions.DisposeAll();
         }
 
-        readonly TimelineCanvasRow mRow;
+        readonly CanvasLaneRow mRow;
         readonly DisposableManager mSubscriptions = new();
     }
 

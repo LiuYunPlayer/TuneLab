@@ -4,7 +4,7 @@ using TuneLab.SDK;
 
 namespace TuneLab.TestPlugins.V1Voice;
 
-// 时间轴画布（TimelineCanvasConfig）演示：音素混合式的编辑——一条随时间变化的曲线 + 一个符号 + 一种语言。只在参数面板里、
+// 画布 lane（CanvasLaneConfig）演示：音素混合式的编辑——一条随时间变化的曲线 + 一个符号 + 一种语言。只在参数面板里、
 // 每个对象（note 级 = 每个 note，音素级 = 每个核音素）一块，宽 = 它的时间段、高 = 面板高度。
 // 值 = { "curve": [[秒, 值], …], "symbol": "…", "lang": "…" }，秒是**距这块画布起点**（XToTime(0)）的秒数，值 0..1。
 // 默认 {} = 中性（没有曲线、没有符号）：未编辑过的对象不因合成后长度变化而改变听感。
@@ -16,13 +16,13 @@ namespace TuneLab.TestPlugins.V1Voice;
 // · 交互：点空白处加点、拖点移动（按下写草稿、松手提交）、右键点删除；点左上角符号弹 PopupTextBox 改符号；
 //   右键空白处弹 PopupMenu 选语言（当前语言标在项尾，不往前加符号——加在前面会让这一项文字错位）/ 清空曲线。
 // 值由插件自定形状，读取时一律校验：形状不对的部分按默认处理。
-sealed class TimelineDemoCanvas(ITimelineCanvasHost host, PropertyValue value, string label) : ICanvasControl
+sealed class LaneDemoCanvas(ITimelineCanvasHost host, PropertyValue value, string label) : ICanvasControl
 {
     public static readonly PropertyValue Default = PropertyObject.Empty;
 
     // 摘要（侧栏那一行）：点数 + 语言，声明时按值算好。
-    public static TimelineCanvasConfig Config(PropertyValue value, string label)
-        => TimelineCanvasConfig.Create(Default, host => new TimelineDemoCanvas(host, value, label)).WithSummary(Summary(value));
+    public static CanvasLaneConfig Config(PropertyValue value, string label)
+        => CanvasLaneConfig.Create(Default, host => new LaneDemoCanvas(host, value, label)).WithSummary(Summary(value));
 
     static string Summary(PropertyValue value)
     {

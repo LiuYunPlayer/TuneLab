@@ -30,7 +30,7 @@ internal class MidiPart : Part, IMidiPart
     // 自动化轨集合因参数 commit 而变（voice 依赖 part 参数、各 effect 依赖自身参数）：UI 收到重建参数栏/默认值面板。
     // 仅在轨集合实际变化时触发（签名比对去抖）；换源/链增删走各自既有 UI 触发，不重复经此事件。
     public IActionEvent AutomationConfigsModified => mAutomationConfigsModified;
-    // 参数面板属性 lane 集合（物化缓存，note / phoneme 两 scope）：各 note 声明的并集里钉选了的可钉字段 + 全部时间轴画布，按首见顺序。
+    // 参数面板属性 lane 集合（物化缓存，note / phoneme 两 scope）：各 note 声明的并集里钉选了的可钉字段 + 全部画布 lane，按首见顺序。
     // 重建时机与 voice 轨集合同步（管线重建/换源/part 参数 commit）+ 钉选变更（RefreshPinnedLaneConfigs）
     // + 音素回填补算（phoneme lane 声明面依赖合成产物，见 OnPipelinePhonemesChanged）。
     // + 插件宣告声明失效（InvalidateDeclarations）+ part 数据提交（见 OnDocumentStatusChanged：声明 context 带着
@@ -282,25 +282,25 @@ internal class MidiPart : Part, IMidiPart
             mAutomationConfigsModified.Invoke();
     }
 
-    // lane 集合 = 各 note 自己声明的条目的并集中：钉选了的可钉字段（有界数值、侧栏画布，轨色来自钉选）+ 全部时间轴画布
+    // lane 集合 = 各 note 自己声明的条目的并集中：钉选了的可钉字段（有界数值、侧栏画布，轨色来自钉选）+ 全部画布 lane
     //（插件声明即常驻，不经钉选）。某个 note 声明了它，这条 lane 就在（其余 note 在这条 lane 上没有段，见 TryGetNoteLaneShape）。
     // 不能拿全部 note 合并成一份声明来判：插件的声明随所选 note 的值变，合并后的形状可能哪个 note 都不是。
     // 条目里的量程 / 默认值取首见声明（note 序、同 note 内 slot 升序），只作标签栏与没有段可画时的口径；逐段的形状各按各的 note。
     // 没有 note 时按"空选区"问一次，标签栏不因 part 暂时清空而丢掉钉选。
-    // 常驻的时间轴画布没有钉选可短路，所以每次都要把全部 note 问一遍（按 note 缓存，part 数据一变才重问）。
+    // 常驻的画布 lane 没有钉选可短路，所以每次都要把全部 note 问一遍（按 note 缓存，part 数据一变才重问）。
     // phoneme scope：instrument 无音素（GetPhonemePropertyConfigs 恒空）→ 走真空分支出占位 tab（钉过 phoneme
-    // 的 instrument 场景本就不存在）。音素级时间轴画布在合成音素产出前没有声明可问，不占位、不猜。
-    // 时间轴画布在声明暂时问不到时保留（见 KeepSeenTimelineLanes），音源一换才清。
+    // 的 instrument 场景本就不存在）。音素级画布 lane 在合成音素产出前没有声明可问，不占位、不猜。
+    // 画布 lane 在声明暂时问不到时保留（见 KeepSeenCanvasLanes），音源一换才清。
     void RebuildLaneConfigs()
     {
         var previousNoteLanes = Copy(mNoteLaneConfigs);
         var previousPhonemeLanes = Copy(mPhonemeLaneConfigs);
         var source = (mSource.Kind, mSource.Type, mSource.ID);
-        if (source != mSeenTimelineSource)
+        if (source != mSeenCanvasLaneSource)
         {
-            mSeenTimelineSource = source;
-            mSeenNoteTimelineLanes.Clear();
-            mSeenPhonemeTimelineLanes.Clear();
+            mSeenCanvasLaneSource = source;
+            mSeenNoteCanvasLanes.Clear();
+            mSeenPhonemeCanvasLanes.Clear();
         }
         mNoteLaneConfigs.Clear();
         mPhonemeLaneConfigs.Clear();
@@ -338,11 +338,11 @@ internal class MidiPart : Part, IMidiPart
             }
         }
 
-        AssignTimelineCanvasColors();
+        AssignCanvasLaneColors();
         // note 声明随时问得到（同步），没有"暂时不知道"：问到没有就是没有。音素声明要等引擎对音素表态，有 note 还没表态
         //（标脏 / 合成中）就有一部分声明暂时问不到。
-        KeepSeenTimelineLanes(mNoteLaneConfigs, previousNoteLanes, mSeenNoteTimelineLanes, keepAbsent: false);
-        KeepSeenTimelineLanes(mPhonemeLaneConfigs, previousPhonemeLanes, mSeenPhonemeTimelineLanes,
+        KeepSeenCanvasLanes(mNoteLaneConfigs, previousNoteLanes, mSeenNoteCanvasLanes, keepAbsent: false);
+        KeepSeenCanvasLanes(mPhonemeLaneConfigs, previousPhonemeLanes, mSeenPhonemeCanvasLanes,
             keepAbsent: mNotes.Any(note => !INote.HasPhonemeAnswer(note)));
         AssignLaneLabels();
     }
@@ -372,15 +372,15 @@ internal class MidiPart : Part, IMidiPart
         return copy;
     }
 
-    // 时间轴画布只在声明暂时问不到时保留（keepAbsent）：如全部 note 标脏、合成回来前音素声明暂时为空，标签栏跟着声明
+    // 画布 lane 只在声明暂时问不到时保留（keepAbsent）：如全部 note 标脏、合成回来前音素声明暂时为空，标签栏跟着声明
     // 一会儿有一会儿没有观感很差；这时面板里只是空的。问得到却没人声明（删了列表元素、换了引擎选项）就真的去掉——
     // 列表长度是用户在增删，"出现过就留"会越积越多。
     // 留下的放回上次显示时的位置（排在它前面、此刻仍在的那个条目之后），颜色沿用上次的。
-    static void KeepSeenTimelineLanes(OrderedMap<PropertyKey, LaneEntry> lanes, OrderedMap<PropertyKey, LaneEntry> previous, OrderedMap<PropertyKey, LaneEntry> seen, bool keepAbsent)
+    static void KeepSeenCanvasLanes(OrderedMap<PropertyKey, LaneEntry> lanes, OrderedMap<PropertyKey, LaneEntry> previous, OrderedMap<PropertyKey, LaneEntry> seen, bool keepAbsent)
     {
         foreach (var kvp in lanes)
         {
-            if (kvp.Value.Kind == LaneKind.TimelineCanvas)
+            if (kvp.Value.Kind == LaneKind.CanvasLane)
                 seen[kvp.Key] = kvp.Value;
         }
         if (!keepAbsent)
@@ -424,8 +424,8 @@ internal class MidiPart : Part, IMidiPart
             lanes.Add(key, entry);
     }
 
-    // 时间轴画布没指定颜色的，按出现顺序从调色板分（避开本 part 的自动化轨、钉选 lane 与已指定颜色的画布）。
-    void AssignTimelineCanvasColors()
+    // 画布 lane 没指定颜色的，按出现顺序从调色板分（避开本 part 的自动化轨、钉选 lane 与已指定颜色的画布）。
+    void AssignCanvasLaneColors()
     {
         var occupied = new List<string>();
         foreach (var kvp in mSource.AutomationConfigs)
@@ -440,7 +440,7 @@ internal class MidiPart : Part, IMidiPart
         {
             foreach (var kvp in lanes)
             {
-                if (kvp.Value.Kind == LaneKind.TimelineCanvas && TrackColors.IsUnassigned(kvp.Value.Color))
+                if (kvp.Value.Kind == LaneKind.CanvasLane && TrackColors.IsUnassigned(kvp.Value.Color))
                     unassigned.Add((lanes, kvp.Key));
                 else
                     occupied.Add(kvp.Value.Color);
@@ -449,7 +449,7 @@ internal class MidiPart : Part, IMidiPart
         foreach (var (lanes, key) in unassigned)
         {
             // 出现过的沿用上次分到的颜色：标签不因别的 lane 增减而换色。
-            var seen = lanes == mNoteLaneConfigs ? mSeenNoteTimelineLanes : mSeenPhonemeTimelineLanes;
+            var seen = lanes == mNoteLaneConfigs ? mSeenNoteCanvasLanes : mSeenPhonemeCanvasLanes;
             var color = seen.TryGetValue(key, out var before) ? before.Color : TrackColors.Pick(occupied);
             occupied.Add(color);
             lanes[key] = lanes[key] with { Color = color };
@@ -459,7 +459,7 @@ internal class MidiPart : Part, IMidiPart
     // 参数面板【可钉选】的属性（动作面的值域自省用，见 TuneLab.Input.ActionParameter）：
     // 各 note 声明里可钉的 note / phoneme 属性的并集，按首见顺序
     // ——口径与 RebuildLaneConfigs 同一份，故值域里的每一项钉上去都必然物化成一条 lane。可钉 = 有界数值或侧栏画布
-    //（时间轴画布本就常驻，不在此列）。
+    //（画布 lane 本就常驻，不在此列）。
     public IReadOnlyList<(ParameterPinKind Kind, PropertyKey Key)> PinnableProperties()
     {
         var result = new List<(ParameterPinKind, PropertyKey)>();
@@ -507,16 +507,16 @@ internal class MidiPart : Part, IMidiPart
             yield return mNoteDeclarations.PhonemeConfigs(note);
     }
 
-    // 时间轴画布常驻（轨色取声明，未指定的稍后由 AssignTimelineCanvasColors 分）；其余可钉字段要钉了才进（轨色取钉选）。
+    // 画布 lane 常驻（轨色取声明，未指定的稍后由 AssignCanvasLaneColors 分）；其余可钉字段要钉了才进（轨色取钉选）。
     // 字段在声明树里的任何位置都行（按路径，见 LanePath）：lane 的键 = 路径，标签名稍后统一算（AssignLaneLabels）。
     static void TryAddLaneEntry(OrderedMap<PropertyKey, LaneEntry> lanes, Dictionary<string, string> pinned, LanePath.Leaf leaf)
     {
         if (lanes.ContainsKey(leaf.Path))
             return;
         var key = new PropertyKey(leaf.Path, LanePath.FullLabel(leaf.Label));
-        if (leaf.Config is TimelineCanvasConfig timeline)
+        if (leaf.Config is CanvasLaneConfig lane)
         {
-            lanes.Add(key, LaneEntry.Canvas(LaneKind.TimelineCanvas, timeline.Color) with { Label = leaf.Label });
+            lanes.Add(key, LaneEntry.Canvas(LaneKind.CanvasLane, lane.Color) with { Label = leaf.Label });
             return;
         }
         if (!pinned.TryGetValue(leaf.Path, out var color))
@@ -966,7 +966,7 @@ internal class MidiPart : Part, IMidiPart
         // 音素声明依赖显示音素，而合成产物不是数据、不经 part 的 Modified：回填一到就作废缓存里的音素那一半。
         mNoteDeclarations.InvalidatePhonemes();
         // phoneme lane 的声明面依赖合成产物：激活时合成音素尚未产出的话，钉选的条目是未解析占位（tab 在场、面板空），
-        // 音素级时间轴画布则还不在（没有声明可问，不猜）。回填一到就重算：占位升级为已解析、时间轴画布按声明出现；
+        // 音素级画布 lane 则还不在（没有声明可问，不猜）。回填一到就重算：占位升级为已解析、画布 lane 按声明出现；
         // 集合没变时签名比对挡住、不惊动 UI（声明按 note 缓存，只重问音素那一半）。
         RebuildLaneConfigs();
         if (RefreshAutomationConfigsSignatureChanged())
@@ -1174,10 +1174,10 @@ internal class MidiPart : Part, IMidiPart
     readonly OrderedMap<PropertyKey, LaneEntry> mNoteLaneConfigs = new();
     readonly OrderedMap<PropertyKey, LaneEntry> mPhonemeLaneConfigs = new();
     readonly NoteDeclarationCache mNoteDeclarations;
-    // 出现过的时间轴画布（按 scope，含分到的颜色）与它们所属的音源：音源一换就清（见 KeepSeenTimelineLanes）。
-    readonly OrderedMap<PropertyKey, LaneEntry> mSeenNoteTimelineLanes = new();
-    readonly OrderedMap<PropertyKey, LaneEntry> mSeenPhonemeTimelineLanes = new();
-    (SourceKind Kind, string Type, string ID) mSeenTimelineSource;
+    // 出现过的画布 lane（按 scope，含分到的颜色）与它们所属的音源：音源一换就清（见 KeepSeenCanvasLanes）。
+    readonly OrderedMap<PropertyKey, LaneEntry> mSeenNoteCanvasLanes = new();
+    readonly OrderedMap<PropertyKey, LaneEntry> mSeenPhonemeCanvasLanes = new();
+    (SourceKind Kind, string Type, string ID) mSeenCanvasLaneSource;
     readonly BatchSignal mSynthesisBatch = new();
     ISynthesisPipeline? mPipeline;
     VoiceSynthesisPipeline? mVoicePipeline;

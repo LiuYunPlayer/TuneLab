@@ -38,7 +38,7 @@ static TuneLab.SDK.TagItem.implicit operator TuneLab.SDK.TagItem(long value) -> 
 static TuneLab.SDK.TagItem.implicit operator TuneLab.SDK.TagItem(string! value) -> TuneLab.SDK.TagItem
 static TuneLab.SDK.TagItem.implicit operator TuneLab.SDK.TagItem(TuneLab.Foundation.PropertyValue value) -> TuneLab.SDK.TagItem
 static TuneLab.SDK.TagItem.Separator(string? label = null) -> TuneLab.SDK.TagItem
-static TuneLab.SDK.TimelineCanvasConfig.Create(TuneLab.Foundation.PropertyValue defaultValue, System.Func<TuneLab.SDK.ITimelineCanvasHost!, TuneLab.SDK.ICanvasControl!>! createControl) -> TuneLab.SDK.TimelineCanvasConfig!
+static TuneLab.SDK.CanvasLaneConfig.Create(TuneLab.Foundation.PropertyValue defaultValue, System.Func<TuneLab.SDK.ITimelineCanvasHost!, TuneLab.SDK.ICanvasControl!>! createControl) -> TuneLab.SDK.CanvasLaneConfig!
 TuneLab.SDK.ButtonConfig
 TuneLab.SDK.ButtonConfig.OnClick.get -> System.Func<TuneLab.SDK.IButtonClickContext!, System.Threading.Tasks.Task!>!
 TuneLab.SDK.ButtonConfig.Text.get -> string!
@@ -263,12 +263,12 @@ TuneLab.SDK.TagItem.TagItem() -> void
 TuneLab.SDK.TagItem.TagItem(string! displayText, System.Collections.Generic.IEnumerable<TuneLab.SDK.TagItem>! subItems) -> void
 TuneLab.SDK.TagItem.TagItem(TuneLab.Foundation.PropertyValue value, string? displayText = null) -> void
 TuneLab.SDK.TagItem.Value.get -> TuneLab.Foundation.PropertyValue
-TuneLab.SDK.TimelineCanvasConfig
-TuneLab.SDK.TimelineCanvasConfig.Color.get -> string!
-TuneLab.SDK.TimelineCanvasConfig.CreateControl.get -> System.Func<TuneLab.SDK.ITimelineCanvasHost!, TuneLab.SDK.ICanvasControl!>!
-TuneLab.SDK.TimelineCanvasConfig.DefaultValue.get -> TuneLab.Foundation.PropertyValue
-TuneLab.SDK.TimelineCanvasConfig.Summary.get -> string?
-TuneLab.SDK.TimelineCanvasConfig.WithColor(string! color) -> TuneLab.SDK.TimelineCanvasConfig!
-TuneLab.SDK.TimelineCanvasConfig.WithSummary(string! summary) -> TuneLab.SDK.TimelineCanvasConfig!
+TuneLab.SDK.CanvasLaneConfig
+TuneLab.SDK.CanvasLaneConfig.Color.get -> string!
+TuneLab.SDK.CanvasLaneConfig.CreateControl.get -> System.Func<TuneLab.SDK.ITimelineCanvasHost!, TuneLab.SDK.ICanvasControl!>!
+TuneLab.SDK.CanvasLaneConfig.DefaultValue.get -> TuneLab.Foundation.PropertyValue
+TuneLab.SDK.CanvasLaneConfig.Summary.get -> string?
+TuneLab.SDK.CanvasLaneConfig.WithColor(string! color) -> TuneLab.SDK.CanvasLaneConfig!
+TuneLab.SDK.CanvasLaneConfig.WithSummary(string! summary) -> TuneLab.SDK.CanvasLaneConfig!
 TuneLab.SDK.AutomationConfig.ShownByDefault.get -> bool
 TuneLab.SDK.AutomationConfig.WithShownByDefault(bool shown) -> TuneLab.SDK.AutomationConfig!

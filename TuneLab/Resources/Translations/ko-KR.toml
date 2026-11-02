@@ -534,7 +534,7 @@
 "Only some of the selected items have this tag. Pick it from + to add it to all of them." = "선택한 항목 중 일부만 이 태그를 가지고 있습니다. +에서 선택하면 모두에 추가됩니다."
 
 [PropertyObjectController]
-"(Timeline canvases are not supported here)" = "(여기서는 타임라인 캔버스를 지원하지 않습니다)"
+"(This canvas is not supported here)" = "(이 캔버스는 여기서 지원되지 않습니다)"
 "(Unsupported element type: {0})" = "(지원되지 않는 요소 유형: {0})"
 "Reset to Default" = "기본값으로 초기화"
 "{0} items" = "{0}개 항목"

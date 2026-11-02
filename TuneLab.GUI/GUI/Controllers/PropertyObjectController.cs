@@ -65,7 +65,7 @@ internal class PropertyObjectController : StackPanel
         return more ? lines[first] + " …" : lines[first];
     }
 
-    // 宿主注入的逐字段钩子（右键菜单项、时间轴画布跳到参数面板，见 FieldHooks）：在根控制器上设，嵌套的控制器（对象、
+    // 宿主注入的逐字段钩子（右键菜单项、画布 lane 跳到参数面板，见 FieldHooks）：在根控制器上设，嵌套的控制器（对象、
     // 数组 / 列表 / 键控容器的元素）共享同一份，各字段按它在声明树里的路径调用。菜单项在每次右键时现取，排在「恢复默认值」之前。
     public FieldHooks? Hooks { get => mFieldPath.Hooks; set => mFieldPath = FieldPath.Root(value); }
 
@@ -1091,31 +1091,31 @@ internal class PropertyObjectController : StackPanel
         CanvasConfig mConfig;
     }
 
-    // 时间轴画布（TimelineCanvasConfig）：编辑界面在参数面板里，侧栏只占一行——字段名 + 摘要 + 编辑按钮（跳到参数面板），
+    // 画布 lane（CanvasLaneConfig）：编辑界面在参数面板里，侧栏只占一行——字段名 + 摘要 + 编辑按钮（跳到参数面板），
     // 标出它在属性树里的位置、给一个入口。不折叠（没有内容可收）。右键菜单同普通字段（恢复默认值等）。
-    class TimelineCanvasCreator : Creator
+    class CanvasLaneCreator : Creator
     {
-        public TimelineCanvasCreator(PropertyObjectController parent, PropertyKey key, TimelineCanvasConfig config) : base(parent)
+        public CanvasLaneCreator(PropertyObjectController parent, PropertyKey key, CanvasLaneConfig config) : base(parent)
         {
             mConfig = config;
             mKey = key;
-            mRow = new TimelineCanvasRow(key.DisplayText ?? key.Id, () => parent.DataObject.GetRawValue(key.Id), parent.mFieldPath.Hooks, () => parent.mFieldPath.Of(key.Id));
+            mRow = new CanvasLaneRow(key.DisplayText ?? key.Id, () => parent.DataObject.GetRawValue(key.Id), parent.mFieldPath.Hooks, () => parent.mFieldPath.Of(key.Id));
             mRow.Apply(config);
             parent.DataObject.Modified.Subscribe(mRow.RefreshSummary, s);
             AttachContextMenu(key, () => mConfig, mRow.View);
         }
 
-        public override Type ConfigType => typeof(TimelineCanvasConfig);
+        public override Type ConfigType => typeof(CanvasLaneConfig);
         public override IEnumerable<Control> Views => [mRow.View];
         public override void Update(IControllerConfig config)
         {
-            mConfig = (TimelineCanvasConfig)config;
+            mConfig = (CanvasLaneConfig)config;
             mRow.Apply(mConfig);
         }
 
-        readonly TimelineCanvasRow mRow;
+        readonly CanvasLaneRow mRow;
         readonly PropertyKey mKey;
-        TimelineCanvasConfig mConfig;
+        CanvasLaneConfig mConfig;
     }
 
     // bottomGap：标题下方留白。容器字段（数组/列表/键控容器）的内容紧接标题、自身不带上边距，需要它隔开；
@@ -1148,7 +1148,7 @@ internal class PropertyObjectController : StackPanel
         { typeof(ExtensibleObjectConfig), (parent, key, config) => new ExtensibleObjectCreator(parent, key, (ExtensibleObjectConfig)config) },
         { typeof(ButtonConfig), (parent, key, config) => new ButtonCreator(parent, key, (ButtonConfig)config) },
         { typeof(CanvasConfig), (parent, key, config) => new CanvasCreator(parent, key, (CanvasConfig)config) },
-        { typeof(TimelineCanvasConfig), (parent, key, config) => new TimelineCanvasCreator(parent, key, (TimelineCanvasConfig)config) },
+        { typeof(CanvasLaneConfig), (parent, key, config) => new CanvasLaneCreator(parent, key, (CanvasLaneConfig)config) },
     };
 
     ButtonRoot mButtonRoot = new();

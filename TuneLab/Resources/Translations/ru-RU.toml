@@ -534,7 +534,7 @@
 "Only some of the selected items have this tag. Pick it from + to add it to all of them." = "Этот тег есть только у части выбранных элементов. Выберите его в + , чтобы добавить всем."
 
 [PropertyObjectController]
-"(Timeline canvases are not supported here)" = "(Холсты на временной шкале здесь не поддерживаются)"
+"(This canvas is not supported here)" = "(Этот холст здесь не поддерживается)"
 "(Unsupported element type: {0})" = "(Неподдерживаемый тип элемента: {0})"
 "Reset to Default" = "Сбросить до умолчания"
 "{0} items" = "Элементов: {0}"

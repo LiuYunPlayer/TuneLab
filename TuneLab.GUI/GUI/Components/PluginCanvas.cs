@@ -60,7 +60,7 @@ internal sealed class PluginCanvas : Component
     public void SetFactory(Func<ICanvasHost, ICanvasControl> factory)
         => SetFactory(factory, (view, field) => new Session(view, field), session => factory(session));
 
-    // 时间轴画布（TimelineCanvasConfig）的工厂：实例拿到的宿主多一条时间轴（ITimelineCanvasHost）。
+    // 画布 lane（CanvasLaneConfig）的工厂：实例拿到的宿主多一条时间轴（ITimelineCanvasHost）。
     public void SetTimelineFactory(Func<ITimelineCanvasHost, ICanvasControl> factory, ICanvasTimeAxis timeAxis)
         => SetFactory(factory, (view, field) => new TimelineSession(view, field, timeAxis), session => factory((TimelineSession)session));
 
@@ -851,7 +851,7 @@ internal sealed class PluginCanvas : Component
         IDisposable? mEditing;   // 面板在用期间在所在窗口 EditGate 上的登记（见 UpdateLock）
     }
 
-    // 时间轴画布的宿主：多一条时间轴（由所在视图给、跟着它的时间轴走）。
+    // 画布 lane 的宿主：多一条时间轴（由所在视图给、跟着它的时间轴走）。
     sealed class TimelineSession(PluginCanvas view, IDataProperty<PropertyValue> field, ICanvasTimeAxis timeAxis) : Session(view, field), ITimelineCanvasHost
     {
         public ICanvasTimeAxis TimeAxis => timeAxis;

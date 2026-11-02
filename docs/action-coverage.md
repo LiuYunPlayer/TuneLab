@@ -218,7 +218,7 @@
 | mWaveformToggle | toggle | `action:view.toggleWaveform` | 开关与动作都是切换：波形带显隐是一件事，人心里也是一件事 |
 | mAddPanelButton | button | `action:view.addParameterPanel` | 「+」加一块参数面板（照着焦点面板、插在它下方）；右键「+」关掉焦点面板 = view.closeParameterPanel 不给参数。藏着时点「+」只唤醒参数区，动作则唤醒并真加一块（动作说的是「加一块」） |
 | mParameterMenuButton | button | `internal` | 标签栏最右「显示哪些参数」：只是点开与空白处右键同一张勾选列表，列表里各项的裁决见下一行 |
-| label | menu | `action:parameter.pinProperty` | 标签栏空白处右键弹出的勾选列表的一项：打勾 = 在标签栏上，点一下切换（标签按钮自己的右键是开关可见，不弹菜单）。同一个构造出两类项：可钉属性的项对应 `parameter.pinProperty` / `unpinProperty`（列表 = 能钉的 + 引擎不再声明的孤儿钉选；与侧栏属性右键共用 `ParameterPinning.SetPinned`）；常驻参数（声源 / 效果器的自动化轨、时间轴画布）的项对应 `parameter.hideFromTabBar` / `showInTabBar`（`ParameterHiding.SetHidden`）。作用在哪一个是它们的选择器参数 |
+| label | menu | `action:parameter.pinProperty` | 标签栏空白处右键弹出的勾选列表的一项：打勾 = 在标签栏上，点一下切换（标签按钮自己的右键是开关可见，不弹菜单）。同一个构造出两类项：可钉属性的项对应 `parameter.pinProperty` / `unpinProperty`（列表 = 能钉的 + 引擎不再声明的孤儿钉选；与侧栏属性右键共用 `ParameterPinning.SetPinned`）；常驻参数（声源 / 效果器的自动化轨、画布 lane）的项对应 `parameter.hideFromTabBar` / `showInTabBar`（`ParameterHiding.SetHidden`）。作用在哪一个是它们的选择器参数 |
 
 #### TuneLab/UI/MainWindow/Editor/PianoWindow/PianoScrollView/PianoScrollViewOperation.cs
 
