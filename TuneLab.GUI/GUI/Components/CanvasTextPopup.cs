@@ -2,12 +2,11 @@ using System;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Controls.Primitives.PopupPositioning;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using TuneLab.SDK;
 using TuneLab.Utils;
 
@@ -17,6 +16,8 @@ namespace TuneLab.GUI.Components;
 // 文字按 alignment 排在里面、字号随插件、字体随界面——传画字的参数，框里的字就正好盖在画出来的字上。外框（内边距 + 边线）
 // 向外长，不占文字区。框不随内容变大，装不下时框内滚动（不自动折行，与 DrawText 一致）。
 // 按键同宿主文本框：Enter / 点别处 = 确认，Esc = 取消；多行时 Shift+Enter 换行。结果经 finish 只交一次。
+// 不是弹层：挂在画布子树里、按画布坐标摆放（同钢琴窗的歌词输入框）——面板滚动、钢琴窗滚动缩放时跟着画布走，被外层面板裁剪，
+// 不会浮到窗口别处，滚动也不打断输入。
 internal sealed class CanvasTextPopup
 {
     const double MinTextWidth = 40;
@@ -63,7 +64,7 @@ internal sealed class CanvasTextPopup
         mBox.LostFocus += (_, _) => Finish(mBox.Text);
 
         // 白底配深色描边：插件可能把底画成任何颜色（包括浅色），白底失去反差时还有深边勾出边界。
-        var frame = new Border()
+        mFrame = new Border()
         {
             Background = Brushes.White,
             CornerRadius = new(4),
@@ -72,29 +73,17 @@ internal sealed class CanvasTextPopup
             Child = mBox,
         };
 
-        // 锚在画布左上角的 1×1 上、再按偏移挪到外框的左上角：Avalonia 定位时把锚点矩形与目标控件的范围求交，
-        // 落在画布外（矩形部分在画布外时）或零尺寸的锚点交出来是空的，弹出就跑到 (0, 0)。
-        mPopup = new Popup()
-        {
-            PlacementTarget = canvas,
-            Placement = PlacementMode.AnchorAndGravity,
-            PlacementAnchor = PopupAnchor.TopLeft,
-            PlacementGravity = PopupGravity.BottomRight,
-            PlacementRect = new Rect(0, 0, 1, 1),
-            HorizontalOffset = textX - PaddingX - BorderWidth,
-            VerticalOffset = textY - PaddingY - BorderWidth,
-            // 超出屏幕只平移进来，不翻转、不缩小：框要盖在字上，尺寸不能变。
-            PlacementConstraintAdjustment = PopupPositionerConstraintAdjustment.SlideX | PopupPositionerConstraintAdjustment.SlideY,
-            IsLightDismissEnabled = true,
-            Child = frame,
-        };
-        mPopup.Closed += (_, _) => Finish(mBox.Text);   // 点别处收起 = 确认
+        // 外框左上角 = 文字区左上角再往外让出内边距与边线（外框向外长、不占文字区）。
+        mRect = new Rect(textX - PaddingX - BorderWidth, textY - PaddingY - BorderWidth,
+            textWidth + 2 * (PaddingX + BorderWidth), textHeight + 2 * (PaddingY + BorderWidth));
     }
 
     public void Open()
     {
-        mCanvas.AttachPopup(mPopup);
-        mPopup.IsOpen = true;
+        mCanvas.AttachInline(mFrame, mRect);
+        // 点别处 = 确认：焦点移走时文本框自己会失焦（LostFocus），但点到不可聚焦的地方焦点不动，所以在窗口上听按下。
+        mWindow = TopLevel.GetTopLevel(mCanvas);
+        mWindow?.AddHandler(InputElement.PointerPressedEvent, OnWindowPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
         Dispatcher.UIThread.Post(() =>
         {
             if (mDone)
@@ -106,6 +95,13 @@ internal sealed class CanvasTextPopup
 
     // 宿主替插件关掉（实例作废、又弹了一个）：结果为 null。
     public void Cancel() => Finish(null);
+
+    void OnWindowPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.Source is Visual source && (source == mFrame || mFrame.IsVisualAncestorOf(source)))
+            return;
+        Finish(mBox.Text);
+    }
 
     void OnKeyDown(object? sender, KeyEventArgs e)
     {
@@ -128,14 +124,18 @@ internal sealed class CanvasTextPopup
             return;
         mDone = true;
         mFinish(result);
-        mPopup.IsOpen = false;
-        // 摘下弹层推迟一拍：可能正处在它自己的事件里（失焦 / 收起）。
-        Dispatcher.UIThread.Post(() => mCanvas.DetachPopup(mPopup));
+        mWindow?.RemoveHandler(InputElement.PointerPressedEvent, OnWindowPointerPressed);
+        mWindow = null;
+        mFrame.IsVisible = false;
+        // 摘下推迟一拍：可能正处在它自己的事件里（失焦 / 按键）。
+        Dispatcher.UIThread.Post(() => mCanvas.DetachInline(mFrame));
     }
 
     readonly PluginCanvas mCanvas;
     readonly Action<string?> mFinish;
     readonly TextInput mBox;
-    readonly Popup mPopup;
+    readonly Border mFrame;
+    readonly Rect mRect;
+    TopLevel? mWindow;
     bool mDone;
 }

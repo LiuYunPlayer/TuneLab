@@ -162,6 +162,78 @@ internal sealed class PluginCanvas : Component
         LogicalChildren.Remove(popup);
     }
 
+    // 挂在画布子树里、按画布坐标摆放的控件（弹出的文本框）：每次布局都摆回给定的位置，画布挪了（面板滚动、钢琴窗滚动缩放）
+    // 它跟着走；不是弹层，被外层面板裁剪，不会浮到窗口别处。同时至多一个。
+    public void AttachInline(Control control, Rect rect)
+    {
+        AttachPopup(control);
+        mInline = control;
+        mInlineRect = rect;
+        // 框可能伸出画布、盖到相邻的画布上（参数面板里相邻音符的块是同级控件、排在后面）：开着时把自己提到同级最上，
+        // 伸出去那部分的点击才落在框上。
+        ZIndex = 1;
+        InvalidateMeasure();
+    }
+
+    public void DetachInline(Control control)
+    {
+        DetachPopup(control);
+        if (mInline == control)
+        {
+            mInline = null;
+            ZIndex = 0;
+        }
+    }
+
+    protected override Avalonia.Size MeasureOverride(Avalonia.Size availableSize)
+    {
+        var size = base.MeasureOverride(availableSize);
+        mInline?.Measure(mInlineRect.Size);
+        return size;
+    }
+
+    protected override Avalonia.Size ArrangeOverride(Avalonia.Size finalSize)
+    {
+        var size = base.ArrangeOverride(finalSize);
+        mInline?.Arrange(mInlineRect);
+        return size;
+    }
+
+    Control? mInline;
+    Rect mInlineRect;
+
+    // —— 弹出菜单期间按准模态：所在窗口的滚轮不滚底下的内容（菜单自己在弹层里，滚轮照常）；画布被别的原因挪了位置
+    //（播放跟随滚动、缩放、重新排版）就按取消收起——菜单不跟着走，也不会悬在别处。
+    void BeginModalMenu(Action cancel)
+    {
+        EndModalMenu();
+        mMenuCancel = cancel;
+        mMenuOrigin = OriginInWindow();
+        mMenuWindow = TopLevel.GetTopLevel(this);
+        mMenuWindow?.AddHandler(PointerWheelChangedEvent, OnWheelWhileMenuOpen, RoutingStrategies.Tunnel, handledEventsToo: true);
+    }
+
+    void EndModalMenu()
+    {
+        mMenuWindow?.RemoveHandler(PointerWheelChangedEvent, OnWheelWhileMenuOpen);
+        mMenuWindow = null;
+        mMenuCancel = null;
+    }
+
+    static void OnWheelWhileMenuOpen(object? sender, PointerWheelEventArgs e) => e.Handled = true;
+
+    Avalonia.Point? OriginInWindow() => TopLevel.GetTopLevel(this) is { } top ? this.TranslatePoint(default, top) : null;
+
+    void CancelMenuIfMoved()
+    {
+        if (mMenuCancel is { } cancel && OriginInWindow() != mMenuOrigin)
+            cancel();
+    }
+
+    Action? mMenuCancel;
+    Avalonia.Point? mMenuOrigin;
+    TopLevel? mMenuWindow;
+
     DropDownMenu? mMenu;
 
     void OnFieldModified()
@@ -253,6 +325,7 @@ internal sealed class PluginCanvas : Component
         }
         // 底 = 宿主输入框同款（Style.BACK、圆角 4，同数值框 / 路径框）：一眼看出这是一块可编辑的区域；
         // 也让画布整块可命中（插件没画东西的地方同样收得到鼠标）。插件画在它上面。
+        using var clip = context.PushClip(new Rect(Bounds.Size));   // 画布不裁自己的边界（见构造函数），画面在这里裁
         context.FillRectangle(Style.BACK.ToBrush(), new Rect(Bounds.Size), 4);
         RenderInto(context);
     }
@@ -269,6 +342,9 @@ internal sealed class PluginCanvas : Component
     // 隧道阶段先记下这一下的来源，随后（冒泡阶段）的转发据此放行或丢弃。
     public PluginCanvas()
     {
+        // 不裁自己的边界：文本框挂在画布子树里、可以比画布大（窄的音符块上），裁剪交给外层面板（侧栏滚动区、参数面板都裁），
+        // 同钢琴窗的歌词输入框。插件的画面由 Render 自己按画布范围裁。
+        ClipToBounds = false;
         AddHandler(PointerPressedEvent, OnPointerFromAnywhere, RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(PointerMovedEvent, OnPointerFromAnywhere, RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(PointerReleasedEvent, OnPointerFromAnywhere, RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -408,6 +484,7 @@ internal sealed class PluginCanvas : Component
     // 露出的部分变了才重画（契约：VisibleBounds 变化后宿主重新调用 Render）；没变（如滚动的是画布之外的内容）不打扰插件。
     void OnLayoutUpdated(object? sender, System.EventArgs e)
     {
+        CancelMenuIfMoved();
         if (!ExternallyRendered && mSession != null && ComputeVisibleBounds() != mRenderedVisibleBounds)
             InvalidateVisual();
     }
@@ -731,6 +808,7 @@ internal sealed class PluginCanvas : Component
             {
                 if (result.Task.IsCompleted)
                     return;
+                view.EndModalMenu();
                 menu.ItemPicked -= OnPicked;
                 menu.Closed -= OnClosed;
                 if (mPopup == token)
@@ -753,6 +831,7 @@ internal sealed class PluginCanvas : Component
             mPopup = token;
             UpdateLock();
             menu.Open(ComboBoxController.BuildItems(items), 0, AnchorRect(anchor.X, anchor.Y, anchor.Width, anchor.Height));
+            view.BeginModalMenu(token.Close);
             return result.Task;
         }
 
