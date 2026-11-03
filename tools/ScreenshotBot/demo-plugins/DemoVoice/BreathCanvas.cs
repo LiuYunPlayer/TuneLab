@@ -6,8 +6,8 @@ using TuneLab.SDK;
 namespace TuneLab.DocsPlugins.DemoVoice;
 
 // 文档示例的画布 lane（CanvasLaneConfig）「呼吸」：每个音符一块，画一条随时间变化的呼吸强度曲线（只展示，不编辑）。
-// 值 = { "curve": [[秒, 值], …] }：秒是距这块画布起点（XToTime(0)）的秒数，值 0..1；默认 {} = 没有曲线（中性）。
-// 画法：逐像素采样——每列 XToTime(x) 换回秒、再按秒插值，跨过速度变化也与按秒插值的合成一致；只算露出来的列。
+// 值 = { "curve": [[秒, 值], …] }：秒是距这块画布起点（XToSecond(0)）的秒数，值 0..1；默认 {} = 没有曲线（中性）。
+// 画法：逐像素采样——每列 XToSecond(x) 换回秒、再按秒插值，跨过速度变化也与按秒插值的合成一致；只算露出来的列。
 sealed class BreathCanvas(ICanvasLaneHost host, PropertyValue value) : ICanvasControl
 {
     public static readonly PropertyValue Default = PropertyObject.Empty;
@@ -30,10 +30,10 @@ sealed class BreathCanvas(ICanvasLaneHost host, PropertyValue value) : ICanvasCo
 
         var visible = host.VisibleBounds;
         int from = (int)Math.Floor(Math.Max(0, visible.Left)), to = (int)Math.Ceiling(Math.Min(w, visible.Right));
-        double start = host.TimeAxis.XToTime(0);
+        double start = host.TimeAxis.XToSecond(0);
         var line = new List<Point>();
         for (int x = from; x <= to; x++)
-            line.Add(new Point(x, Pad + (h - 2 * Pad) * (1 - Evaluate(points, host.TimeAxis.XToTime(x) - start))));
+            line.Add(new Point(x, Pad + (h - 2 * Pad) * (1 - Evaluate(points, host.TimeAxis.XToSecond(x) - start))));
         if (line.Count < 2)
             return;
         var area = new List<Point>(line) { new(line[^1].X, h), new(line[0].X, h) };

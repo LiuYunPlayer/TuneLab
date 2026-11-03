@@ -39,6 +39,8 @@ static TuneLab.SDK.TagItem.implicit operator TuneLab.SDK.TagItem(string! value) 
 static TuneLab.SDK.TagItem.implicit operator TuneLab.SDK.TagItem(TuneLab.Foundation.PropertyValue value) -> TuneLab.SDK.TagItem
 static TuneLab.SDK.TagItem.Separator(string? label = null) -> TuneLab.SDK.TagItem
 static TuneLab.SDK.CanvasLaneConfig.Create(System.Func<TuneLab.SDK.ICanvasLaneHost!, TuneLab.SDK.ICanvasControl!>! createControl) -> TuneLab.SDK.CanvasLaneConfig!
+static TuneLab.SDK.TimeConverterExtensions.ToSecond(this TuneLab.SDK.ITimeConverter! converter, double tick) -> double
+static TuneLab.SDK.TimeConverterExtensions.ToTick(this TuneLab.SDK.ITimeConverter! converter, double second) -> double
 TuneLab.SDK.ButtonConfig
 TuneLab.SDK.ButtonConfig.OnClick.get -> System.Func<TuneLab.SDK.IButtonClickContext!, System.Threading.Tasks.Task!>!
 TuneLab.SDK.ButtonConfig.Text.get -> string!
@@ -223,22 +225,22 @@ TuneLab.SDK.ICanvasPitchAxis
 TuneLab.SDK.ICanvasPitchAxis.PitchToY(double pitch) -> double
 TuneLab.SDK.ICanvasPitchAxis.YToPitch(double y) -> double
 TuneLab.SDK.ICanvasTimeAxis
-TuneLab.SDK.ICanvasTimeAxis.PosToX(double pos) -> double
-TuneLab.SDK.ICanvasTimeAxis.TempoMap.get -> TuneLab.SDK.ITempoMap!
-TuneLab.SDK.ICanvasTimeAxis.TimeToX(double time) -> double
-TuneLab.SDK.ICanvasTimeAxis.XToPos(double x) -> double
-TuneLab.SDK.ICanvasTimeAxis.XToTime(double x) -> double
+TuneLab.SDK.ICanvasTimeAxis.TickToX(double tick) -> double
+TuneLab.SDK.ICanvasTimeAxis.TimeConverter.get -> TuneLab.SDK.ITimeConverter!
+TuneLab.SDK.ICanvasTimeAxis.SecondToX(double second) -> double
+TuneLab.SDK.ICanvasTimeAxis.XToTick(double x) -> double
+TuneLab.SDK.ICanvasTimeAxis.XToSecond(double x) -> double
 TuneLab.SDK.IDialogService
 TuneLab.SDK.IDialogService.Confirm(string! title, string! message) -> System.Threading.Tasks.Task<bool>!
 TuneLab.SDK.IDialogService.PromptInputs(string! title, System.Func<TuneLab.Foundation.PropertyObject!, TuneLab.SDK.ObjectConfig!>! config) -> System.Threading.Tasks.Task<TuneLab.Foundation.PropertyObject?>!
 TuneLab.SDK.IDialogService.PromptInputs(string! title, TuneLab.SDK.ObjectConfig! config) -> System.Threading.Tasks.Task<TuneLab.Foundation.PropertyObject?>!
 TuneLab.SDK.IDialogService.RunWithProgress(string! title, System.Func<TuneLab.SDK.IProgressReporter!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! work) -> System.Threading.Tasks.Task!
 TuneLab.SDK.IDialogService.ShowMessage(string! title, string! message) -> System.Threading.Tasks.Task!
-TuneLab.SDK.IEffectSynthesisContext.TempoMap.get -> TuneLab.SDK.ITempoMap!
+TuneLab.SDK.IEffectSynthesisContext.TimeConverter.get -> TuneLab.SDK.ITimeConverter!
 TuneLab.SDK.IInstrumentSynthesisContext.InvalidateNotes(System.Collections.Generic.IEnumerable<string!>! noteIds) -> void
 TuneLab.SDK.IInstrumentSynthesisContext.InvalidatePart() -> void
 TuneLab.SDK.IInstrumentSynthesisContext.PartId.get -> string!
-TuneLab.SDK.IInstrumentSynthesisContext.TempoMap.get -> TuneLab.SDK.ITempoMap!
+TuneLab.SDK.IInstrumentSynthesisContext.TimeConverter.get -> TuneLab.SDK.ITimeConverter!
 TuneLab.SDK.IInstrumentSynthesisNote.Id.get -> string!
 TuneLab.SDK.IInstrumentSynthesisNoteView.Id.get -> string!
 TuneLab.SDK.IInstrumentSynthesisPartView.PartId.get -> string!
@@ -248,13 +250,13 @@ TuneLab.SDK.IProgressReporter.Report(double? fraction, string? status = null) ->
 TuneLab.SDK.IProgressReporter.SetCancellable(bool cancellable) -> void
 TuneLab.SDK.ICanvasLaneHost
 TuneLab.SDK.ICanvasLaneHost.TimeAxis.get -> TuneLab.SDK.ICanvasTimeAxis!
-TuneLab.SDK.ITempoMap
-TuneLab.SDK.ITempoMap.PosToTime(double pos) -> double
-TuneLab.SDK.ITempoMap.TimeToPos(double time) -> double
+TuneLab.SDK.ITimeConverter
+TuneLab.SDK.ITimeConverter.ToSeconds(System.Collections.Generic.IReadOnlyList<double>! ticks) -> double[]!
+TuneLab.SDK.ITimeConverter.ToTicks(System.Collections.Generic.IReadOnlyList<double>! seconds) -> double[]!
 TuneLab.SDK.IVoiceSynthesisContext.InvalidateNotes(System.Collections.Generic.IEnumerable<string!>! noteIds) -> void
 TuneLab.SDK.IVoiceSynthesisContext.InvalidatePart() -> void
 TuneLab.SDK.IVoiceSynthesisContext.PartId.get -> string!
-TuneLab.SDK.IVoiceSynthesisContext.TempoMap.get -> TuneLab.SDK.ITempoMap!
+TuneLab.SDK.IVoiceSynthesisContext.TimeConverter.get -> TuneLab.SDK.ITimeConverter!
 TuneLab.SDK.IVoiceSynthesisNoteView.Id.get -> string!
 TuneLab.SDK.IVoiceSynthesisPartView.PartId.get -> string!
 TuneLab.SDK.AddableElement.AddableElement(string! label, System.Collections.Generic.IEnumerable<TuneLab.SDK.AddableElement>! subItems) -> void
@@ -284,3 +286,4 @@ TuneLab.SDK.CanvasLaneConfig.WithColor(string! color) -> TuneLab.SDK.CanvasLaneC
 TuneLab.SDK.CanvasLaneConfig.WithSummary(string! summary) -> TuneLab.SDK.CanvasLaneConfig!
 TuneLab.SDK.AutomationConfig.ShownByDefault.get -> bool
 TuneLab.SDK.AutomationConfig.WithShownByDefault(bool shown) -> TuneLab.SDK.AutomationConfig!
+TuneLab.SDK.TimeConverterExtensions

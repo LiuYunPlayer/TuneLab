@@ -47,18 +47,18 @@ internal partial class AutomationRenderer
         public double Left;
         public double Origin;
 
-        public double TimeToX(double time)
-            => renderer.Part is { } part ? renderer.TickAxis.Tick2X(part.TempoManager.GetTick(time)) - Left : 0;
+        public double SecondToX(double second)
+            => renderer.Part is { } part ? renderer.TickAxis.Tick2X(part.TempoManager.GetTick(second)) - Left : 0;
 
-        public double XToTime(double x)
+        public double XToSecond(double x)
             => renderer.Part is { } part ? part.TempoManager.GetTime(renderer.TickAxis.X2Tick(x + Left)) : 0;
 
-        public double PosToX(double pos) => renderer.TickAxis.Tick2X(Origin + pos) - Left;
+        public double TickToX(double tick) => renderer.TickAxis.Tick2X(Origin + tick) - Left;
 
-        public double XToPos(double x) => renderer.TickAxis.X2Tick(x + Left) - Origin;
+        public double XToTick(double x) => renderer.TickAxis.X2Tick(x + Left) - Origin;
 
-        public ITempoMap TempoMap
-            => new LocalTempoMap(renderer.Part?.TempoManager.CreateSnapshot() ?? EmptyTempo, Origin);
+        public ITimeConverter TimeConverter
+            => new LocalTimeConverter(renderer.Part?.TempoManager.CreateSnapshot() ?? EmptyTempo, Origin);
     }
 
     static readonly TempoSnapshot EmptyTempo = new([new TempoMark(0, 120)], MusicTheory.RESOLUTION);
@@ -127,7 +127,7 @@ internal partial class AutomationRenderer
         var config = resolved.Leaf;
         if (config is not (CanvasConfig or CanvasLaneConfig))
             return;
-        // 不留缝（数值 lane 留 1px 缝是因为段由宿主画）：画布正好覆盖对象的时间段，XToTime(0) / XToTime(Width) 就是它的起止，
+        // 不留缝（数值 lane 留 1px 缝是因为段由宿主画）：画布正好覆盖对象的时间段，XToSecond(0) / XToSecond(Width) 就是它的起止，
         // 跨对象连续的内容也接得上；要不要分隔由插件自己画（底是透明的）。
         double left = TickAxis.Tick2X(startTick);
         double right = TickAxis.Tick2X(endTick);

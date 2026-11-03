@@ -266,7 +266,7 @@ A voice is a **singing synthesis engine** (e.g. an SVS model). This chapter is o
 
 - **Session-hosted thick model**: You implement `IVoiceSynthesisEngine` (one per engine type, parameterless constructor required; the engine id goes in `manifest.json`'s `engine` and the implementing class in `class`, which the host verifies implements `IVoiceSynthesisEngine`). The host calls `CreateSession` once **per MidiPart** in the project to build an `IVoiceSynthesisSession`. **All synthesis state is hosted by the session itself** — chunking, scheduling state, audio buffers, synthesis progress, and dirty (invalidation) decisions are all on your side. The reason: the invalidation dependency graph (e.g. the tiered pipeline "phoneme duration → pitch → audio", where changing an automation only requires re-rendering audio and not recomputing phonemes) is understood only by the engine; the host cannot replicate it. The host does only three things: push the change stream of project data to you, drive scheduling, and read your products to display them.
 - **Declaration vs execution layering**: The session has two kinds of outward responsibilities — *declaration* (which automation tracks / synthesized parameter tracks / property panels / default lyric this sound source exposes) and *execution* (synthesis). Declaration is entirely a **pure function of the current part/note parameter values**; the host recomputes it on parameter commit and diffs it to the UI (see §5.2).
-- **All time quantities on the plugin side are global seconds**: note boundaries, curve query points, windowing intervals, status-segment ranges, audio-segment alignment — **all are seconds** (`double`). Ticks reach you only through the tempo map: for data defined in beats (say, ticks stored in a canvas lane), `context.TempoMap` (`ITempoMap`, local ticks ↔ global seconds, origin = the part's origin; derive a note-level origin with `TempoMap.TimeToPos(note.StartTime)`) converts them to seconds. It is immutable and usable from any thread — take it in the synchronous prefix and carry it into the worker along with the snapshot. Global time 0s = sample 0. Tempo changes (and part shifts) do not need explicit handling on your side, and there is **no incremental notification**: the host simply rebuilds the whole session (old session `Dispose`d, a new session with a new context), and the new session reads the new second values — implement `Dispose` correctly and it is naturally correct (§5.9).
+- **All time quantities on the plugin side are global seconds**: note boundaries, curve query points, windowing intervals, status-segment ranges, audio-segment alignment — **all are seconds** (`double`). Ticks reach you only through the tempo map: for data defined in beats (say, ticks stored in a canvas lane), `context.TimeConverter` (`ITimeConverter`, local ticks ↔ global seconds, origin = the part's origin; derive a note-level origin with `TimeConverter.ToTick(note.StartTime)`) converts them to seconds. It is immutable and usable from any thread — take it in the synchronous prefix and carry it into the worker along with the snapshot. Global time 0s = sample 0. Tempo changes (and part shifts) do not need explicit handling on your side, and there is **no incremental notification**: the host simply rebuilds the whole session (old session `Dispose`d, a new session with a new context), and the new session reads the new second values — implement `Dispose` correctly and it is naturally correct (§5.9).
 - **Two views + thread discipline (the most important pitfall)**:
   - **Live view** (`IVoiceSynthesisContext` and its `IVoiceSynthesisNote` / `ISynthesisAutomation`): subscribable, **accessible only on the data thread**. Used for "receive change notifications → mark dirty", "`GetNextPendingSynthesisRange` chunking decisions", and "the `SynthesizeNext` synchronous prefix pulling a snapshot".
   - **Frozen snapshot** (`VoiceSynthesisSnapshot` and the `*Snapshot` family, `IAutomationEvaluator`): immutable, event-free, **cross-thread safe**. Background workers **only read snapshots** and never touch any live-view object.
@@ -1296,11 +1296,11 @@ props.Add(("mix", "Mix"), CanvasLaneConfig.Create(host => new MixCanvas(host, va
   and still edit across a multi-selection.
 - **Coordinates**: the factory receives an `ICanvasLaneHost` — time runs horizontally and pitch vertically, so it has a
   `TimeAxis` and a `PitchAxis`. The host always provides both; ignore what you don't need.
-  - **Time, two units**: `TimeToX(seconds)` / `XToTime(x)` in global seconds (`TimeToX(0)` = project start, the same as the
-    declaration view's `IVoiceSynthesisNoteView.StartTime`), and `PosToX(ticks)` / `XToPos(x)` in **local ticks** relative to the
-    data's origin — the owning note's start (phoneme-level fields too): `PosToX(0)` = the note's start. Local ticks may be
+  - **Time, two units**: `SecondToX(seconds)` / `XToSecond(x)` in global seconds (`SecondToX(0)` = project start, the same as the
+    declaration view's `IVoiceSynthesisNoteView.StartTime`), and `TickToX(ticks)` / `XToTick(x)` in **local ticks** relative to the
+    data's origin — the owning note's start (phoneme-level fields too): `TickToX(0)` = the note's start. Local ticks may be
     negative. Pick the pair that matches your data's unit; content tied to the music (beats) is best stored in local ticks, so it
-    stays put when the note moves or the tempo changes. `TimeAxis.TempoMap` converts local ticks ↔ global seconds without x
+    stays put when the note moves or the tempo changes. `TimeAxis.TimeConverter` converts local ticks ↔ global seconds without x
     (immutable; take it when you need it, don't cache it across renders — a tempo change gives a new one).
   - **Pitch**: `PitchToY(semitones)` / `YToPitch(y)`, the same unit as a note's `Pitch` and synthesized pitch (60 = middle C).
     **Key n spans [n, n + 1)**: `PitchToY(n)` is its lower edge and `PitchToY(n + 1)` its upper edge, so a key cell or note block
@@ -1308,12 +1308,12 @@ props.Add(("mix", "Mix"), CanvasLaneConfig.Create(host => new MixCanvas(host, va
     center line (an in-tune 60 is drawn in the middle of key 60, where the host draws its pitch curve): draw a value with
     `PitchToY(value + 0.5)`, and read a value from the pointer with `YToPitch(y) - 0.5` — storing `YToPitch(y)` as is would be
     50 cents sharp. In the parameter panel the vertical axis is the pitch of the note area behind the panel.
-  - **Do not assume either axis is linear.** The block covers `XToTime(0)` to `XToTime(Width)`, which is not necessarily the
+  - **Do not assume either axis is linear.** The block covers `XToSecond(0)` to `XToSecond(Width)`, which is not necessarily the
     object's own start / end (a note is clamped to the next note's start; phoneme display times are laid out by the host).
     Scrolling, zooming and tempo edits change the mappings; the host re-renders.
 - **What you see is what you hear**: a curve defined in a unit the horizontal axis isn't linear in (today: seconds) must not be
   drawn by mapping only its control points and joining them with straight lines — across a tempo change that differs from
-  interpolating in that unit. Sample per pixel (`XToTime(x)` for each column, then evaluate in seconds) and it matches synthesis
+  interpolating in that unit. Sample per pixel (`XToSecond(x)` for each column, then evaluate in seconds) and it matches synthesis
   exactly. Draw and synthesize in the same unit.
 - **Background**: `host.IsBackground` is true while the canvas is shown behind another active parameter (dimmed, no input);
   draw a simplified version then (say, only the outline, no text) to keep the foreground clear. It is false in the side panel.

@@ -265,7 +265,7 @@ voice 是**歌声合成引擎**（如 SVS 模型）。本章按「先建立心�
 
 - **会话托管厚模型**：你实现 `IVoiceSynthesisEngine`（每种引擎类型一个，需无参构造函数；引擎 id 写在 `manifest.json` 的 `engine`，实现类写在 `class`，宿主校验它实现 `IVoiceSynthesisEngine`）。宿主为工程里**每条 MidiPart** 调一次 `CreateSession` 建一个 `IVoiceSynthesisSession`。**合成的全部状态由会话自己托管**——分块、调度状态、音频缓冲、合成进度、失效（dirty）判定全在你这边。理由：失效依赖图（如「音素时长 → 音高 → 音频」的分级管线，改自动化只需重渲音频而不必重算音素）只有引擎自己懂，宿主无从复制。宿主只做三件事：把工程数据的变更流推给你、驱动调度、读你的产物来展示。
 - **声明 vs 执行分层**：会话对外有两类职责——*声明*（这个声源暴露哪些自动化轨/回显轨/属性面板、默认歌词）与*执行*（合成）。声明全部是「当前 part/note 参数值的纯函数」，宿主在参数 commit 时重算并 diff 到 UI（详见 §5.2）。
-- **插件侧时间量一律全局秒**：note 边界、曲线查询点、开窗区间、状态段范围、音频段对齐——**全部是秒**（`double`）。tick 只经速度映射给出：按拍子定义的数据（如画布 lane 里按 tick 存的内容）用 `context.TempoMap`（`ITempoMap`，局部 tick ↔ 全局秒，原点 = part 原点；音符级数据的原点用 `TempoMap.TimeToPos(note.StartTime)` 换出）换成秒，它不可变、任何线程可用，同步前缀取出连同快照带进 worker 即可。全局 0 秒 = 采样点 0。tempo 变化（及 part 平移）不需要你显式处理，也**没有增量通知**：宿主直接整体重建会话（旧会话 `Dispose`、新 context 新会话），新会话读到的就是新秒值——正确实现 `Dispose` 即天然正确（§5.9）。
+- **插件侧时间量一律全局秒**：note 边界、曲线查询点、开窗区间、状态段范围、音频段对齐——**全部是秒**（`double`）。tick 只经速度映射给出：按拍子定义的数据（如画布 lane 里按 tick 存的内容）用 `context.TimeConverter`（`ITimeConverter`，局部 tick ↔ 全局秒，原点 = part 原点；音符级数据的原点用 `TimeConverter.ToTick(note.StartTime)` 换出）换成秒，它不可变、任何线程可用，同步前缀取出连同快照带进 worker 即可。全局 0 秒 = 采样点 0。tempo 变化（及 part 平移）不需要你显式处理，也**没有增量通知**：宿主直接整体重建会话（旧会话 `Dispose`、新 context 新会话），新会话读到的就是新秒值——正确实现 `Dispose` 即天然正确（§5.9）。
 - **两视图 + 线程纪律（最重要的坑）**：
   - **活视图**（`IVoiceSynthesisContext` 及其 `IVoiceSynthesisNote` / `ISynthesisAutomation`）：可订阅、**只能在数据线程访问**。用于「收变更通知 → 标脏」「`GetNextPendingSynthesisRange` 分片决策」「`SynthesizeNext` 同步前缀拉快照」。
   - **冻结快照**（`VoiceSynthesisSnapshot` 及 `*Snapshot` 家族、`IAutomationEvaluator`）：不可变、无事件、**可跨线程**。后台 worker **只读快照**，永不回碰任何活视图对象。
@@ -1284,19 +1284,19 @@ props.Add(("mix", "Mix"), CanvasLaneConfig.Create(host => new MixCanvas(host, va
   列表照常在侧栏增删、调序；元素对象里别的普通字段照常显示、可以多选批量改。
 - **坐标**：工厂收到的是 `ICanvasLaneHost`——横向是时间、纵向是音高，有 `TimeAxis` 与 `PitchAxis`。
   两条轴宿主一律给，用不到的不调即可。
-  - **时间，两种单位**：`TimeToX(秒)` / `XToTime(x)` 是全局秒（`TimeToX(0)` = 工程开头，与声明视图
-    `IVoiceSynthesisNoteView.StartTime` 同一口径）；`PosToX(tick)` / `XToPos(x)` 是**局部 tick**，相对这块数据的原点——所属音符的
-    起点（音素级字段同样）：`PosToX(0)` = 音符起点，局部 tick 可以为负。按自己数据的单位选一组；跟着音乐走（按拍子）的内容
-    宜按局部 tick 存，音符挪了、速度改了都不错位。`TimeAxis.TempoMap` 不经 x 换算局部 tick ↔ 全局秒（不可变；用时再取、
+  - **时间，两种单位**：`SecondToX(秒)` / `XToSecond(x)` 是全局秒（`SecondToX(0)` = 工程开头，与声明视图
+    `IVoiceSynthesisNoteView.StartTime` 同一口径）；`TickToX(tick)` / `XToTick(x)` 是**局部 tick**，相对这块数据的原点——所属音符的
+    起点（音素级字段同样）：`TickToX(0)` = 音符起点，局部 tick 可以为负。按自己数据的单位选一组；跟着音乐走（按拍子）的内容
+    宜按局部 tick 存，音符挪了、速度改了都不错位。`TimeAxis.TimeConverter` 不经 x 换算局部 tick ↔ 全局秒（不可变；用时再取、
     别跨 Render 缓存——改了速度就是另一份）。
   - **音高**：`PitchToY(半音)` / `YToPitch(y)`，单位同音符 `Pitch` 与合成音高（60 = 中央 C）。**n 号键占 [n, n + 1)**：
     `PitchToY(n)` 是它的下沿、`PitchToY(n + 1)` 是上沿，画一格琴键或音符块就在这两条线之间，指针下的键是 `Math.Floor(YToPitch(y))`。
     音高**值**落在键的中线上（唱准的 60 画在 60 号键正中，宿主画音高曲线也在那里）：画音高值用 `PitchToY(值 + 0.5)`，由指针读出
     音高值用 `YToPitch(y) - 0.5`——直接拿 `YToPitch(y)` 当音高存会偏高 50 音分。在参数面板里，纵轴就是面板背后那块音符区的音高。
-  - **两条轴都别假设线性。** 这块画布覆盖的时间段就是 `XToTime(0)` 到 `XToTime(Width)`；它未必等于对象自己的起止（note 会被
+  - **两条轴都别假设线性。** 这块画布覆盖的时间段就是 `XToSecond(0)` 到 `XToSecond(Width)`；它未必等于对象自己的起止（note 会被
     钳到下一个 note 的起点，音素的显示时间由宿主排版）。滚动、缩放、改速度后换算随之变，宿主会重新 `Render`。
 - **所见即所闻**：不在横轴线性的那个单位里定义的曲线（眼下即按秒定义的），别只换算控制点再连直线——跨过速度变化处会与按秒
-  插值的结果不一致。逐像素采样（每一列 `XToTime(x)` 换回秒、再按秒求值）就与合成严格一致。画与合成用同一个单位插值。
+  插值的结果不一致。逐像素采样（每一列 `XToSecond(x)` 换回秒、再按秒求值）就与合成严格一致。画与合成用同一个单位插值。
 - **作背景时**：`host.IsBackground` 为 true 表示画布正垫在另一个激活的参数下面（压暗、不收输入），可以画简化版（如只画轮廓、
   不画文字），给前景让出视野。侧栏里恒为 false。
 - **以宿主的换算为准**：别用你合成时自己算出的音素时间来画。宿主给的是屏幕上显示的时间段，画布要与用户看到的音素块对齐；

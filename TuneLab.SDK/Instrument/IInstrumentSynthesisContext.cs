@@ -8,7 +8,7 @@ namespace TuneLab.SDK;
 // 线程纪律：事件恒在数据线程触发与处理，handler 只做廉价记录 / 标脏；合成永不碰活视图，
 // 只读派发时物化的 InstrumentSnapshot。
 //
-// 坐标系约定：插件侧时间量一律为全局秒（与音频产物、状态段同一时间系）；tick 只经 TempoMap 给出（按拍子定义的数据换算用）。
+// 坐标系约定：插件侧时间量一律为全局秒（与音频产物、状态段同一时间系）；tick 只经 TimeConverter 给出（按拍子定义的数据换算用）。
 //
 // 与 voice 的 IVoiceSynthesisContext 差异：Notes 元素是 IInstrumentNote（满末、不去重叠）；
 // 【无 Pitch / PitchDeviation 双音高通道】（v1 纯按 note 整数 pitch 发声）。其余（automation / 快照 /
@@ -24,9 +24,9 @@ public interface IInstrumentSynthesisContext
 
     // 速度映射（局部 tick ↔ 全局秒，原点 = part 的原点）：给按拍子定义的数据（如画布 lane 里按 tick 存的内容）在合成时换成秒。
     // 其余时间量照旧全是全局秒。读到的这份不可变、任何线程可用（同步前缀里取出、连同快照带进 worker 即可）；速度表改了宿主给新的一份。
-    // 音符级数据的原点用音符的 StartTime 换出：origin = TempoMap.TimeToPos(note.StartTime)，time = TempoMap.PosToTime(origin + pos)
+    // 音符级数据的原点用音符的 StartTime 换出：origin = TimeConverter.ToTick(note.StartTime)，time = TimeConverter.ToSecond(origin + pos)
     //（音素级用所属音符的 StartTime）——与画布侧 ICanvasTimeAxis 的局部 tick 一致。
-    ITempoMap TempoMap { get; }
+    ITimeConverter TimeConverter { get; }
     // 链表形态（无索引承诺，宿主数据层即双向链表）：顺序消费用枚举、头尾 O(1) 走 First/Last、
     // 邻居导航走 note.Next/Previous；支持 WhenAny（成员增删自动接线）。
     //

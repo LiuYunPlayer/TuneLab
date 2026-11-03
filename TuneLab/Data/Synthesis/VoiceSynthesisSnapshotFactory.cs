@@ -13,7 +13,7 @@ namespace TuneLab.Data.Synthesis;
 // 替换，而非同步：数据变了走活视图通知 → 插件标脏 → 下次合成拉一份全新快照。
 //
 // 全秒轴：插件面 [startTime, endTime] 与各求值器查询点均为全局秒；tick 仅在本物化器与冻结
-// 求值器内部出现（经 tempo 快照换算）。snapshot 不携带 Timing；插件要 tick 换算走 context.TempoMap（LocalTempoMap）。
+// 求值器内部出现（经 tempo 快照换算）。snapshot 不携带 Timing；插件要 tick 换算走 context.TimeConverter（LocalTimeConverter）。
 internal static class VoiceSynthesisSnapshotFactory
 {
     // 须在数据线程调用。notes 须为本 part 当前 context 的 note 代理；

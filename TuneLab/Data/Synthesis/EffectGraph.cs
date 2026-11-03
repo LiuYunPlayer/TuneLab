@@ -978,7 +978,7 @@ internal sealed class EffectGraph : IDisposable
     sealed class EffectContext : IEffectSynthesisContext, IDisposable
     {
         // 速度映射：当时的速度表快照（TempoManager 缓存到改动为止）+ part 原点；不可变，任何线程可用。
-        public ITempoMap TempoMap => new LocalTempoMap(mPart.TempoManager.CreateSnapshot(), mPart.Pos.Value);
+        public ITimeConverter TimeConverter => new LocalTimeConverter(mPart.TempoManager.CreateSnapshot(), mPart.Pos.Value);
         public EffectContext(MidiPart part, IEffect effect, UpstreamSegment input)
         {
             mPart = part;

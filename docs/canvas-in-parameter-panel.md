@@ -76,10 +76,10 @@ public interface ICanvasTimeAxis
 {
     // 秒（全局秒，与声明视图 IVoiceSynthesisNoteView.StartTime 同一口径）↔ 画布内横坐标（逻辑像素）。
     // 跟着钢琴窗的 tick 轴，速度变化处不均匀；插件不该假设它线性（以后钢琴窗若能切成均匀时间轴，这里随之均匀，接口不变）。
-    // 这块画布覆盖的时间段就是 XToTime(0) 到 XToTime(Width)，不另给起止：它未必等于对象自己的起止
+    // 这块画布覆盖的时间段就是 XToSecond(0) 到 XToSecond(Width)，不另给起止：它未必等于对象自己的起止
     //（note 级画布用 lane 段，会被钳到下一个 note 的起点；音素的显示时间由宿主排版），插件按自己数据里的绝对时间换算即可。
-    double TimeToX(double time);
-    double XToTime(double x);
+    double SecondToX(double time);
+    double XToSecond(double x);
 }
 ```
 
@@ -127,13 +127,13 @@ public interface ICanvasTimeAxis
 - 宿主**不**替插件把横轴按速度变形。变形需要猜每个图元是"时间范围"还是"固定大小的标记"，猜错了插件没有退路；
   换算交给插件，错了是插件自己能改的代码。
 - 代价：所见即所闻归插件负责。按秒画的曲线若只换算控制点再连直线，跨过速度变化处会与听到的不一致；逐像素采样
-  （每一列 `XToTime(x)` 换回秒、再按秒求值）就与合成严格一致。不提供"按秒折线 → 屏幕折线"的帮手：逐像素采样已经精确，
+  （每一列 `XToSecond(x)` 换回秒、再按秒求值）就与合成严格一致。不提供"按秒折线 → 屏幕折线"的帮手：逐像素采样已经精确，
   帮手只省点数；真有插件需要再加（`ICanvasTimeAxis` 由宿主实现，加成员是纯加法）。
 
 ## 5. 几何与长度变化
 
 - 一块画布的横向范围：note 级 = 该 note 的 lane 段（与属性 lane 同一套去重叠，`NoteLaneRanges`）；
-  音素级 = 该音素的显示几何（`note.DisplayPhonemes`）。纵向 = 参数面板高度。**不留缝**（数值 lane 的 1px 缝不照搬）：画布正好覆盖时间段，`XToTime(0)` / `XToTime(Width)` 就是起止，分隔由插件自己画。
+  音素级 = 该音素的显示几何（`note.DisplayPhonemes`）。纵向 = 参数面板高度。**不留缝**（数值 lane 的 1px 缝不照搬）：画布正好覆盖时间段，`XToSecond(0)` / `XToSecond(Width)` 就是起止，分隔由插件自己画。
 - 缩放、滚动、改面板高度、未钉住的音素在合成后变长变短，都只是 `Width` / `Height` / `TimeAxis` 变了，宿主重新调 `Render`。
 - 音素级画布的提交走属性 lane 的写回范式：先 `LockPhonemes`（合成音素 → 钉死，保几何），再写属性，同一个撤销步。
   草稿不是工程数据，不触发合成，所以编辑过程中几何不会因为自己的草稿而变。
@@ -151,7 +151,7 @@ public interface ICanvasTimeAxis
 1. 画布要能接受任意宽高：参数面板里宽度是对象的时长、高度是面板高度，可能很窄、很矮、也可能很宽。按尺寸响应排版。
    放大后 `Width` 可能上万像素：逐像素采样、自己生成位图的，只算 `VisibleBounds` 露出来的部分。
 2. 画布 lane 里按秒画的内容用 `TimeAxis` 换算；曲线逐像素采样，别只换算控制点再连直线。数据按"这块画布内的相对位置"
-   定义的，时间段取 `XToTime(0)` 到 `XToTime(Width)`。
+   定义的，时间段取 `XToSecond(0)` 到 `XToSecond(Width)`。
 3. **画布里以宿主的换算为准**，不要用插件自己合成时算出的音素时间来画：宿主给的是屏幕上显示的时间段（`DisplayPhonemes`），
    画布要与用户看到的音素块对齐。两者在合成结果回填后一致（未钉住的音素显示的就是引擎的结果，钉住的两边用同一个
    `PhonemeLayout`），只在改动后、合成回来前的过渡期不同；显示一更新宿主就重新 `Render`。
@@ -309,7 +309,7 @@ public interface ICanvasTimeAxis
   public interface ISynthesisTimelineCanvas            // 宿主实现
   {
       PropertyValue Value { get; }
-      ITempoMap TempoMap { get; }                      // 局部 tick ↔ 全局秒；会话内不变（速度改动走会话重建）
+      ITimeConverter TimeConverter { get; }                      // 局部 tick ↔ 全局秒；会话内不变（速度改动走会话重建）
       IActionEvent<double, double> RangeModified { get; }   // 全局秒，同 ISynthesisAutomation
   }
   ```
@@ -369,59 +369,59 @@ public interface ICanvasTimeAxis
 
 ```csharp
 // 速度映射：局部 tick ↔ 全局秒。不可变、线程安全；画布、会话、合成快照共用这一个类型。
-public interface ITempoMap
+public interface ITimeConverter
 {
-    double PosToTime(double pos);   // pos = 相对本映射原点的 tick；返回全局秒
-    double TimeToPos(double time);
+    double ToSecond(double pos);   // pos = 相对本映射原点的 tick；返回全局秒
+    double ToTick(double time);
 }
 
 public interface ICanvasTimeAxis
 {
-    double TimeToX(double time);    // 全局秒：TimeToX(0) = 工程开头
-    double XToTime(double x);
-    double PosToX(double pos);      // 局部 tick：PosToX(0) = 这块数据的原点
-    double XToPos(double x);
-    ITempoMap TempoMap { get; }     // 当前映射，原点 = 这块画布数据的原点
+    double SecondToX(double time);    // 全局秒：SecondToX(0) = 工程开头
+    double XToSecond(double x);
+    double TickToX(double pos);      // 局部 tick：TickToX(0) = 这块数据的原点
+    double XToTick(double x);
+    ITimeConverter TimeConverter { get; }     // 当前映射，原点 = 这块画布数据的原点
 }
 ```
 
-两组换算都保留：`TimeToX` 可由 `PosToX(TempoMap.TimeToPos(t))` 组合出来，但按秒定义的内容（合成音素、合成参数、音频对齐、音素混合）
+两组换算都保留：`SecondToX` 可由 `TickToX(TimeConverter.ToTick(t))` 组合出来，但按秒定义的内容（合成音素、合成参数、音频对齐、音素混合）
 是一等公民，不该为画几条秒线先学局部 tick；插件按自己数据的单位选一组，不经另一单位中转。两组**都不承诺线性**：眼下横轴是 tick 轴、
-`PosToX` 恰好线性，但钢琴窗以后若能切成均匀时间轴，线性的就换成 `TimeToX`。
+`TickToX` 恰好线性，但钢琴窗以后若能切成均匀时间轴，线性的就换成 `SecondToX`。
 
-合成侧（已实现）：**合成上下文（声源 / 乐器 / 效果器）上挂一份** `ITempoMap TempoMap { get; }`，原点 = part 原点。**快照不另带**：映射不可变、
+合成侧（已实现）：**合成上下文（声源 / 乐器 / 效果器）上挂一份** `ITimeConverter TimeConverter { get; }`，原点 = part 原点。**快照不另带**：映射不可变、
 任何线程可用，插件在同步前缀取出、连同快照带进 worker 即可——免得给已发布的快照 DTO 加一个按规矩不能标 required、又给不出合理默认值的字段。
 宿主每次读给当时的映射（效果器上下文不随速度改动重建，读时取最新）。
 **不需要可通知**：速度表改动与 part 平移都走会话整体重建（见 `IVoiceSynthesisNote` / `ISynthesisAutomation` 注释），会话内恒定。
-音符级数据的局部 tick 由插件用音符的 `StartTime` 换出原点：`origin = map.TimeToPos(note.StartTime)`，`time = map.PosToTime(origin + pos)`
+音符级数据的局部 tick 由插件用音符的 `StartTime` 换出原点：`origin = map.ToTick(note.StartTime)`，`time = map.ToSecond(origin + pos)`
 （音素级用所属音符的 `StartTime`）——与画布侧的局部 tick 一致（画布原点就是音符起点的 tick，`StartTime` 正是由它按同一速度表换来的）。
 音符挪了 `StartTime` 本来就通知，插件按新起点重算即可。画布侧照旧：速度一改宿主重新调 `Render`。宿主内部 `TempoManager` 已有不可变
-快照（`ToTick` / `ToSecond`），包一层即可（`LocalTempoMap`）。
+快照（`ToTick` / `ToSecond`），包一层即可（`LocalTimeConverter`）。
 
-> 更正（2026-11-03）：原稿写"音符代理上各挂一份 `TempoMap`（原点 = 音符起点）"，错在两处：音符在会话内被拖动时原点会变（会话不重建，
+> 更正（2026-11-03）：原稿写"音符代理上各挂一份 `TimeConverter`（原点 = 音符起点）"，错在两处：音符在会话内被拖动时原点会变（会话不重建，
 > 只通知 `StartTime`），那份映射并不恒定；且每音符一份是多余的——原点用 `StartTime` 一步就能换出。改为上下文一份。
 
 **定下的规则**
 
-- **tick 局部、秒全局**：`PosToTime(局部 tick)` 返回全局秒。插件拿到的其余时间全是全局秒（音符 `StartTime`、自动化轨求值、音频段、
-  `TimeToX`），秒也局部化就得自己再加偏移，等于把原点请回来。
-- **画布侧原点由宿主给、插件不知道**：挪动 / 拆分 / 复制时宿主只换映射的原点，插件无感。不提供 `OriginPos`，也不让插件从 `XToTime(0)`
+- **tick 局部、秒全局**：`ToSecond(局部 tick)` 返回全局秒。插件拿到的其余时间全是全局秒（音符 `StartTime`、自动化轨求值、音频段、
+  `SecondToX`），秒也局部化就得自己再加偏移，等于把原点请回来。
+- **画布侧原点由宿主给、插件不知道**：挪动 / 拆分 / 复制时宿主只换映射的原点，插件无感。不提供 `OriginPos`，也不让插件从 `XToSecond(0)`
   推断（拆分后右半的左边缘变了）。合成侧按上一段由 `StartTime` 换出同一个原点。
 - **经上下文给出，不进全局**：速度表是工程数据，按 SDK 一贯做法经上下文给出（插件没有"当前工程"的全局入口）；
   同一入口给出的映射与该入口的其余数据同一版本（快照里与快照的音符同一时刻）。
 
 | 数据 | 画布侧 | 合成侧 | 原点 |
 |---|---|---|---|
-| note 级画布 | `TimeAxis.TempoMap`（原点已是音符起点） | 上下文的 `TempoMap` + 由 `StartTime` 换出的原点 | 音符起点 |
+| note 级画布 | `TimeAxis.TimeConverter`（原点已是音符起点） | 上下文的 `TimeConverter` + 由 `StartTime` 换出的原点 | 音符起点 |
 | 音素级画布 | 同上 | 同上（所属音符的 `StartTime`） | 所属音符起点（音素位置由排版决定，不当原点） |
-| part 级画布（将来，§10） | 同上 | 代理对象上的 `TempoMap`（带宿主内部的偏移） | part 锚点（宿主内部另存偏移，平时 0；拆分 / 合并后非 0，插件无感） |
+| part 级画布（将来，§10） | 同上 | 代理对象上的 `TimeConverter`（带宿主内部的偏移） | part 锚点（宿主内部另存偏移，平时 0；拆分 / 合并后非 0，插件无感） |
 
 - **局部 tick 可以为负**：拆分后右半的原点仍在原处，它起点之前那段数据的局部 tick 是负的。插件读数据不能假设 ≥ 0。
-- **插值域要声明**：按 tick 定义的内容画布里用 `PosToX` / `XToPos`，按秒定义的用 `TimeToX` / `XToTime`；不在横轴线性的那个域里
+- **插值域要声明**：按 tick 定义的内容画布里用 `TickToX` / `XToTick`，按秒定义的用 `SecondToX` / `XToSecond`；不在横轴线性的那个域里
   的曲线逐像素采样（眼下即按秒的曲线）。插件自己的曲线在哪个域插值，
   画与合成必须同一个域，否则跨速度变化处对不上。§7 第 2 条届时按此改写。
 - **暂不给**：拍号（按小节对齐网格等，以后纯加法补）；声明上下文里的映射（声明时按拍子算摘要等，等真实需求）。
-- **命名**：秒 `Time`、tick `Pos`（术语表），方法统一 `AToB`，与现有 `TimeToX` 同风格。
+- **命名**：秒 `Time`、tick `Pos`（术语表），方法统一 `AToB`，与现有 `SecondToX` 同风格。
 
 **音高轴**（已实现）：`ICanvasLaneHost` 与 `TimeAxis` 平行加一条 `ICanvasPitchAxis PitchAxis`（`PitchToY` / `YToPitch`，单位半音，
 同音符 `Pitch` 与合成音高）。宿主**一律提供**，画布 lane 也有，不在声明里开关——用不到纵轴的插件不调就是了。
@@ -434,8 +434,8 @@ public interface ICanvasTimeAxis
 **前景 / 背景**（已实现）：`ICanvasHost.IsBackground`（放在基接口上：钉进参数面板的侧栏画布同样会作背景）（普通 getter，变化时宿主重调 `Render`，同 `Width` / `VisibleBounds`），
 作背景显示时插件可简化绘制（如只画轮廓、不画文字），给前景参数让出视野。画布 lane 现在就有背景状态（宿主压暗、不收输入）。
 
-**落地拆分**：画布侧（`ICanvasTimeAxis` 加 tick 换算与 `TempoMap`）改的是未发布 API，宜在画布合入 master 发布前做；合成侧（合成上下文
-加 `TempoMap`）是已发布接口上的纯加法（宿主实现面），已实现。
+**落地拆分**：画布侧（`ICanvasTimeAxis` 加 tick 换算与 `TimeConverter`）改的是未发布 API，宜在画布合入 master 发布前做；合成侧（合成上下文
+加 `TimeConverter`）是已发布接口上的纯加法（宿主实现面），已实现。
 
 ## 13. 画布没有默认值（已实现）
 

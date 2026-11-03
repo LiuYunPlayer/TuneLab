@@ -11,7 +11,7 @@ namespace TuneLab.SDK;
 //
 // 时间量为全局秒（与音频产物同系）：边界是 tempo 表派生的秒值。时基变更（tempo 表 / part 平移）
 // 不走增量通知——宿主整体重建会话（同 voice），边界 Modified 只在 note 自身编辑时触发。
-// 时间量一律全局秒；按拍子定义的数据经 context.TempoMap 换算。
+// 时间量一律全局秒；按拍子定义的数据经 context.TimeConverter 换算。
 public interface IInstrumentSynthesisNote
 {
     // 运行期稳定身份（宿主发号的不透明 token、不持久）：note 对象存活期间恒定、宿主进程内唯一（跨会话重建不变）。
