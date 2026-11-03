@@ -22,6 +22,8 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
 
     public string VoiceId => mVoiceId;
     public string PartId => mPart.RuntimeId;
+    // 速度映射：当时的速度表快照（TempoManager 缓存到改动为止）+ part 原点；不可变，任何线程可用。
+    public ITempoMap TempoMap => new LocalTempoMap(mPart.TempoManager.CreateSnapshot(), mPart.Pos.Value);
     public IReadOnlyNotifiableLinkedList<IVoiceSynthesisNote> Notes => mNotes;
     public IReadOnlyNotifiablePropertyObject PartProperties => mPartProperties;
     public ISynthesisAutomation Pitch => mPitch;

@@ -8,7 +8,7 @@ namespace TuneLab.SDK;
 //
 // 时间量为全局秒（插件侧统一秒轴，与音频产物同系）：note 边界是 tempo 表派生的秒值。
 // 时基变更（tempo 表 / part 平移）**不走增量通知**——宿主整体重建会话（含 context），新会话
-// 读到新秒值；边界 Modified 只在 note 自身编辑时触发。tick 是宿主乐谱内部表示、不外露。
+// 读到新秒值；边界 Modified 只在 note 自身编辑时触发。按拍子定义的数据经 context.TempoMap 换算（原点用本 note 的 StartTime 换出）。
 public interface IVoiceSynthesisNote
 {
     // 运行期稳定身份（宿主发号的不透明 token、不持久）：合成产物 SynthesizedPhonemes 按此键回指归属 note，

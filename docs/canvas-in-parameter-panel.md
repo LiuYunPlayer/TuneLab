@@ -389,7 +389,9 @@ public interface ICanvasTimeAxis
 是一等公民，不该为画几条秒线先学局部 tick；插件按自己数据的单位选一组，不经另一单位中转。两组**都不承诺线性**：眼下横轴是 tick 轴、
 `PosToX` 恰好线性，但钢琴窗以后若能切成均匀时间轴，线性的就换成 `TimeToX`。
 
-合成侧：**合成上下文（声源 / 乐器 / 效果器）上挂一份** `ITempoMap TempoMap { get; }`，原点 = part 起点；合成快照带同一份。
+合成侧（已实现）：**合成上下文（声源 / 乐器 / 效果器）上挂一份** `ITempoMap TempoMap { get; }`，原点 = part 原点。**快照不另带**：映射不可变、
+任何线程可用，插件在同步前缀取出、连同快照带进 worker 即可——免得给已发布的快照 DTO 加一个按规矩不能标 required、又给不出合理默认值的字段。
+宿主每次读给当时的映射（效果器上下文不随速度改动重建，读时取最新）。
 **不需要可通知**：速度表改动与 part 平移都走会话整体重建（见 `IVoiceSynthesisNote` / `ISynthesisAutomation` 注释），会话内恒定。
 音符级数据的局部 tick 由插件用音符的 `StartTime` 换出原点：`origin = map.TimeToPos(note.StartTime)`，`time = map.PosToTime(origin + pos)`
 （音素级用所属音符的 `StartTime`）——与画布侧的局部 tick 一致（画布原点就是音符起点的 tick，`StartTime` 正是由它按同一速度表换来的）。
@@ -433,7 +435,7 @@ public interface ICanvasTimeAxis
 作背景显示时插件可简化绘制（如只画轮廓、不画文字），给前景参数让出视野。画布 lane 现在就有背景状态（宿主压暗、不收输入）。
 
 **落地拆分**：画布侧（`ICanvasTimeAxis` 加 tick 换算与 `TempoMap`）改的是未发布 API，宜在画布合入 master 发布前做；合成侧（合成上下文
-与快照加 `TempoMap`）是已发布接口上的纯加法（宿主实现面 / DTO 加字段），可同批或单独提。
+加 `TempoMap`）是已发布接口上的纯加法（宿主实现面），已实现。
 
 ## 13. 画布没有默认值（已实现）
 

@@ -7,7 +7,7 @@ namespace TuneLab.SDK;
 // 调用方递一列查询点 + 输出缓冲，拿回该曲线（含 vibrato/默认值等最终合成结果）在各点的值。
 // **查询点所在的坐标轴由「提供该求值器的一方」规定、不由本接口固定**——当前宿主交付的所有求值器
 // （IVoiceSynthesisContext.Pitch/PitchDeviation/Automations、各 *Snapshot 的 Evaluator 等）均以全局秒为轴；
-// tick 等宿主内部表示不外露、插值算法恒在宿主侧完成，调用方不需要懂坐标换算与插值。
+// 插值算法恒在宿主侧完成，调用方不需要懂坐标换算与插值（求值不经 tick）。
 public interface IAutomationEvaluator
 {
     // positions = 查询点（轴由求值器提供方规定，当前均为全局秒），**必须按非降序（升序，允许相等）排列**——实现

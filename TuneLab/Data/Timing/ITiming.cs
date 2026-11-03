@@ -4,7 +4,7 @@ namespace TuneLab.Data.Timing;
 
 // 工程时间轴的 tick↔秒换算服务（由 tempo 表决定的双射度量）。宿主内部契约：
 // 实现家族（LiveTiming 活实现 / TempoSnapshot 冻结实现）与本接口同居宿主，不进插件可见的 SDK 面
-// （插件侧时间量全为秒、tick 不外露，故 SDK 不需要此换算契约）。
+// （插件侧时间量全为秒；插件要换算按拍子定义的数据时经 SDK 的 ITempoMap——宿主实现 LocalTempoMap 包一份本家族的快照）。
 // 命名约定：Tick = 乐理位置（单位 tick），Second = 实时位置（单位秒）；
 // 单复数表元数——表示单个时间点用单数（ToTick/ToSecond），批量才用复数（ToTicks/ToSeconds）。
 public interface ITiming

@@ -265,7 +265,7 @@ voice 是**歌声合成引擎**（如 SVS 模型）。本章按「先建立心�
 
 - **会话托管厚模型**：你实现 `IVoiceSynthesisEngine`（每种引擎类型一个，需无参构造函数；引擎 id 写在 `manifest.json` 的 `engine`，实现类写在 `class`，宿主校验它实现 `IVoiceSynthesisEngine`）。宿主为工程里**每条 MidiPart** 调一次 `CreateSession` 建一个 `IVoiceSynthesisSession`。**合成的全部状态由会话自己托管**——分块、调度状态、音频缓冲、合成进度、失效（dirty）判定全在你这边。理由：失效依赖图（如「音素时长 → 音高 → 音频」的分级管线，改自动化只需重渲音频而不必重算音素）只有引擎自己懂，宿主无从复制。宿主只做三件事：把工程数据的变更流推给你、驱动调度、读你的产物来展示。
 - **声明 vs 执行分层**：会话对外有两类职责——*声明*（这个声源暴露哪些自动化轨/回显轨/属性面板、默认歌词）与*执行*（合成）。声明全部是「当前 part/note 参数值的纯函数」，宿主在参数 commit 时重算并 diff 到 UI（详见 §5.2）。
-- **插件侧时间量一律全局秒**：note 边界、曲线查询点、开窗区间、状态段范围、音频段对齐——**全部是秒**（`double`）。tick 只是宿主乐谱内部表示、**绝不外露**给插件。全局 0 秒 = 采样点 0。tempo 变化（及 part 平移）不需要你显式处理，也**没有增量通知**：宿主直接整体重建会话（旧会话 `Dispose`、新 context 新会话），新会话读到的就是新秒值——正确实现 `Dispose` 即天然正确（§5.9）。
+- **插件侧时间量一律全局秒**：note 边界、曲线查询点、开窗区间、状态段范围、音频段对齐——**全部是秒**（`double`）。tick 只经速度映射给出：按拍子定义的数据（如画布 lane 里按 tick 存的内容）用 `context.TempoMap`（`ITempoMap`，局部 tick ↔ 全局秒，原点 = part 原点；音符级数据的原点用 `TempoMap.TimeToPos(note.StartTime)` 换出）换成秒，它不可变、任何线程可用，同步前缀取出连同快照带进 worker 即可。全局 0 秒 = 采样点 0。tempo 变化（及 part 平移）不需要你显式处理，也**没有增量通知**：宿主直接整体重建会话（旧会话 `Dispose`、新 context 新会话），新会话读到的就是新秒值——正确实现 `Dispose` 即天然正确（§5.9）。
 - **两视图 + 线程纪律（最重要的坑）**：
   - **活视图**（`IVoiceSynthesisContext` 及其 `IVoiceSynthesisNote` / `ISynthesisAutomation`）：可订阅、**只能在数据线程访问**。用于「收变更通知 → 标脏」「`GetNextPendingSynthesisRange` 分片决策」「`SynthesizeNext` 同步前缀拉快照」。
   - **冻结快照**（`VoiceSynthesisSnapshot` 及 `*Snapshot` 家族、`IAutomationEvaluator`）：不可变、无事件、**可跨线程**。后台 worker **只读快照**，永不回碰任何活视图对象。

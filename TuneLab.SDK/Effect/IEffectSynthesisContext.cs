@@ -15,6 +15,10 @@ public interface IEffectSynthesisContext
     // 区间账本（可选缓存信息源）。经 Input.Read 按区间拷出（同步前缀物化到处理器自有缓冲）。
     IEffectSynthesisAudio Input { get; }
 
+    // 速度映射（局部 tick ↔ 全局秒，原点 = part 的原点）：给按拍子定义的数据（如按拍同步的处理）在合成时换成秒。
+    // 其余时间量照旧全是全局秒。读到的这份不可变、任何线程可用（同步前缀里取出、连同快照带进 worker 即可）；速度表改了宿主给新的一份。
+    ITempoMap TempoMap { get; }
+
     // 该 effect 自身参数活视图（同步前缀读值物化；Modified 为可选的缓存刷新提示）。
     IReadOnlyNotifiablePropertyObject Properties { get; }
 

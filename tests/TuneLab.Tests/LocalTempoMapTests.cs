@@ -26,4 +26,17 @@ public class LocalTempoMapTests
         Assert.Equal(Tempo.ToSecond(1440), map.PosToTime(-480), 9);
         Assert.Equal(-480, map.TimeToPos(Tempo.ToSecond(1440)), 9);
     }
+
+    // 合成侧只给 part 原点的一份映射，音符级原点由插件用 StartTime 换出——与画布侧以音符起点为原点的映射逐点一致。
+    [Fact]
+    public void ContextMapPlusStartTimeOriginMatchesTheCanvasNoteMap()
+    {
+        double partPos = 480, noteStartTick = 1680;               // 音符起点跨在速度变化（1920）之前
+        var context = new LocalTempoMap(Tempo, partPos);
+        var canvas = new LocalTempoMap(Tempo, noteStartTick);
+        double startTime = Tempo.ToSecond(noteStartTick);          // 音符代理的 StartTime 就是这样换来的
+        double origin = context.TimeToPos(startTime);
+        foreach (double pos in new[] { -240.0, 0, 120, 960 })      // 跨过速度变化处、也含负的局部 tick
+            Assert.Equal(canvas.PosToTime(pos), context.PosToTime(origin + pos), 9);
+    }
 }

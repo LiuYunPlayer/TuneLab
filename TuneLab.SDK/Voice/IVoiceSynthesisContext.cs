@@ -28,6 +28,12 @@ public interface IVoiceSynthesisContext
     //（换声库 / 时基变更）不变。与声明面 IVoiceSynthesisPartView.PartId 同一个号：插件据此把会话里算出的 part 级
     // 派生状态（如后台分析结果）与声明求值时拿到的 part 对上（见 InvalidatePart）。
     string PartId { get; }
+
+    // 速度映射（局部 tick ↔ 全局秒，原点 = part 的原点）：给按拍子定义的数据（如画布 lane 里按 tick 存的内容）在合成时换成秒。
+    // 其余时间量照旧全是全局秒。读到的这份不可变、任何线程可用（同步前缀里取出、连同快照带进 worker 即可）；速度表改了宿主给新的一份。
+    // 音符级数据的原点用音符的 StartTime 换出：origin = TempoMap.TimeToPos(note.StartTime)，time = TempoMap.PosToTime(origin + pos)
+    //（音素级用所属音符的 StartTime）——与画布侧 ICanvasTimeAxis 的局部 tick 一致。
+    ITempoMap TempoMap { get; }
     // 链表形态（无索引承诺，宿主数据层即双向链表）：顺序消费用枚举、头尾 O(1) 走
     // First/Last、邻居导航走 note.Next/Previous；支持 WhenAny（成员增删自动接线）。
     //
