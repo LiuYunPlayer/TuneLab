@@ -181,6 +181,14 @@ internal partial class AutomationRenderer : View
         mDependency.TickAxis.AxisChanged += Update;
         mDependency.TickAxis.AxisChanged += UpdateAnchorValueInput;
         mDependency.PianoScrollView.RegionSelectionChanged += InvalidateVisual;   // 范围选区变化（任一区拖/清）→ 参数区重绘同一条 tick 带
+        mDependency.PianoScrollView.PitchAxis.AxisChanged += OnPitchAxisChanged;
+    }
+
+    // 画布 lane 的纵轴是面板背后那块音符区的音高（CanvasPitchAxis）：钢琴窗纵向滚动 / 缩放后要重画画布。没有画布就不必重画。
+    void OnPitchAxisChanged()
+    {
+        if (mCanvases.Count > 0)
+            InvalidateVisual();
     }
 
     ~AutomationRenderer() => Detach();
@@ -192,6 +200,7 @@ internal partial class AutomationRenderer : View
         s.DisposeAll();
         ClearCanvases();
         mDependency.PianoScrollView.RegionSelectionChanged -= InvalidateVisual;
+        mDependency.PianoScrollView.PitchAxis.AxisChanged -= OnPitchAxisChanged;
         mDependency.ActiveAutomationChanged -= InvalidateVisual;
         mDependency.ActiveAutomationChanged -= UpdateAnchorValueInput;
         mDependency.VisibleAutomationChanged -= InvalidateVisual;
