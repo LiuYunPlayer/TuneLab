@@ -750,6 +750,16 @@ internal static class IMidiPartExtension
         {
             automations.Add(kvp.Key, new() { DefaultValue = part.Automations[kvp.Key].DefaultValue.GetInfo(), Points = kvp.Value });
         }
+        // 效果链整条带上（实例 id 沿用：各子段是独立的 part，链内唯一不冲突，颤音对效果器轨的影响表按 id 随之重连），
+        // 各效果器的自动化轨与分段轨同 part 级一样裁到子段、换到子段起点。
+        var effects = new List<EffectInfo>();
+        foreach (var effect in part.Effects)
+        {
+            var info = effect.GetInfo();
+            info.Automations = RangeAutomations(effect.Automations, start, end);
+            info.PiecewiseAutomations = RangePiecewiseAutomations(effect.PiecewiseAutomations, start, end);
+            effects.Add(info);
+        }
         return new MidiPartInfo()
         {
             // 提取的子段为全新独立 part：锚点落在子段起点、无前向裁剪（StartOffset 默认 0）、长度 = end - start。
@@ -762,7 +772,26 @@ internal static class IMidiPartExtension
             Pitch = new PitchInfo { Segments = parameters.Pitch },
             Notes = notes,
             Vibratos = vibratos,
-            Automations = automations
+            Automations = automations,
+            PiecewiseAutomations = RangePiecewiseAutomations(part.PiecewiseAutomations, start, end),
+            Effects = effects,
         };
+    }
+
+    static Map<string, AutomationInfo> RangeAutomations(IReadOnlyDataObjectMap<string, IAutomation> automations, double start, double end)
+    {
+        var map = new Map<string, AutomationInfo>();
+        foreach (var kvp in automations)
+            map.Add(kvp.Key, new() { DefaultValue = kvp.Value.DefaultValue.GetInfo(), Points = kvp.Value.RangeInfo(start, end) });
+        return map;
+    }
+
+    // 分段轨：落在子段里的各段（换到子段起点）。子段里没有段的轨也按键留着（空轨），同 part 上的存法。
+    static Map<string, PiecewiseAutomationInfo> RangePiecewiseAutomations(IReadOnlyDataObjectMap<string, IPiecewiseAutomation> automations, double start, double end)
+    {
+        var map = new Map<string, PiecewiseAutomationInfo>();
+        foreach (var kvp in automations)
+            map.Add(kvp.Key, new PiecewiseAutomationInfo { Segments = kvp.Value.RangeInfo(start, end) });
+        return map;
     }
 }
