@@ -193,6 +193,7 @@ sealed class StretchCurveCanvas(ICanvasHost host, IReadOnlyList<PropertyValue> v
     {
         if (e.Button == CanvasMouseButton.Secondary && mDragging < 0)
         {
+            e.Handled = true;
             ShowMenu(e.Position);
             return;
         }
@@ -200,7 +201,8 @@ sealed class StretchCurveCanvas(ICanvasHost host, IReadOnlyList<PropertyValue> v
             return;
         int hit = HitTest(e.Position);
         if (hit < 0)
-            return;
+            return;   // 没点中控制点：不接，交给外层
+        e.Handled = true;
         if (e.IsDoubleClick)
         {
             var points = Points();

@@ -175,6 +175,7 @@ sealed class LaneDemoCanvas(ICanvasLaneHost host, PropertyValue value, string la
     {
         if (e.Button == CanvasMouseButton.Secondary)
         {
+            e.Handled = true;   // 右键：删点或弹菜单，都是本画布的
             int hit = HitTest(e.Position);
             if (hit >= 0)
             {
@@ -189,7 +190,8 @@ sealed class LaneDemoCanvas(ICanvasLaneHost host, PropertyValue value, string la
             return;
         }
         if (e.Button != CanvasMouseButton.Primary)
-            return;
+            return;   // 中键等不接：冒泡给外层（参数面板里平移时间轴）
+        e.Handled = true;   // 左键：点符号 / 加点 / 拖点都是本画布的
 
         // 点画在符号上面，按下也先归点：压在符号区里的点照样能拖，没点中点才弹符号框。
         int index = HitTest(e.Position);

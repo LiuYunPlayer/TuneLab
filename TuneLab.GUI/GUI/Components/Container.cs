@@ -1,6 +1,8 @@
 ﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.VisualTree;
 using Avalonia.Media;
 using System;
 using System.Collections.Generic;
@@ -31,6 +33,23 @@ internal class Container : ContainerBase
 
         mLayoutPanel = new(this);
         base.Children.Add(mLayoutPanel);
+
+        // 子元素冒泡上来、没人处理的指针事件：主组件与子元素是兄弟、不在冒泡路径上，得在这里转给它——只转声明了要转的子元素
+        //（Component.ForwardsUnhandledPointerToContainer，如插件画布：它不要的按下 / 滚轮归下面这层的手势，中键平移、Ctrl 滚轮缩放……）。
+        // 按下转过来时把鼠标捕获也转给主组件，这次拖动的移动与抬起随后直接送到它。
+        AddHandler(PointerPressedEvent, OnChildPointer, RoutingStrategies.Bubble);
+        AddHandler(PointerMovedEvent, OnChildPointer, RoutingStrategies.Bubble);
+        AddHandler(PointerWheelChangedEvent, OnChildPointer, RoutingStrategies.Bubble);
+    }
+
+    void OnChildPointer(object? sender, PointerEventArgs e)
+    {
+        if (e.Handled || e.Source is not Component { ForwardsUnhandledPointerToContainer: true } source || ReferenceEquals(source, mMainComponent)
+            || !mLayoutPanel.IsVisualAncestorOf(source))
+            return;
+        if (e is PointerPressedEventArgs)
+            e.Pointer.Capture(mMainComponent);
+        mMainComponent.ReceiveForwarded(e);
     }
 
     public new virtual void Render(DrawingContext context) { }

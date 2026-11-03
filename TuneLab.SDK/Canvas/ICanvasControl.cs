@@ -18,6 +18,13 @@ public interface ICanvasControl
     // 宿主先画好底（与宿主输入框同款的深色圆角底），插件画在它上面。
     void Render(ICanvasDrawing drawing) { }
 
+    // 鼠标：先问插件，没置 Handled 就冒泡给画布外层（参数面板里 = 宿主在那里的手势，如中键平移时间轴、Shift 拉范围选区）。
+    // · 按下：要这次操作就置 e.Handled = true——之后的移动与抬起只给你（同现在的自动捕获）。不置 = 不要：宿主当场补发一次抬起
+    //  （IsClick = false），这次拖动的移动与抬起都归外层，你收不到。**归属只在按下时定**，之后不能再交出或收回。
+    //   要按"按下到抬起移动了多远"决定行为（点一下 vs 拖动）的，只能一律接住，宿主就拿不到这次按下；所以要和别的层叠着用的画布
+    //   宜只在自己画了东西的地方接、空白处不接。
+    // · 移动：没按着键时，用了（如悬停改了状态并要独占）就置 Handled，否则外层照常收到；正拖着自己接住的按下时一律不冒泡。
+    // · 抬起：配对的按下是你接住的，抬起就是你的（不冒泡）。
     void OnMouseDown(CanvasMouseButtonEvent e) { }
     void OnMouseMove(CanvasMouseEvent e) { }
     void OnMouseUp(CanvasMouseButtonEvent e) { }

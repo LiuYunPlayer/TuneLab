@@ -121,7 +121,8 @@ sealed class ImageDemoCanvas(ICanvasHost host, IReadOnlyList<PropertyValue> valu
     public void OnMouseDown(CanvasMouseButtonEvent e)
     {
         if (e.Button != CanvasMouseButton.Primary)
-            return;
+            return;   // 别的键不接：照常冒泡给外层（参数面板里中键平移时间轴……）
+        e.Handled = true;   // 接住这次按下：拖动的移动与抬起才归本画布
         if (e.IsDoubleClick)
         {
             Draft(0);

@@ -73,12 +73,48 @@ internal class Component : Control
     protected sealed override void OnPointerPressed(PointerPressedEventArgs e)
     {
         var p = e.GetCurrentPoint(this);
-        CallMouseDown(new()
+        var args = new MouseDownEventArgs()
         {
             KeyModifiers = e.KeyModifiers.ToModifierKeys(),
             Position = p.Position,
             MouseButtonType = p.Properties.PointerUpdateKind.ToMouseButtonType(),
-        });
+        };
+        CallMouseDown(args);
+        ApplyDown(e, args);
+    }
+
+    // 按下的去向：消费了 = 不再冒泡；不要 = 放掉鼠标捕获（按下随后冒泡到外层，由接手的那一层重新捕获，见 Container）。
+    void ApplyDown(PointerEventArgs e, MouseDownEventArgs args)
+    {
+        if (args.Handled)
+            e.Handled = true;
+        else if (args.Declined && e.Pointer.Captured == this)
+            e.Pointer.Capture(null);
+    }
+
+    // 没处理的指针事件（按下 / 移动 / 滚轮）交给所在的 Container 去处理（它的输入由内部的主组件收，与子元素是兄弟，
+    // 不在冒泡路径上，得由 Container 转过去）。只给"下面还有一层宿主手势"的控件开（如插件画布），普通子控件不受影响。
+    public bool ForwardsUnhandledPointerToContainer { get; protected set; }
+
+    // Container 转来的、子元素没处理的指针事件：与自己收到一样处理（位置按本组件坐标算）。
+    internal void ReceiveForwarded(PointerEventArgs e)
+    {
+        switch (e)
+        {
+            case PointerPressedEventArgs pressed:
+                OnPointerPressed(pressed);
+                break;
+            case PointerReleasedEventArgs released:
+                OnPointerReleased(released);
+                break;
+            case PointerWheelEventArgs wheel:
+                OnPointerWheelChanged(wheel);
+                break;
+            default:
+                if (e.RoutedEvent == PointerMovedEvent)
+                    OnPointerMoved(e);
+                break;
+        }
     }
 
     protected sealed override void OnPointerMoved(PointerEventArgs e)
@@ -89,22 +125,27 @@ internal class Component : Control
             case PointerUpdateKind.LeftButtonPressed:
             case PointerUpdateKind.MiddleButtonPressed:
             case PointerUpdateKind.RightButtonPressed:
-                CallMouseDown(new()
+                var down = new MouseDownEventArgs()
                 {
                     KeyModifiers = e.KeyModifiers.ToModifierKeys(),
                     Position = p.Position,
                     MouseButtonType = p.Properties.PointerUpdateKind.ToMouseButtonType(),
-                });
+                };
+                CallMouseDown(down);
+                ApplyDown(e, down);
                 break;
             case PointerUpdateKind.LeftButtonReleased:
             case PointerUpdateKind.MiddleButtonReleased:
             case PointerUpdateKind.RightButtonReleased:
-                CallMouseUp(new()
+                var up = new MouseUpEventArgs()
                 {
                     KeyModifiers = e.KeyModifiers.ToModifierKeys(),
                     Position = p.Position,
                     MouseButtonType = p.Properties.PointerUpdateKind.ToMouseButtonType(),
-                });
+                };
+                CallMouseUp(up);
+                if (up.Handled)
+                    e.Handled = true;
                 break;
             default:
                 var args = new MouseMoveEventArgs()
@@ -119,6 +160,8 @@ internal class Component : Control
 
                 CallMouseMove(args);
                 mLastMoveGlobalPosition = globalPosition;
+                if (args.Handled)
+                    e.Handled = true;
                 break;
         }
     }
@@ -126,12 +169,15 @@ internal class Component : Control
     protected sealed override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         var p = e.GetCurrentPoint(this);
-        CallMouseUp(new()
+        var args = new MouseUpEventArgs()
         {
             KeyModifiers = e.KeyModifiers.ToModifierKeys(),
             Position = p.Position,
             MouseButtonType = p.Properties.PointerUpdateKind.ToMouseButtonType(),
-        });
+        };
+        CallMouseUp(args);
+        if (args.Handled)
+            e.Handled = true;
     }
 
     protected sealed override void OnPointerEntered(PointerEventArgs e)

@@ -360,6 +360,8 @@ internal sealed class PluginCanvas : Component
         // 不裁自己的边界：文本框挂在画布子树里、可以比画布大（窄的音符块上），裁剪交给外层面板（侧栏滚动区、参数面板都裁），
         // 同钢琴窗的歌词输入框。插件的画面由 Render 自己按画布范围裁。
         ClipToBounds = false;
+        // 插件没接的按下 / 移动 / 滚轮归画布所在那一层的宿主手势（参数面板：中键平移、Ctrl 滚轮缩放……），见 Container。
+        ForwardsUnhandledPointerToContainer = true;
         AddHandler(PointerPressedEvent, OnPointerFromAnywhere, RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(PointerMovedEvent, OnPointerFromAnywhere, RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(PointerReleasedEvent, OnPointerFromAnywhere, RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -370,16 +372,30 @@ internal sealed class PluginCanvas : Component
 
     bool mPointerFromPopup;
 
+    // 鼠标事件先问插件，插件没置 Handled 就冒泡给外层（参数面板 / 侧栏），与滚轮、按键同一约定（契约见 ICanvasControl）：
+    // · 按下：插件接了 = 这次拖动归插件（捕获留在画布，移动与抬起只给它）；没接 = 当场补发抬起（IsClick = false），捕获交给外层、
+    //   这次拖动的移动与抬起都归外层（如中键平移时间轴）。归属只在按下时定，之后不变。
+    // · 移动：插件接了（或正拖着自己接住的按下）就不冒泡；否则外层照常收到（悬停等）。
+    // · 抬起：配对的那次按下归插件 → 不冒泡。
     protected override void OnMouseDown(MouseDownEventArgs e)
     {
         if (mPointerFromPopup)
             return;
         var button = ToButton(e.MouseButtonType);
-        mPressed |= Bit(button);
-        if (Prepare() is not { } session)
-            return;
-        session.Pressed |= Bit(button);
-        session.Call(control => control.OnMouseDown(new CanvasMouseButtonEvent(ToPoint(e.Position), ToModifiers(e.KeyModifiers), button, e.IsDoubleClick, false)));
+        var args = new CanvasMouseButtonEvent(ToPoint(e.Position), ToModifiers(e.KeyModifiers), button, e.IsDoubleClick, false);
+        if (Prepare() is { } session)
+        {
+            mPressed |= Bit(button);
+            session.Pressed |= Bit(button);
+            session.Call(control => control.OnMouseDown(args));
+            if (args.Handled)
+            {
+                e.Handled = true;
+                return;
+            }
+            Release(button, args.Position, args.Modifiers, false);   // 没接：补发抬起，这次按下配上对
+        }
+        e.Declined = true;
     }
 
     protected override void OnMouseUp(MouseUpEventArgs e)
@@ -387,8 +403,10 @@ internal sealed class PluginCanvas : Component
         if (mPointerFromPopup)
             return;
         var button = ToButton(e.MouseButtonType);
-        if ((mPressed & Bit(button)) != 0)   // 在别处按下、到画布上才松开的抬起不算
-            Release(button, ToPoint(e.Position), ToModifiers(e.KeyModifiers), e.IsClick);
+        if ((mPressed & Bit(button)) == 0)   // 在别处按下、到画布上才松开的抬起不算（也不是插件的）
+            return;
+        Release(button, ToPoint(e.Position), ToModifiers(e.KeyModifiers), e.IsClick);
+        e.Handled = true;
     }
 
     protected override void OnMouseMove(MouseMoveEventArgs e)
@@ -398,7 +416,12 @@ internal sealed class PluginCanvas : Component
     }
 
     void MoveTo(MouseMoveEventArgs e)
-        => Prepare()?.Call(control => control.OnMouseMove(new CanvasMouseEvent(ToPoint(e.Position), ToModifiers(e.KeyModifiers))));
+    {
+        var args = new CanvasMouseEvent(ToPoint(e.Position), ToModifiers(e.KeyModifiers));
+        Prepare()?.Call(control => control.OnMouseMove(args));
+        if (args.Handled || mPressed != 0)
+            e.Handled = true;
+    }
 
     protected override void OnMouseEnter(MouseEnterEventArgs e)
     {

@@ -6,8 +6,8 @@ namespace TuneLab.SDK;
 // 画布全部事件参数的基类（宿主构造）。以后只加属性、不改既有属性。
 public class CanvasEvent
 {
-    // 插件处理了这次事件就置 true：宿主不再做该事件的默认动作。默认 false = 交还宿主。
-    // 宿主有默认动作的事件才读它（滚轮 = 滚动所在面板，键盘 = 冒泡给快捷键），其余事件置不置都一样；各事件的默认动作见其回调注释。
+    // 插件处理了这次事件就置 true：宿主不再做该事件的默认动作。默认 false = 交还宿主（冒泡给画布外层）。**用了就必须如实置位**。
+    // 按下 / 移动 / 抬起 / 滚轮 / 按键都读它；进入 / 离开不读。各事件的默认动作与归属规则见 ICanvasControl。
     public bool Handled { get; set; }
 
     internal CanvasEvent() { }
