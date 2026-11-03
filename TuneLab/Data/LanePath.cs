@@ -156,6 +156,14 @@ internal static class LanePath
             parent.SetValue(key, value);
     }
 
+    // 整块写（画布：宿主不解读、只整值读写）：同 Write，叶子经 SetWholeValue 存成一块不可变的值、不拆节点树。
+    public static void WriteWhole(IDataPropertyObject root, IReadOnlyList<Step> steps, PropertyValue value)
+    {
+        var (parent, key) = Navigate(root, steps, create: true);
+        if (parent != null && key != null)
+            parent.SetWholeValue(key, value);
+    }
+
     // 清除：只移除叶子上存的值（回到默认值），不动路径上的容器。路径上缺东西 = 本就没有值，什么都不做。
     public static void Remove(IDataPropertyObject root, IReadOnlyList<Step> steps)
     {

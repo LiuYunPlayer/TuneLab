@@ -20,6 +20,9 @@ public interface IDataPropertyObject : IDataObject, IReadOnlyNotifiablePropertyO
     // 可为任意类型）：不在候选里的值由控件自己的非法值契约兜底，而不是在这里被换成默认值。多选：全等→该值，不等→Multiple。
     PropertyValue GetRawValue(string key);
     void SetValue(string key, PropertyValue value);
+    // 本层叶子整块写：值原样存成一块不可变的值、不拆成子节点树（PropertySlot.Whole）。给宿主不解读、只整值读写的字段（画布）用，
+    // 大值时提交 / 读取 / 撤销历史都只是引用。读照旧（GetRawValue 直接给出这块值）。没实现的外观退回普通 SetValue——功能一样，只是慢。
+    void SetWholeValue(string key, PropertyValue value) => SetValue(key, value);
     // 移除本层某键（presence：把 present 翻回 absent）。缺键 = no-op；不下钻。变长键控容器（ExtensibleObjectConfig）删条目用。
     void RemoveValue(string key);
 
@@ -71,14 +74,26 @@ public static class IDataPropertyObjectExtension
         return new RawPropertyField(dataObject, key, defaultValue);
     }
 
-    class RawPropertyField(IDataPropertyObject dataObject, string key, PropertyValue defaultValue)
+    // 整块字段：同 RawValueField（按原值读、没存值 = Null），写经 SetWholeValue 整块存——给画布（宿主不解读、只整值读写）。
+    public static IDataProperty<PropertyValue> WholeValueField(this IDataPropertyObject dataObject, string key)
+    {
+        return new RawPropertyField(dataObject, key, PropertyValue.Null, whole: true);
+    }
+
+    class RawPropertyField(IDataPropertyObject dataObject, string key, PropertyValue defaultValue, bool whole = false)
         : IDataObject.Wrapper(dataObject), IDataProperty<PropertyValue>, IRawValueProperty
     {
         public PropertyValue RawValue { get { var raw = dataObject.GetRawValue(key); return raw.IsNull() ? defaultValue : raw; } }
         public PropertyValue Value => RawValue;
         public PropertyValue GetInfo() => Value;
-        public void SetInfo(PropertyValue value) => dataObject.SetValue(key, value);
-        public void Set(PropertyValue value) => dataObject.SetValue(key, value);
+        public void SetInfo(PropertyValue value) => Set(value);
+        public void Set(PropertyValue value)
+        {
+            if (whole)
+                dataObject.SetWholeValue(key, value);
+            else
+                dataObject.SetValue(key, value);
+        }
     }
 
     // 字段适配器：借壳节点本身（Head/Commit/DiscardTo/Modified 经 Wrapper 转发到文档撤销根），

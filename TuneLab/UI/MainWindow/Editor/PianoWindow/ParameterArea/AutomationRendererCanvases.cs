@@ -294,7 +294,7 @@ internal partial class AutomationRenderer
         public void Set(PropertyValue value)
         {
             if (WriteRoot() is { } root)
-                LanePath.Write(root, steps, value);
+                LanePath.WriteWhole(root, steps, value);   // 画布的值整块存（不拆节点树）
         }
 
         IDataPropertyObject? ReadRoot()

@@ -47,6 +47,13 @@ public class DataPropertyObject : DataObject, IDataObject<PropertyObject>, IRead
 
     void IDataPropertyObject.SetValue(string key, PropertyValue value) => SetValue(key, value);
 
+    // 本层叶子整块写（PropertySlot.Whole）：缺键则建叶子。撤销同 SetValue（换的只是槽里的引用）。
+    public void SetWholeValue(string key, PropertyValue value)
+    {
+        var slot = PropertySlot.Whole(value);   // 先规范（Multiple 在此被拒），再建键
+        FindValue(key).Set(slot);
+    }
+
     // 移除某键（撤销由底层 DataObjectMap.Remove 命令承担）。缺键 = no-op。
     public void RemoveValue(string key) => mMap.Remove(key);
 

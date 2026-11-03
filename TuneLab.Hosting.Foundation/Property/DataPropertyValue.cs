@@ -7,7 +7,10 @@ namespace TuneLab.Foundation;
 // （历史实现借"PropertyObject 包活 map"走私子对象引用；PropertyObject 改为构造拷入的纯值后，
 //   子节点引用由本槽显式承载——撤销命令的 before/after 携带同一子树实例，undo 重挂原节点，
 //   undo 栈里子树自身的嵌套命令因此不脱靶。）
-// 不变量：标量槽永不含 object/array 型 PropertyValue——写入口一律经 Canonicalize 建成活子节点槽。
+// 不变量：标量槽不含 object/array 型 PropertyValue——写入口一律经 Canonicalize 建成活子节点槽；唯一例外是整块槽（Whole）：
+// 宿主不解读、只整值读写的字段（画布）把复合值原样存成一块不可变的值——提交 = 存引用、撤销 = 换引用、读 = 直接给出，
+// 不建子节点树（大值时节点树的提交 / 读取 / 撤销历史开销是值本身的十几倍）。整块槽里没有可导航的子节点：Object / Array 导航
+// 进去读到的是"缺席"，写会建出新的子节点、覆盖掉这块值——只能整值读写。工程文件写出的内容与节点树相同（ToPropertyValue）。
 public readonly struct PropertySlot : IEquatable<PropertySlot>
 {
     public PropertySlot(PropertyValue value) { mValue = value; }
@@ -35,6 +38,13 @@ public readonly struct PropertySlot : IEquatable<PropertySlot>
             child.SetInfo(arrayValue);
             return new PropertySlot(child);
         }
+        return new PropertySlot(value);
+    }
+
+    // 整块槽：复合值原样存（不拆节点树），只整值读写（见文件头）。Multiple 一样拒（内部含它也拒）。
+    public static PropertySlot Whole(PropertyValue value)
+    {
+        EnsureStorable(value);
         return new PropertySlot(value);
     }
 

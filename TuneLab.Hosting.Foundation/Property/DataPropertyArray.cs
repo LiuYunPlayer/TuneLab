@@ -87,6 +87,7 @@ public class DataPropertyArray : DataObject, IDataObject<PropertyArray>, IDataPr
 
     // 本层叶子写：陈旧 token → no-op（绑定元素已被删，写入作废）。撤销由 DataPropertyValue 自带命令承担。
     public void SetValue(string token, PropertyValue value) => ResolveToken(token)?.Set(PropertySlot.Canonicalize(value));
+    public void SetWholeValue(string token, PropertyValue value) => ResolveToken(token)?.Set(PropertySlot.Whole(value));
 
     // 按 token 移除元素（IDataPropertyObject.RemoveValue 在数组上的语义 = 删该元素）：解析 token → RemoveAt。陈旧 token = no-op。
     public void RemoveValue(string token)

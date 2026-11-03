@@ -92,6 +92,18 @@ public class MultipleDataPropertyObject : IDataPropertyObject
             dataObject.EndMergeNotify();
     }
 
+    // 整块写：扇出到所有对象（merge 同 SetValue）。各对象存的是同一块不可变的值。
+    public void SetWholeValue(string key, PropertyValue value)
+    {
+        PropertySlot.EnsureStorable(value);
+        foreach (var dataObject in mDataObjects)
+            dataObject.BeginMergeNotify();
+        foreach (var dataObject in mDataObjects)
+            dataObject.SetWholeValue(key, value);
+        foreach (var dataObject in mDataObjects)
+            dataObject.EndMergeNotify();
+    }
+
     // 移除键：扇出到所有对象（merge 同 SetValue，避免中间态闪烁）。
     public void RemoveValue(string key)
     {

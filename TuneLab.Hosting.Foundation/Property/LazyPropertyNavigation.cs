@@ -32,6 +32,9 @@ internal sealed class ObjectView(IDataObject root, ILazyObjectNode owner, string
     public void SetValue(string subKey, PropertyValue value)
         => owner.GetOrCreateObject(key).SetValue(subKey, value);
 
+    public void SetWholeValue(string subKey, PropertyValue value)
+        => owner.GetOrCreateObject(key).SetWholeValue(subKey, value);
+
     // 移除子键：对象缺席则无键可删（不创建）。
     public void RemoveValue(string subKey)
         => owner.FindObject(key)?.RemoveValue(subKey);
@@ -62,6 +65,7 @@ internal sealed class ArrayView(IDataObject root, ILazyObjectNode owner, string 
     public PropertyValue GetValue(string token, PropertyValue defaultValue) => owner.FindArray(key)?.GetValue(token, defaultValue) ?? defaultValue;
     public PropertyValue GetRawValue(string token) => owner.FindArray(key)?.GetRawValue(token) ?? PropertyValue.Null;
     public void SetValue(string token, PropertyValue value) => owner.FindArray(key)?.SetValue(token, value);
+    public void SetWholeValue(string token, PropertyValue value) => owner.FindArray(key)?.SetWholeValue(token, value);
     public void RemoveValue(string token) => owner.FindArray(key)?.RemoveValue(token);
 
     DataPropertyObject? ILazyObjectNode.FindObject(string token) => ((ILazyObjectNode?)owner.FindArray(key))?.FindObject(token);

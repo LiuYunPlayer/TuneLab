@@ -1048,7 +1048,7 @@ internal class PropertyObjectController : StackPanel
             mTitle = CreateTitle(key.DisplayText ?? key.Id, 30);
             mCanvas = new PluginCanvas() { Margin = new(24, FieldGap, 24, 12) };
             Apply(config);
-            var field = parent.DataObject.RawValueField(key.Id, PropertyValue.Null);   // 画布没有默认值：按原值读，没存值 = Null
+            var field = parent.DataObject.WholeValueField(key.Id);   // 画布没有默认值：按原值读、没存值 = Null；整块存（不拆节点树）
             mCanvas.Bind(field);
             mFold = new FieldFold(mTitle, [mCanvas], parent.FoldKey(key),
                 summary: () => Summary(((IRawValueProperty)field).RawValue), watch: parent.DataObject);
