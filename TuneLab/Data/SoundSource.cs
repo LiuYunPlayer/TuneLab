@@ -27,6 +27,7 @@ internal class SoundSource : DataObject, ISoundSource
     //（见 MidiPart.RebuildSynthesisPipeline 顺序），否则会话构造期订阅自己声明的轨会读到空缓存。
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> AutomationConfigs => mAutomationConfigs;
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> SynthesizedParameterConfigs => mSynthesizedParameterConfigs;
+    public IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig> TimelineCanvasConfigs => mTimelineCanvasConfigs;
 
     // 声明类 config 求值在引擎层（不依赖会话实例）：按 Kind 上行委派对应管理器，context（PartPropertyContext/NotePropertyContext）同时满足两域。
     public ObjectConfig GetPartPropertyConfig(PartPropertyContext context)
@@ -130,6 +131,12 @@ internal class SoundSource : DataObject, ISoundSource
                 mSynthesizedParameterConfigs.Add(kvp.Key, kvp.Value);
         }
         Replace(mSynthesizedParameterConfigs, TrackColors.AssignSynthesized(mSynthesizedParameterConfigs, mAutomationConfigs));
+
+        // 时间轴画布（与自动化轨同一时机、同一个 context）；没指定颜色的避开同一条标签栏上自动化轨的颜色。
+        var occupied = new List<string> { ConstantDefine.PitchColor };
+        foreach (var kvp in mAutomationConfigs)
+            occupied.Add(kvp.Value.Color);
+        mTimelineCanvasConfigs = TrackColors.AssignCanvases(DeclaredTimelineCanvasConfigs(context), occupied);
     }
 
     static void Replace(OrderedMap<PropertyKey, AutomationConfig> target, IReadOnlyOrderedMap<PropertyKey, AutomationConfig> source)
@@ -149,6 +156,11 @@ internal class SoundSource : DataObject, ISoundSource
         => mKind == SourceKind.Voice
             ? VoicesManager.GetAutomationConfigs(mType, context)
             : InstrumentsManager.GetAutomationConfigs(mType, context);
+
+    IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig> DeclaredTimelineCanvasConfigs(PartPropertyContext context)
+        => mKind == SourceKind.Voice
+            ? VoicesManager.GetTimelineCanvasConfigs(mType, context)
+            : InstrumentsManager.GetTimelineCanvasConfigs(mType, context);
 
     IReadOnlyOrderedMap<PropertyKey, AutomationConfig> DeclaredSynthesizedParameterConfigs(PartPropertyContext context)
         => mKind == SourceKind.Voice
@@ -178,4 +190,5 @@ internal class SoundSource : DataObject, ISoundSource
     IVoiceSynthesisSession? mSession;
     readonly OrderedMap<PropertyKey, AutomationConfig> mAutomationConfigs = new();
     readonly OrderedMap<PropertyKey, AutomationConfig> mSynthesizedParameterConfigs = new();
+    IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig> mTimelineCanvasConfigs = new OrderedMap<PropertyKey, TimelineCanvasConfig>();
 }

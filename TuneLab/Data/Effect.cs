@@ -20,6 +20,7 @@ internal class Effect : DataObject, IEffect
     public DataPropertyObject Properties { get; }
     public IReadOnlyDataObjectMap<string, IAutomation> Automations => mAutomations;
     public IReadOnlyDataObjectMap<string, IPiecewiseAutomation> PiecewiseAutomations => mPiecewiseAutomations;
+    public TimelineCanvases TimelineCanvases { get; }
     IDataProperty<bool> IEffect.IsEnabled => IsEnabled;
 
     // 用当前参数稀疏快照求 config（纯函数）：宿主初次渲染取一次，并在参数 commit 时按当前值重算再 keyed-diff 到控件树，
@@ -39,6 +40,33 @@ internal class Effect : DataObject, IEffect
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> SynthesizedParameterConfigs
         => TrackColors.AssignSynthesized(Engine?.GetSynthesizedParameterConfigs(new EffectPropertyContext(this)) ?? EmptyAutomationConfigs, AutomationConfigs);
 
+    // 时间轴画布声明：与自动化轨同一个 context，但**缓存**——画布按"还是不是同一份声明"决定换不换实例（工厂捕获了声明时的值），
+    // 每次读都现问就每帧都换。所属 part 重新询问声明时（提交落定、插件宣告失效、管线重建）作废（InvalidateDeclarations），
+    // 用到时再问。插件求值抛异常 = 记日志、当没有。
+    public IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig> TimelineCanvasConfigs => mTimelineCanvasConfigs ??= DeclareTimelineCanvases();
+
+    public void InvalidateDeclarations() => mTimelineCanvasConfigs = null;
+
+    IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig> DeclareTimelineCanvases()
+    {
+        if (Engine is not { } engine)
+            return EmptyTimelineCanvasConfigs;
+        try
+        {
+            var occupied = new List<string>();
+            foreach (var kvp in AutomationConfigs)
+                occupied.Add(kvp.Value.Color);
+            return TrackColors.AssignCanvases(engine.GetTimelineCanvasConfigs(new EffectPropertyContext(this)), occupied);
+        }
+        catch (Exception ex)
+        {
+            Log.ErrorAttributed(string.Format("Effect {0} declaration failed", Type), ex);
+            return EmptyTimelineCanvasConfigs;
+        }
+    }
+
+    IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig>? mTimelineCanvasConfigs;
+
     public Effect(MidiPart part, EffectInfo info)
     {
         mPart = part;
@@ -48,6 +76,7 @@ internal class Effect : DataObject, IEffect
         Properties = new DataPropertyObject(this);
         mAutomations = new DataObjectMap<string, IAutomation>(this);
         mPiecewiseAutomations = new DataObjectMap<string, IPiecewiseAutomation>(this);
+        TimelineCanvases = new TimelineCanvases(this);
         SetInfo(info);
     }
 
@@ -116,6 +145,7 @@ internal class Effect : DataObject, IEffect
             IsEnabled = IsEnabled.Value,
             Automations = mAutomations.GetInfo().ToInfo(),
             PiecewiseAutomations = mPiecewiseAutomations.PiecewiseAutomationsToInfo(),
+            TimelineCanvases = TimelineCanvases.GetInfo(),
             Properties = Properties.GetInfo(),
         };
     }
@@ -127,6 +157,7 @@ internal class Effect : DataObject, IEffect
         Properties.SetInfo(info.Properties);
         mAutomations.SetInfo(info.Automations.Convert(CreateAutomation).ToMap());
         mPiecewiseAutomations.SetInfo(info.PiecewiseAutomations.ToPiecewiseAutomations());
+        TimelineCanvases.SetInfo(info.TimelineCanvases);
     }
 
     IEffectSynthesisEngine? Engine => EffectManager.GetInitedEngine(Type);
@@ -164,6 +195,7 @@ internal class Effect : DataObject, IEffect
         sealed class View(Effect effect) : IEffectSynthesisView
         {
             public PropertyObject Properties => effect.Properties.GetInfo();
+            public IReadOnlyMap<string, PropertyValue> TimelineCanvases => effect.TimelineCanvases.GetValues();
 
             // 当前**存在用户内容**的轨的求值器（连续/分段皆在、含孤儿；有内容 = 曲线数据 / 被 vibrato 投影，
             // 与 voice 声明面同口径）。未绘制且无投影的已声明轨不在 map——其值恒为引擎自知的默认，点取缺失即回退
@@ -244,6 +276,7 @@ internal class Effect : DataObject, IEffect
 
     static readonly ObjectConfig EmptyPropertyConfig = ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>());
     static readonly IReadOnlyOrderedMap<PropertyKey, AutomationConfig> EmptyAutomationConfigs = new OrderedMap<PropertyKey, AutomationConfig>();
+    static readonly IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig> EmptyTimelineCanvasConfigs = new OrderedMap<PropertyKey, TimelineCanvasConfig>();
 
     readonly MidiPart mPart;
     readonly DataObjectMap<string, IAutomation> mAutomations;

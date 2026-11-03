@@ -39,6 +39,9 @@ public interface IInstrumentSynthesisContext
     // （与 voice 的 IVoiceSynthesisContext.Automations 同语义）；引擎不声明即恒空。
     IReadOnlyMap<string, ISynthesisAutomation> Automations { get; }
 
+    // 已声明的时间轴画布（引擎经 GetTimelineCanvasConfigs 声明的，按 id）：值 + 换算 + 区间通知。集合随声明变，取用前重读即当前集。
+    IReadOnlyMap<string, ISynthesisTimelineCanvas> TimelineCanvases { get; }
+
     // 物化合成快照（插件主动拉取）：notes = 本次合成需要的 note（段内 + 协同邻居，插件自由圈定，
     // 返回的 snapshot.Notes 与之索引对齐）。仅数据线程、仅 SynthesizeNext 的同步前缀（offload 之前）调用。
     // automation 一律**全量冻结、不开窗**（与 voice 同判例）：真实采样范围依赖 offload 后才知的渲染细节，

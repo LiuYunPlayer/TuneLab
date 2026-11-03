@@ -16,6 +16,9 @@ public interface IEffectSynthesisView
     // 只读 map，可枚举可点取。引擎可据曲线当前值条件化 schema。口径与 voice 的「已声明」不同（有意）：
     // effect 的声明集 = f(本 context)，按声明枚举是自引用——未绘制的已声明轨不在 map，其值恒为引擎自知的默认。
     IReadOnlyMap<string, IAutomationEvaluator> Automations { get; }
+
+    // 本效果器时间轴画布的当前值，按 id（同 IVoiceSynthesisPartView.TimelineCanvases）。
+    IReadOnlyMap<string, PropertyValue> TimelineCanvases { get; }
 }
 
 // 效果器声明面（GetPropertyConfig / GetAutomationConfigs / GetSynthesizedParameterConfigs）的求值上下文：

@@ -134,6 +134,7 @@ internal sealed class PresetListCommand : ICommand
                 },
                 ["properties"] = preset.Properties.Map.Count,
                 ["automations"] = preset.Automations.Count,
+                ["timelineCanvases"] = preset.TimelineCanvases.Count,
             });
         }
         return Task.FromResult(CommandResult.Ok(new JsonObject { ["presets"] = presets }));
@@ -228,6 +229,7 @@ internal sealed class PresetApplyCommand : ICommand
             // 实际动了多少（当前声源声明的范围）。0 是有意义的答案，不是缺省值——见 Render。
             ["properties"] = applied.Properties,
             ["automations"] = applied.Automations,
+            ["timelineCanvases"] = applied.TimelineCanvases,
             ["note"] = string.IsNullOrEmpty(message) ? null : message,
         });
     }
@@ -326,6 +328,7 @@ internal sealed class PresetSaveCommand : ICommand
             ["source"] = PresetSupport.SourceText(preset.Source),
             ["properties"] = preset.Properties.Map.Count,
             ["automations"] = preset.Automations.Count,
+            ["timelineCanvases"] = preset.TimelineCanvases.Count,
             ["note"] = string.IsNullOrEmpty(note) ? null : note,
         });
     }

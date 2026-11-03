@@ -88,6 +88,7 @@ internal static class EffectSynthesisSnapshotFactory
             Properties = effect.Properties.GetInfo(),
             Automations = automations,
             TimeConverter = new LocalTimeConverter(timing, part.Pos.Value),
+            TimelineCanvases = TimelineCanvasProxies.Capture(part, effect.TimelineCanvases, effect.TimelineCanvasConfigs),
         };
     }
 

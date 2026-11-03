@@ -611,6 +611,25 @@ internal sealed class ScriptPart(ScriptContext ctx, IPart part)
         ctx.Bump();
     }
 
+    // ── 时间轴画布（对齐 C# midi.TimelineCanvases；声明见 SoundSource.TimelineCanvasConfigs）──
+    // 值是插件自定的整值（宿主不解读，形状看该插件的文档），值里的 tick 相对 timelineCanvasOrigin(id)（绝对 tick）。
+
+    public string[] TimelineCanvasIds() => Midi.SoundSource.TimelineCanvasConfigs.Select(kvp => kvp.Key.Id).ToArray();
+
+    public JsValue GetTimelineCanvas(string id) => ScriptTimelineCanvas.Read(ctx.Engine, Midi.TimelineCanvases, id);
+
+    public double TimelineCanvasOrigin(string id) => ScriptTimelineCanvas.Origin(Midi, Midi.TimelineCanvases, id);
+
+    public void SetTimelineCanvas(string id, JsValue value)
+    {
+        var midi = MidiW;
+        if (!midi.SoundSource.TimelineCanvasConfigs.ContainsKey(id))
+            throw new ScriptApiException(string.Format("timeline canvas \"{0}\" is not declared by this part's sound source; use one of part.timelineCanvasIds().", id));
+        ctx.EnsureBracket(midi);
+        midi.TimelineCanvases.SetValue(id, ScriptTimelineCanvas.ToValue(value));
+        ctx.Bump();
+    }
+
     // ── 固定（lock）：把只读的合成产物写成归用户的可编辑曲线（与工具栏那支固定笔刷同一份实现，见 SynthesisLock） ──
     //
     // 引擎产物恒只读、用户编辑恒落数据层，固定是二者之间唯一的显式桥：固定后那段数据归用户、可继续改、
@@ -1168,6 +1187,24 @@ internal sealed class ScriptEffect(ScriptContext ctx, IEffect effect)
         ctx.EnsureBracket(effect.Part);
         if (effect.PiecewiseAutomations.TryGetValue(id, out var automation))
             automation.Clear(startTick - rel, endTick - rel);
+        ctx.Bump();
+    }
+
+    // ── 本 effect 的时间轴画布（口径同 part.getTimelineCanvas / setTimelineCanvas）──
+
+    public string[] TimelineCanvasIds() => E.TimelineCanvasConfigs.Select(kvp => kvp.Key.Id).ToArray();
+
+    public JsValue GetTimelineCanvas(string id) => ScriptTimelineCanvas.Read(ctx.Engine, E.TimelineCanvases, id);
+
+    public double TimelineCanvasOrigin(string id) => ScriptTimelineCanvas.Origin(E.Part, E.TimelineCanvases, id);
+
+    public void SetTimelineCanvas(string id, JsValue value)
+    {
+        var effect = W;
+        if (!effect.TimelineCanvasConfigs.ContainsKey(id))
+            throw new ScriptApiException(string.Format("timeline canvas \"{0}\" is not declared by this effect's engine; use one of effect.timelineCanvasIds().", id));
+        ctx.EnsureBracket(effect.Part);
+        effect.TimelineCanvases.SetValue(id, ScriptTimelineCanvas.ToValue(value));
         ctx.Bump();
     }
 

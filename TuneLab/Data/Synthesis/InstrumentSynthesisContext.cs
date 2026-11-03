@@ -61,6 +61,10 @@ internal sealed class InstrumentSynthesisContext : IInstrumentSynthesisContext, 
         var piecewiseMap = (IReadOnlyDataMap<string, IPiecewiseAutomation>)part.PiecewiseAutomations;
         piecewiseMap.ItemAdded.Subscribe(WirePiecewiseAutomation, s);
         piecewiseMap.ItemRemoved.Subscribe(UnwirePiecewiseAutomation, s);
+
+        // 时间轴画布（同 voice）。
+        mTimelineCanvases = new TimelineCanvasProxies(part, part.TimelineCanvases, () => part.SoundSource.TimelineCanvasConfigs,
+            (proxy, ranges) => ForwardChange(() => { foreach (var (start, end) in ranges) proxy.NotifyRangeModified(start, end); }));
     }
 
     // 快照物化（插件在 SynthesizeNext 同步前缀主动拉取）：满末口径、无双音高通道；automation 全量冻结（不开窗）。
@@ -120,6 +124,16 @@ internal sealed class InstrumentSynthesisContext : IInstrumentSynthesisContext, 
         }
     }
 
+    // 已声明的时间轴画布（按 id；孤儿不在内）。
+    public IReadOnlyMap<string, ISynthesisTimelineCanvas> TimelineCanvases
+    {
+        get
+        {
+            AssertDataThread();
+            return mTimelineCanvases.Map;
+        }
+    }
+
     // 声明失效（插件 → 宿主，任意线程）：攒脏位、合拍 marshal 回数据线程，见 DeclarationInvalidator。
     public void InvalidatePart() => mInvalidator.InvalidatePart();
     public void InvalidateNotes(IEnumerable<string> noteIds) => mInvalidator.InvalidateNotes(noteIds);
@@ -139,6 +153,7 @@ internal sealed class InstrumentSynthesisContext : IInstrumentSynthesisContext, 
 
         mInvalidator.Dispose();
         s.DisposeAll();
+        mTimelineCanvases.Dispose();
         mBatchSignal.BatchEnd -= OnBatchEnd;
         foreach (var kvp in mAutomationSubscriptions)
         {
@@ -320,6 +335,7 @@ internal sealed class InstrumentSynthesisContext : IInstrumentSynthesisContext, 
     readonly LiveTiming mTiming;
     readonly NoteProxyList mNotes;
     readonly PropertyObjectGuard mPartProperties;
+    readonly TimelineCanvasProxies mTimelineCanvases;
     readonly Dictionary<string, AutomationProxy> mAutomationProxies = new();
     readonly Dictionary<string, DisposableManager> mAutomationSubscriptions = new();
     readonly Dictionary<string, DisposableManager> mPiecewiseSubscriptions = new();

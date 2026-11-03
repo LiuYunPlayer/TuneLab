@@ -39,6 +39,9 @@ public sealed class VoiceSynthesisSnapshot
     // 不可变、任何线程可用。快照发布后才加的字段：不标 required，默认是"未提供"（一调用就报错）——宿主构造的快照永远填好。
     public ITimeConverter TimeConverter { get; init; } = UnprovidedTimeConverter.Instance;
 
+    // 已声明的时间轴画布（按 id），与活视图 context.TimelineCanvases 同构。快照发布后才加的字段：不标 required，默认空表。
+    public IReadOnlyMap<string, SynthesisTimelineCanvasSnapshot> TimelineCanvases { get; init; } = Map<string, SynthesisTimelineCanvasSnapshot>.Empty;
+
     // 音素布局在 SDK：把每 note 的标称音素（SynthesizedPhoneme：时长 / 权重）+ 双列表分类 + BodyOffset + 几何锚点（note 头 / 核填充终点）
     // 解析为跨 note 去重叠后的真实时序，是 PhonemeLayout.Resolve 这一纯函数。引擎调它即与宿主显示完全一致
     // （核起点=音符头、可伸音素按缩放比 r^w 等比伸缩、刚性辅音不动、有空隙则互不影响）；冻结的只是 I/O 形状、分配体仍可宿主侧演进，

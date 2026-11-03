@@ -52,6 +52,9 @@ internal sealed class PartContext(IMidiPart part) : IVoiceSynthesisPartView, IIn
         }
     }
 
+    // 时间轴画布的当前值（含孤儿），按 id。
+    public IReadOnlyMap<string, PropertyValue> TimelineCanvases => part.TimelineCanvases.GetValues();
+
     List<PartNote>? mNotes;
 
     // 读某轨当前曲线：查询轴全局秒 → part 相对 tick（part 级取值器均吃相对 tick——旧实现漏减 Pos，

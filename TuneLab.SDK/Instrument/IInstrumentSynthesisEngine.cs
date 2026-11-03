@@ -43,6 +43,9 @@ public interface IInstrumentSynthesisEngine
     // 自带 Min/Max/Color。曲线数据另经 IInstrumentSynthesisSession.SynthesizedParameters 按同一批 key 承载。
     IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IInstrumentSynthesisPartPropertyContext context);
 
+    // 时间轴画布声明（part 级，与 voice 的 IVoiceSynthesisEngine.GetTimelineCanvasConfigs 同语义）。默认 = 没有。
+    IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig> GetTimelineCanvasConfigs(IInstrumentSynthesisPartPropertyContext context) => new OrderedMap<PropertyKey, TimelineCanvasConfig>();
+
     // 条件属性面板：part 级只依赖 part 自身值；note 级依赖 part + 选中 note 三态合并值。
     // 宿主在每次值 commit 时调用并 keyed-diff 到控件树。
     ObjectConfig GetPartPropertyConfig(IInstrumentSynthesisPartPropertyContext context);

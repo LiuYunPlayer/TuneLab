@@ -49,6 +49,9 @@ public interface IVoiceSynthesisContext
     // 重读本属性即当前集；订阅各轨 ISynthesisAutomation.RangeModified 收区间失效。
     IReadOnlyMap<string, ISynthesisAutomation> Automations { get; }
 
+    // 已声明的时间轴画布（引擎经 GetTimelineCanvasConfigs 声明的，按 id）：值 + 换算 + 区间通知。集合随声明变，取用前重读即当前集。
+    IReadOnlyMap<string, ISynthesisTimelineCanvas> TimelineCanvases { get; }
+
     // 音高的两个平行通道（绝对约束 + 相对偏差）：
     // Pitch = 用户钉死的绝对音高曲线（分段型：有值=钉死、NaN=插件自由发挥）；
     // PitchDeviation = 加性偏差（连续型：处处有值、默认 0、永不 NaN；宿主侧 vibrato 等偏差源都汇于此）。

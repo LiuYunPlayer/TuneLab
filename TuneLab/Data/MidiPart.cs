@@ -57,6 +57,7 @@ internal class MidiPart : Part, IMidiPart
     // 声明分段轨（除 Pitch 外、声源声明的可编辑分段曲线，即 AutomationConfig.IsPiecewise 的轨），按轨 id 存。
     // Pitch 是 part 专属常驻通道、在音符区编辑，不入此 map。
     public IReadOnlyDataObjectMap<string, IPiecewiseAutomation> PiecewiseAutomations => mPiecewiseAutomations;
+    public TimelineCanvases TimelineCanvases { get; }
     public IReadOnlyDataObjectList<IEffect> Effects => mEffects;
     public IPiecewiseAutomation Pitch => mPitchLine;
     public IReadOnlyDataObjectLinkedList<Vibrato> Vibratos => mVibratos;
@@ -89,6 +90,7 @@ internal class MidiPart : Part, IMidiPart
         mVibratos.Attach(this);
         mAutomations = new(this);
         mPiecewiseAutomations = new(this);
+        TimelineCanvases = new(this);
         mEffects = new(this);
         mEffects.ItemAdded.Subscribe(OnEffectAdded);
         mEffects.ItemRemoved.Subscribe(OnEffectRemoved);
@@ -216,6 +218,7 @@ internal class MidiPart : Part, IMidiPart
         if (mPipeline == null)
             return;
         mSource.RebuildAutomationConfigs(BuildPartPropertyContext());
+        InvalidateEffectDeclarations();
         mNoteDeclarations.Invalidate();   // 不依赖与 Modified 订阅的先后：重算 lane 之前先作废
         RebuildLaneConfigs();   // note/phoneme 属性 config 依赖 part 值，lane 集合/量程可能随之变
         if (RefreshAutomationConfigsSignatureChanged())
@@ -267,7 +270,10 @@ internal class MidiPart : Part, IMidiPart
             return;   // 已停用：context 随管线销毁，正常不会到这里；防御迟到的 flush
         mNoteDeclarations.Invalidate();
         if (invalidation.Part)
+        {
             mSource.RebuildAutomationConfigs(BuildPartPropertyContext());
+            InvalidateEffectDeclarations();
+        }
         RebuildLaneConfigs();
         if (RefreshAutomationConfigsSignatureChanged())
             mAutomationConfigsModified.Invoke();
@@ -536,6 +542,13 @@ internal class MidiPart : Part, IMidiPart
 
     PartPropertyContext BuildPartPropertyContext() => PartPropertyContext.Single(this);
 
+    // 各效果器缓存的声明（时间轴画布）与声源的声明同时作废，用到时按当前数据重问。
+    void InvalidateEffectDeclarations()
+    {
+        foreach (var effect in mEffects)
+            effect.InvalidateDeclarations();
+    }
+
     // 聚合签名 = voice 轨集合 + 各 effect 轨集合（按 key + 字段平铺）；用于参数 commit 时的增量去抖。
     string ComputeAutomationConfigsSignature()
     {
@@ -545,6 +558,10 @@ internal class MidiPart : Part, IMidiPart
         AppendAutomationConfigs(sb, "r", mSource.SynthesizedParameterConfigs);
         for (int i = 0; i < mEffects.Count; i++)
             AppendAutomationConfigs(sb, "e" + i, mEffects[i].AutomationConfigs);
+        // 时间轴画布集合（id / 名字 / 颜色 / 默认显隐）：增删要驱动标签栏与参数面板重建。
+        AppendTimelineCanvasConfigs(sb, "tv", mSource.TimelineCanvasConfigs);
+        for (int i = 0; i < mEffects.Count; i++)
+            AppendTimelineCanvasConfigs(sb, "te" + i, mEffects[i].TimelineCanvasConfigs);
         // 属性 lane 集合纳入签名：钉选增删/量程变要驱动 tabbar/渲染器重建。
         AppendLaneConfigs(sb, "n", mNoteLaneConfigs);
         AppendLaneConfigs(sb, "p", mPhonemeLaneConfigs);
@@ -562,6 +579,14 @@ internal class MidiPart : Part, IMidiPart
               .Append(e.MaxValue).Append('|').Append(e.Color).Append('|')
               .Append(e.Kind).Append('|').Append(e.Resolved).Append(';');
         }
+        sb.Append('}');
+    }
+
+    static void AppendTimelineCanvasConfigs(StringBuilder sb, string source, IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig> configs)
+    {
+        sb.Append(source).Append('{');
+        foreach (var kvp in configs)
+            sb.Append(kvp.Key.Id).Append('|').Append(kvp.Key.DisplayText).Append('|').Append(kvp.Value.Color).Append('|').Append(kvp.Value.ShownByDefault).Append(';');
         sb.Append('}');
     }
 
@@ -905,6 +930,7 @@ internal class MidiPart : Part, IMidiPart
         // 【顺序不变量，勿调换】先填声明、后建会话：mSource.AutomationConfigs 是物化缓存（详见 Voice.AutomationConfigs），
         // 必须在建会话之前填好——否则会话构造期经 context.Automations 订阅自己声明的轨会读到空缓存、订阅落空、绘制参数不重渲。
         mSource.RefreshDeclarations(BuildPartPropertyContext());
+        InvalidateEffectDeclarations();
         mNoteDeclarations.Invalidate();   // 换了会话（可能换了引擎）：旧回答一概作废
         RebuildLaneConfigs();
         if (mSource.Kind == SourceKind.Voice)
@@ -947,6 +973,7 @@ internal class MidiPart : Part, IMidiPart
         mContinuationDirty = true;
         mSource.SetSession(null);
         mSource.RefreshDeclarations(BuildPartPropertyContext());
+        InvalidateEffectDeclarations();
         mNoteDeclarations.Invalidate();
         RebuildLaneConfigs();
         foreach (var note in mNotes)
@@ -1063,6 +1090,7 @@ internal class MidiPart : Part, IMidiPart
             Effects = mEffects.GetInfo().ToInfo(),
             Automations = mAutomations.GetInfo().ToInfo(),
             PiecewiseAutomations = mPiecewiseAutomations.PiecewiseAutomationsToInfo(),
+            TimelineCanvases = TimelineCanvases.GetInfo(),
             Pitch = new PitchInfo { Segments = mPitchLine.GetInfo() },
             Vibratos = mVibratos.GetInfo().ToInfo(),
             SoundSource = mSource.GetInfo(),
@@ -1083,6 +1111,7 @@ internal class MidiPart : Part, IMidiPart
         mVibratos.SetInfo(info.Vibratos.Convert(CreateVibrato).ToArray());
         mAutomations.SetInfo(info.Automations.Convert(CreateAutomation).ToMap());
         mPiecewiseAutomations.SetInfo(info.PiecewiseAutomations.ToPiecewiseAutomations());
+        TimelineCanvases.SetInfo(info.TimelineCanvases);
         mPitchLine.SetInfo(info.Pitch.Segments);
         mSource.SetInfo(info.SoundSource);
         Properties.SetInfo(info.Properties);

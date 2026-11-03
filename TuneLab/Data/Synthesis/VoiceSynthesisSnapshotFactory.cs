@@ -125,6 +125,7 @@ internal static class VoiceSynthesisSnapshotFactory
             PitchDeviation = pitchDeviation,
             Automations = automations,
             TimeConverter = new LocalTimeConverter(timing, part.Pos.Value),
+            TimelineCanvases = TimelineCanvasProxies.Capture(part, part.TimelineCanvases, part.SoundSource.TimelineCanvasConfigs),
             PartProperties = part.Properties.GetInfo(),
         };
     }

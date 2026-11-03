@@ -1,4 +1,7 @@
 #nullable enable
+override TuneLab.Foundation.Range.Equals(object? obj) -> bool
+override TuneLab.Foundation.Range.GetHashCode() -> int
+override TuneLab.Foundation.Range.ToString() -> string!
 static TuneLab.Foundation.Color.FromArgb(byte a, byte r, byte g, byte b) -> TuneLab.Foundation.Color
 static TuneLab.Foundation.Color.FromHex(string! hex) -> TuneLab.Foundation.Color
 static TuneLab.Foundation.Color.FromRgb(byte r, byte g, byte b) -> TuneLab.Foundation.Color
@@ -10,6 +13,12 @@ TuneLab.Foundation.Color.Color() -> void
 TuneLab.Foundation.Color.G.get -> byte
 TuneLab.Foundation.Color.R.get -> byte
 TuneLab.Foundation.Color.WithAlpha(byte alpha) -> TuneLab.Foundation.Color
+TuneLab.Foundation.Range
+TuneLab.Foundation.Range.End.get -> double
+TuneLab.Foundation.Range.Equals(TuneLab.Foundation.Range other) -> bool
+TuneLab.Foundation.Range.Range() -> void
+TuneLab.Foundation.Range.Range(double start, double end) -> void
+TuneLab.Foundation.Range.Start.get -> double
 TuneLab.Foundation.Rect
 TuneLab.Foundation.Rect.Bottom.get -> double
 TuneLab.Foundation.Rect.Center.get -> TuneLab.Foundation.Point

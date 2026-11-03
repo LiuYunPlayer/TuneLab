@@ -105,6 +105,9 @@ internal static class ScriptApiReference
         "  part.piecewiseAutomationIds()            [string]\n" +
         "  part.samplePiecewiseAutomation(id, start, end, samples)   [number]\n" +
         "  part.setPiecewiseAutomationLine(id, start, end, points)   part.clearPiecewiseAutomation(id, start, end)\n" +
+        "  part.timelineCanvasIds()                 [string]   plugin-drawn tracks; value shape = that plugin's docs\n" +
+        "  part.getTimelineCanvas(id) -> value|null   part.setTimelineCanvas(id, value|null)   (null = unset)\n" +
+        "  part.timelineCanvasOrigin(id)            absolute tick of tick 0 inside the value\n" +
         "  // LOCK — freeze the engine's READ-ONLY output into your own editable curve (the same thing the lock brush does in the editor). Once locked, that data is YOURS: keep editing it, the engine no longer overwrites it. This is how you keep the model's line and only change part of it — without it you'd be drawing from blank and losing every detail the model produced.\n" +
         "  part.lockPitch(start?, end?)             -> bool   synthesized pitch -> the pitch curve\n" +
         "  part.lockAutomation(id, start?, end?)    -> bool   that track's synthesized parameter -> the editable track with the SAME id (continuous vs piecewise is handled for you)\n" +
@@ -163,6 +166,7 @@ internal static class ScriptApiReference
         "  effect.piecewiseAutomationIds()          [string]\n" +
         "  effect.samplePiecewiseAutomation(id, start, end, samples)   [number]\n" +
         "  effect.setPiecewiseAutomationLine(id, start, end, points)   effect.clearPiecewiseAutomation(id, start, end)\n" +
+        "  effect.timelineCanvasIds()   effect.getTimelineCanvas(id)   effect.setTimelineCanvas(id, value|null)   effect.timelineCanvasOrigin(id)\n" +
         "  effect.lockAutomation(id, start?, end?) -> bool    effect.hasSynthesizedParameter(id) -> bool   // exactly part.lockAutomation/hasSynthesizedParameter, scoped to this effect's own tracks\n" +
         "\n" +
         "print(x) / console.log(x) -> debugging output (returned to you / shown in the panel).\n" +

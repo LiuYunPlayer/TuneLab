@@ -204,6 +204,10 @@ So "an empty part covering ticks 1920..3840" is `track.addPart({ pos: 1920, endO
 | `part.samplePiecewiseAutomation(id, startTick, endTick, samples)` | `[number]` | Evenly sample a piecewise track. |
 | `part.setPiecewiseAutomationLine(id, startTick, endTick, points)` | — | Clear `[start, end)` then lay a piecewise curve (same shape as `setPitchLine`). |
 | `part.clearPiecewiseAutomation(id, startTick, endTick)` | — | Clear a span of a piecewise curve. |
+| `part.timelineCanvasIds()` | `[string]` | Ids of the **timeline canvases** declared by the sound source: tracks across the whole part that the plugin draws and edits itself (markers, sections, its own curves…). |
+| `part.getTimelineCanvas(id)` | value \| `null` | The canvas's stored value (number / boolean / string / array / object); `null` = never set. The shape is defined by the plugin — read its documentation before building one. |
+| `part.setTimelineCanvas(id, value)` | — | Replace the canvas's value; `null` removes it (back to "never set", the plugin falls back to its own default). The id must be declared. The host does not check the shape. |
+| `part.timelineCanvasOrigin(id)` | `number` | The absolute tick that tick 0 inside the value stands for (the part's anchor, shifted after a split or merge). Ticks inside the value are relative to it. |
 | `part.lockPitch(startTick?, endTick?)` | `bool` | **Lock the synthesized pitch**: write the engine's pitch output, at its real values, into this part's pitch curve (the same thing the lock brush does in the editor). The range arguments come in a **pair — pass both or neither** (neither = the whole part). |
 | `part.lockAutomation(id, startTick?, endTick?)` | `bool` | **Lock a synthesized parameter**: write that track's engine-produced curve into the editable track with the same id (continuous vs piecewise is dispatched for you from the declaration). An unknown id, or a track with no paired synthesized parameter, **throws** (which rolls the whole run back) — call `hasSynthesizedParameter(id)` first if unsure. |
 | `part.hasSynthesizedParameter(id)` | `bool` | Whether that track has a **paired synthesized parameter** — i.e. besides the editable track, the sound source also publishes a synthesized parameter with the same id. No pairing, nothing to lock. |
@@ -306,6 +310,7 @@ An item in `part.effects()`. **Fields** — read/write: `isEnabled` (bool; `fals
 | `effect.lockAutomation(id, startTick?, endTick?)` | `bool` | Lock one of this effect's synthesized parameters (exactly `part.lockAutomation`, scoped to this effect). |
 | `effect.hasSynthesizedParameter(id)` | `bool` | Whether that track of this effect has a paired synthesized parameter. Always `false` while detached (synthesized parameters are addressed by chain index, and a detached effect has no place in the chain). |
 | `effect.clearPiecewiseAutomation(id, startTick, endTick)` | — | Clear a span of one of this effect's piecewise curves. |
+| `effect.timelineCanvasIds()` / `effect.getTimelineCanvas(id)` / `effect.setTimelineCanvas(id, value)` / `effect.timelineCanvasOrigin(id)` | — | This effect's timeline canvases; same as the `part.` versions. |
 
 Effect automation mirrors part-level automation exactly — same absolute-tick `points` and value semantics, same split into continuous and piecewise families — only the target differs (an effect in the chain rather than the sound source).
 

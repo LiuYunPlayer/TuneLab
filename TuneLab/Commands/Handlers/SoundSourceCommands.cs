@@ -300,6 +300,7 @@ internal sealed class SoundSourceListCommand : ICommand
         public IReadOnlyList<IVoiceSynthesisNoteView> Notes => Array.Empty<IVoiceSynthesisNoteView>();
         public PropertyObject PartProperties => PropertyObject.Empty;
         public IReadOnlyMap<string, IAutomationEvaluator> Automations => Map<string, IAutomationEvaluator>.Empty;
+        public IReadOnlyMap<string, PropertyValue> TimelineCanvases => Map<string, PropertyValue>.Empty;
     }
 
     sealed class StaticVoicePartContext(string voiceId) : IVoiceSynthesisPartPropertyContext
@@ -320,6 +321,7 @@ internal sealed class SoundSourceListCommand : ICommand
         public IReadOnlyList<IInstrumentSynthesisNoteView> Notes => Array.Empty<IInstrumentSynthesisNoteView>();
         public PropertyObject PartProperties => PropertyObject.Empty;
         public IReadOnlyMap<string, IAutomationEvaluator> Automations => Map<string, IAutomationEvaluator>.Empty;
+        public IReadOnlyMap<string, PropertyValue> TimelineCanvases => Map<string, PropertyValue>.Empty;
     }
 
     sealed class StaticInstrumentPartContext(string instrumentId) : IInstrumentSynthesisPartPropertyContext

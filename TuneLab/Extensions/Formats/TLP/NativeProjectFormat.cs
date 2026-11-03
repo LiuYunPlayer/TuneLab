@@ -29,9 +29,9 @@ internal class ParameterPanelInfo
 // 跨 part 的，故 effect 参数另记实例 id 与类型，打开时先按 id、再按「位置 + 类型」认回（见 ParameterPanelLayoutStore）。
 internal class ParameterRefInfo
 {
-    public string Source { get; set; } = string.Empty;   // voice | effect | noteLane | phonemeLane
+    public string Source { get; set; } = string.Empty;   // voice | effect | noteLane | phonemeLane | voiceCanvas | effectCanvas
     public string Id { get; set; } = string.Empty;
-    // 仅 effect 来源：实例 id、链内位置、类型。
+    // 仅 effect / effectCanvas 来源：实例 id、链内位置、类型。
     public string? EffectId { get; set; }
     public int EffectIndex { get; set; } = -1;
     public string? EffectType { get; set; }

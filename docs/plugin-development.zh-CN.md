@@ -1326,6 +1326,61 @@ props.Add(("mix", "Mix"), CanvasLaneConfig.Create(host => new MixCanvas(host, va
 逐像素采样按秒插值、只算 `VisibleBounds` 露出的列；点空白加点、拖点、右键删点；点符号弹文本框、右键空白弹菜单选语言；
 窄矮时只画曲线）与 `tools/ScreenshotBot/demo-plugins/DemoVoice/BreathCanvas.cs`（只展示的最小写法）。
 
+### 10.7 时间轴画布（TimelineCanvasConfig）
+
+一条**贯穿整个 part** 的插件自绘轨（区段、标记、视频帧、歌词块、你自己的曲线……宿主不解读），与自动化轨平级：不是某个属性的字段，
+而是引擎在 `GetTimelineCanvasConfigs` 里声明的一条轨（声源、乐器、效果器三类引擎都有，带默认实现 = 没有）。
+
+```csharp
+public IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig> GetTimelineCanvasConfigs(IVoiceSynthesisPartPropertyContext context)
+{
+    // 值从声明视图取（没设过的 id 不在表里 = Null），由工厂捕获交给控件——同其他画布。
+    var value = context.Parts[0].TimelineCanvases.TryGetValue("mix", out var v) ? v : PropertyValue.Null;
+    return new OrderedMap<PropertyKey, TimelineCanvasConfig>
+    {
+        { ("mix", "Speaker Mix"), TimelineCanvasConfig.Create(host => new MixTrack(host, value)).WithColor("#7FD1AE") },
+    };
+}
+```
+
+- **怎么选**：这是某个音符 / 音素的属性 → `CanvasLaneConfig`（每个对象各占自己那一段、跟着对象走）；这是一条贯穿整个 part 的轨 →
+  `TimelineCanvasConfig`。用户不必关心是哪一种，标签栏里都是画布。
+- **声明**：与 `GetAutomationConfigs` 同一个 context、同一个询问时机，同为纯函数；有序表的顺序 = 标签栏顺序（排在本声源 / 本效果器的
+  自动化轨后面）。`.WithShownByDefault(false)` 默认不在标签栏显示（同自动化轨）。id 与自动化轨不强制不重名（两族各存各的），
+  但起同一个显示名会出现两个同名页签。
+- **值**：一个整值，形状你定（宿主不解读、读取时须自己校验）；**没有默认值**，没设过 = Null（读到时按你自己的默认补）。
+  从声明视图的 `TimelineCanvases` 取（`IVoiceSynthesisPartView` / `IInstrumentSynthesisPartView` / `IEffectSynthesisView`），
+  实例寿命 = 一次声明，与 `CanvasConfig` 同一套契约。
+- **宿主**：工厂收到 `ITimelineCanvasHost`——与画布 lane 一样有 `TimeAxis`（秒 / 局部 tick）与 `PitchAxis`（同 §10.6），另多一个
+  带改动范围的提交 `CommitValue(modifiedTickRanges)`（见下）。画布铺满整个参数面板：`Width` / `Height` 是面板的尺寸，画布坐标就是面板坐标，内容按两条轴的换算摆。
+- **时间**：定义域是**整条时间轴**。局部 tick 相对 part 原点（`TickToX(0)`），可以为负、可以超出 part——part 裁剪外照样画、照样能编辑
+  （与自动化轨一致；出不出声你不用管，合成按裁剪范围取）。值里存 tick 就存局部 tick：挪动 part 什么都不用改；拆分、合并后宿主自己维护
+  原点（存一个你看不见的偏移），`TickToX(0)` 仍落在你数据的原点上，对你无感。按秒存的内容同 §10.6「所见即所闻」那条。
+- **提交时报改动范围**：合成要知道改了哪几段才能只重算那里。提交时把这次改了的各段一起交给宿主：
+  `host.CommitValue(ranges)`，`ranges` 是 `IReadOnlyList<Range>`（`TuneLab.Foundation.Range`，`Start` / `End` 为局部 tick，[Start, End)；
+  与 `System.Range` 撞名，写别名 `using Range = TuneLab.Foundation.Range;`）。值与范围一起提交、一次完成，宿主把范围随这次提交记下
+  （撤销 / 重做原样重发），换成秒交给合成侧。
+  - **宿主不合并**：报什么就原样记录、原样通知——重叠、重复的段你自己去掉；中间没改的地方别连进去。
+  - 按这次提交的最终结果报：拖动途中经过、最终没变的地方不算。
+  - **不带参数的 `CommitValue()` = 整条都改了**：整条替换（清空、导入、重置成你的默认）时用它；空列表同样按整条（正确，只是重算得多）。
+- **合成侧**：上下文的 `TimelineCanvases`（`IVoiceSynthesisContext` / `IInstrumentSynthesisContext` / `IEffectSynthesisContext`，按 id，
+  只有当前声明了的）给出 `ISynthesisTimelineCanvas`：`Value`、`TimeConverter`（局部 tick ↔ 全局秒，原点同画布上的 `TickToX(0)`）、
+  `RangeModified`（全局秒，报了几段触发几次；没报范围的写入与宿主发起的写入——脚本 / agent 写值等——按整条：(-∞, +∞)）。
+  worker 里用快照的 `TimelineCanvases`（`SynthesisTimelineCanvasSnapshot`：`Value` + `TimeConverter`）。效果器的标脏由宿主按区间相交做，
+  `RangeModified` 对效果器只是缓存提示。
+- **part 上的操作（这一版）**：移动 part 不改任何东西；**拆分** = 左右各拿一份完整的值，各显示自己那段（数据冗余，再拉长 part 会露出原先
+  看不见的部分）；**合并** = 每个 id 保留按时间顺序第一个有它的 part 的值，后面各段的丢掉；**选区复制粘贴不带画布值**；part 预设整值带上它（应用时声明了的每条换成预设里的值，预设里没有的删掉存值，「None」全删）。
+  宿主截取不了你的值的一段，所以这几处只能这样；以后会给声明加上"读 / 写一个区间"的函数，届时拆分、合并、粘贴都能按区间处理，
+  没提供的插件行为不变。
+- **孤儿数据**：id 从声明里消失（换了声源、条件声明），值照样存着、写进工程，只是不显示、不参与合成；重新声明即原样恢复。
+  换到别的声源时它读到的可能是别家写的值——读取一律校验。
+- **工程文件**：值随 part / 效果器存进工程（`MidiPartInfo` / `EffectInfo` 的 `TimelineCanvases`：偏移 + 值）。导出到别的工程格式时这张表
+  会被丢掉（格式插件不认识它）。
+- **作背景时**：同画布 lane（`IsBackground`，简化绘制）。画布不叠画布：激活的是画布时别的画布不画。
+
+参考实现：`tests/plugins/V1.Voice/TimelineDemoCanvas.cs`（「Markers」：落在 tick × 音高上的标记格，与琴键对齐；画原点线；加 / 拖 / 删都在提交前
+报受影响的半拍；会话订阅 `RangeModified` 只标脏相交的块）。
+
 ## 11. 打包、安装、卸载
 
 - **包格式**：把包文件夹打成 zip，扩展名改为 **`.tlx`**，要求 `manifest.json` 在 zip 的**根目录**。

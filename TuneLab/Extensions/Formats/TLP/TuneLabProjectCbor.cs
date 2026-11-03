@@ -448,6 +448,12 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat, INativeProject
                         else
                             reader.SkipValue();
                         break;
+                    case "timelineCanvases":
+                        if (midiPartInfo != null)
+                            TimelineCanvasCodec.Read(ReadPropertyObject(reader), midiPartInfo.TimelineCanvases);
+                        else
+                            reader.SkipValue();
+                        break;
                     case "effects":
                         if (midiPartInfo != null)
                             ReadEffects(reader, midiPartInfo.Effects);
@@ -847,6 +853,9 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat, INativeProject
                     case "piecewiseAutomations":
                         ReadPiecewiseAutomations(reader, effectInfo.PiecewiseAutomations);
                         break;
+                    case "timelineCanvases":
+                        TimelineCanvasCodec.Read(ReadPropertyObject(reader), effectInfo.TimelineCanvases);
+                        break;
                     default:
                         reader.SkipValue();
                         break;
@@ -1189,6 +1198,12 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat, INativeProject
             WritePiecewiseAutomations(writer, midiPart.PiecewiseAutomations);
         }
 
+        if (midiPart.TimelineCanvases.Count > 0)
+        {
+            writer.WriteTextString("timelineCanvases");
+            WritePropertyObject(writer, TimelineCanvasCodec.ToPropertyObject(midiPart.TimelineCanvases));
+        }
+
         if (midiPart.Effects.Count > 0)
         {
             writer.WriteTextString("effects");
@@ -1235,6 +1250,12 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat, INativeProject
             {
                 writer.WriteTextString("piecewiseAutomations");
                 WritePiecewiseAutomations(writer, effect.PiecewiseAutomations);
+            }
+
+            if (effect.TimelineCanvases.Count > 0)
+            {
+                writer.WriteTextString("timelineCanvases");
+                WritePropertyObject(writer, TimelineCanvasCodec.ToPropertyObject(effect.TimelineCanvases));
             }
 
             writer.WriteEndMap();

@@ -1,13 +1,16 @@
 namespace TuneLab.Data;
 
 // 参数面板轨道的来源类别：voice/part 级自动化、某个 effect 的自动化，或属性 lane（用户钉选的有界数值属性与侧栏画布、
-// 插件声明的画布 lane，按 note / 音素分段呈现——数据存 note.Properties / phoneme.Properties，非时间曲线）。
+// 插件声明的画布 lane，按 note / 音素分段呈现——数据存 note.Properties / phoneme.Properties，非时间曲线），
+// 或时间轴画布（声源 / 某个 effect 声明的 TimelineCanvasConfig，数据存 part / effect 的 TimelineCanvases，与自动化轨各存各的、可以同 id）。
 internal enum AutomationSource
 {
     Voice,
     Effect,
     NoteLane,
     PhonemeLane,
+    VoiceCanvas,
+    EffectCanvas,
 }
 
 // 底部参数面板里"当前编辑/可见的轨"的标识。区分来源（voice/part 级、第几个 effect，或 note/phoneme 属性 lane）
@@ -17,8 +20,9 @@ internal enum AutomationSource
 // 路由层须各自分派、不得互相兜底。
 internal readonly record struct AutomationKey(AutomationSource Source, int EffectIndex, string Id)
 {
-    // EffectIndex 仅对 Effect 来源有意义（Part.Effects 下标）；其余来源恒 -1。
+    // EffectIndex 仅对 Effect / EffectCanvas 来源有意义（Part.Effects 下标）；其余来源恒 -1。
     public bool IsEffect => Source == AutomationSource.Effect;
+    public bool IsTimelineCanvas => Source is AutomationSource.VoiceCanvas or AutomationSource.EffectCanvas;
     public bool IsNoteLane => Source == AutomationSource.NoteLane;
     public bool IsPhonemeLane => Source == AutomationSource.PhonemeLane;
     // 属性 lane 统称（automation 路由的排除口径）。
@@ -28,6 +32,8 @@ internal readonly record struct AutomationKey(AutomationSource Source, int Effec
     public static AutomationKey Effect(int effectIndex, string id) => new(AutomationSource.Effect, effectIndex, id);
     public static AutomationKey NoteLane(string id) => new(AutomationSource.NoteLane, -1, id);
     public static AutomationKey PhonemeLane(string id) => new(AutomationSource.PhonemeLane, -1, id);
+    public static AutomationKey VoiceCanvas(string id) => new(AutomationSource.VoiceCanvas, -1, id);
+    public static AutomationKey EffectCanvas(int effectIndex, string id) => new(AutomationSource.EffectCanvas, effectIndex, id);
 }
 
 // effect 自动化轨在【数据层】的持久身份：effect 实例稳定 id（IEffect.Id）+ 该 effect 内的轨 id。

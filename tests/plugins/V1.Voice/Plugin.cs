@@ -110,6 +110,13 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
         return map;
     }
 
+    // 时间轴画布：一条贯穿 part 的标记轨（见 TimelineDemoCanvas），排在标签栏里本声源的自动化轨后面。值从声明视图取。
+    public IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig> GetTimelineCanvasConfigs(IVoiceSynthesisPartPropertyContext context)
+    {
+        var value = context.Parts.Count > 0 && context.Parts[0].TimelineCanvases.TryGetValue(TimelineDemoCanvas.Id, out var stored) ? stored : PropertyValue.Null;
+        return new OrderedMap<PropertyKey, TimelineCanvasConfig> { { (TimelineDemoCanvas.Id, "Markers"), TimelineDemoCanvas.Config(value) } };
+    }
+
     // 合成参数回显轨（只读）：恒声明一条 energy 回显轨（分段形、DefaultValue=NaN、自带色），合成前 key 即存在、可预声明。
     // 曲线数据经 IVoiceSynthesisSession.SynthesizedParameters 按同一 key（energy）承载；宿主作一等只读轨绘制。
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IVoiceSynthesisPartPropertyContext context) => mSynthesizedParameterConfigs;
@@ -318,6 +325,9 @@ public sealed class TestSession : IVoiceSynthesisSession
         // 故此处 context.Automations 已含自己声明的轨——参数绘制后的区间失效经此回调送达、触发重渲。
         if (context.Automations.TryGetValue("Growl", out var growl))
             growl.RangeModified.Subscribe(OnAutomationRangeModified);
+        // 时间轴画布（标记轨）：提交时报的范围换成秒送到这里，只标脏相交的块——状态带上只有那几拍重合成。
+        if (context.TimelineCanvases.TryGetValue(TimelineDemoCanvas.Id, out var markers))
+            markers.RangeModified.Subscribe(OnAutomationRangeModified);
         // 分段轨同在 context.Automations（形态对插件透明，只是求值可能得 NaN）：Bend 参与合成，故同样订阅失效。
         // 它是音高级输入（弯音改的是频率），失效走 pitch 那条——与 Growl 那种同级兄弟输入分级不同。
         if (context.Automations.TryGetValue("Bend", out var bend))

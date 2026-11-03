@@ -137,6 +137,9 @@ internal static class VoicesManager
     public static IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(string type, IVoiceSynthesisPartPropertyContext context)
         => Declare(type, VoiceIdOf(context), e => e.GetSynthesizedParameterConfigs(context));
 
+    public static IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig> GetTimelineCanvasConfigs(string type, IVoiceSynthesisPartPropertyContext context)
+        => Declare(type, VoiceIdOf(context), e => e.GetTimelineCanvasConfigs(context));
+
     public static ObjectConfig GetPartPropertyConfig(string type, IVoiceSynthesisPartPropertyContext context)
         => Declare(type, VoiceIdOf(context), e => e.GetPartPropertyConfig(context));
 

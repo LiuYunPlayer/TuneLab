@@ -1358,6 +1358,70 @@ click empty space to add a point, drag points, right-click to delete; click the 
 for a language menu; only the curve when narrow or short) and `tools/ScreenshotBot/demo-plugins/DemoVoice/BreathCanvas.cs`
 (the minimal display-only version).
 
+### 10.7 Timeline canvas (TimelineCanvasConfig)
+
+A plugin-drawn track that **runs across the whole part** (sections, markers, video frames, lyric blocks, your own curves… the host does not
+interpret it), on the same level as automation tracks: it is not a field of some property but a track the engine declares in
+`GetTimelineCanvasConfigs` (voice, instrument and effect engines all have it; the default body returns none).
+
+```csharp
+public IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig> GetTimelineCanvasConfigs(IVoiceSynthesisPartPropertyContext context)
+{
+    // Take the value from the declaration view (ids never set are absent = Null); the factory captures it — same as other canvases.
+    var value = context.Parts[0].TimelineCanvases.TryGetValue("mix", out var v) ? v : PropertyValue.Null;
+    return new OrderedMap<PropertyKey, TimelineCanvasConfig>
+    {
+        { ("mix", "Speaker Mix"), TimelineCanvasConfig.Create(host => new MixTrack(host, value)).WithColor("#7FD1AE") },
+    };
+}
+```
+
+- **Which one**: a property of one note / phoneme → `CanvasLaneConfig` (each object owns its own span and the data travels with it);
+  a track across the whole part → `TimelineCanvasConfig`. Users don't need to care — both are canvases in the tab bar.
+- **Declaration**: same context and same timing as `GetAutomationConfigs`, also a pure function; map order = tab-bar order (after this source's /
+  this effect's automation tracks). `.WithShownByDefault(false)` hides it from the tab bar by default (as for automation tracks). Ids need not differ
+  from automation ids (the two are stored separately), but giving both the same display name shows two tabs with the same name.
+- **Value**: one whole value, shaped by you (the host doesn't interpret it — validate when reading). **No default value**: never set = Null
+  (fill in your own default when reading). Read it from the declaration view's `TimelineCanvases` (`IVoiceSynthesisPartView` /
+  `IInstrumentSynthesisPartView` / `IEffectSynthesisView`); an instance lives for one declaration, the same contract as `CanvasConfig`.
+- **Host**: the factory receives `ITimelineCanvasHost` — `TimeAxis` (seconds / local ticks) and `PitchAxis` as for canvas lanes (§10.6), plus
+  a commit that carries the modified ranges, `CommitValue(modifiedTickRanges)` (below). The canvas fills the whole parameter panel: `Width` / `Height` are the panel's size and canvas coordinates are
+  panel coordinates; place content through the two axes.
+- **Time**: the domain is the **whole timeline**. Local ticks are relative to the part's origin (`TickToX(0)`), may be negative and may run past
+  the part — outside the part's trim you can still draw and edit (as with automation; whether it sounds is not your concern, synthesis takes the
+  trimmed range). Store ticks as local ticks: moving the part changes nothing; after a split or merge the host keeps the origin itself (a hidden
+  offset), so `TickToX(0)` still lands on your data's origin. Content stored in seconds follows §10.6's "what you see is what you hear".
+- **Report the modified ranges when committing**: synthesis needs to know which spans changed to re-render only those. Hand them over with
+  the commit: `host.CommitValue(ranges)`, where `ranges` is an `IReadOnlyList<Range>` (`TuneLab.Foundation.Range`; `Start` / `End` in local ticks,
+  [Start, End); it clashes with `System.Range`, so alias it: `using Range = TuneLab.Foundation.Range;`). Value and ranges are committed together, in
+  one step; the host records the ranges with that commit (undo / redo resend them) and hands them to synthesis in seconds.
+  - **The host doesn't merge**: what you report is recorded and forwarded as is — drop overlaps and duplicates yourself, and don't join spans
+    across parts you didn't change.
+  - Report the final result of the commit — not spans a drag passed through but left unchanged.
+  - **`CommitValue()` without arguments = the whole track changed**: use it when you replace everything (clear, import, reset to your default);
+    an empty list means the same (correct, just more re-rendering).
+- **Synthesis**: the context's `TimelineCanvases` (`IVoiceSynthesisContext` / `IInstrumentSynthesisContext` / `IEffectSynthesisContext`, by id,
+  declared ones only) gives `ISynthesisTimelineCanvas`: `Value`, `TimeConverter` (local tick ↔ global seconds, same origin as `TickToX(0)` on the
+  canvas) and `RangeModified` (global seconds, once per reported span; writes without a range and host-initiated writes — scripts, the agent —
+  fire (-∞, +∞)). In workers use the snapshot's `TimelineCanvases` (`SynthesisTimelineCanvasSnapshot`: `Value` + `TimeConverter`). For effects the
+  host does the range-intersection dirtying; `RangeModified` is only a cache hint there.
+- **Part operations (this version)**: moving a part changes nothing; **split** = each half gets the whole value and shows its own span (redundant
+  data; stretching a half later reveals what was hidden); **merge** = for each id, keep the value of the first part in time order that has it and drop
+  the rest; **range copy / paste does not carry canvas values**; part presets store the whole value (applying one replaces each declared canvas,
+  removes those the preset lacks, and "None" removes them all). The host can't cut a span out of your value, hence
+  these rules; a later version will let the declaration supply "read / write a range" functions so split, merge and paste can work per range —
+  plugins that don't supply them keep today's behaviour.
+- **Orphan data**: when an id leaves the declaration (another sound source, a conditional declaration) its value stays stored and saved, just not
+  shown or synthesized; declaring it again restores it. After switching sources you may read a value some other plugin wrote — always validate.
+- **Project file**: the value is saved with the part / effect (`TimelineCanvases` on `MidiPartInfo` / `EffectInfo`: offset + value). Exporting
+  to another project format drops that table (format plugins don't know it).
+- **As background**: as for canvas lanes (`IsBackground`, simplify the drawing). Canvases never stack: when a canvas is active, other canvases
+  aren't drawn.
+
+Reference implementation: `tests/plugins/V1.Voice/TimelineDemoCanvas.cs` ("Markers": cells placed on tick × pitch, aligned with the piano keys;
+an origin line; add / drag / delete all report the affected half-beats before committing; the session subscribes to `RangeModified` and dirties only
+the intersecting chunks).
+
 ## 11. Packaging, Installation, Uninstallation
 
 - **Package format**: zip up the package folder and change the extension to **`.tlx`**, requiring `manifest.json` at the zip's **root**.

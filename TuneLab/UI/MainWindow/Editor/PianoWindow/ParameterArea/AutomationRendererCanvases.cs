@@ -25,16 +25,23 @@ namespace TuneLab.UI;
 // 面板收起时只是不显示、不收事件，回来直接复用；声明换了（part 任何数据变化都会让缓存作废、按新声明重建）才换工厂——
 // 插件正在编辑（BeginEdit / 草稿 / 弹出）时不换，等它用完。保留数量不设上限（缩小后它们又都会出来）。
 // 背景画布不收输入；插件没处理的滚轮冒泡回本渲染器（滚动 / 缩放时间轴）。
+//
+// 时间轴画布（TimelineCanvasConfig）每条一块，铺满整个面板（定义域是整条时间轴，画布内坐标就是面板坐标），局部 tick 的原点 =
+// part 原点 + 存储里的偏移；没有对象、不跟 note 走，其余（分层绘制、实例复用、编辑中不换）同画布 lane。
 internal partial class AutomationRenderer
 {
-    readonly record struct CanvasSlot(string LaneId, bool Phoneme, INote Note, int Index);
+    // 画布 lane 的一块 = （lane、note、音素位）；时间轴画布的一块 = 它的路由键（Note 为 null）。
+    readonly record struct CanvasSlot(string LaneId, bool Phoneme, INote? Note, int Index, AutomationKey? Timeline = null)
+    {
+        public static CanvasSlot ForTimeline(AutomationKey key) => new(key.Id, false, null, -1, key);
+    }
 
     sealed class LaneCanvas(PluginCanvas view, CanvasTimeAxis axis, CanvasPitchAxis pitchAxis)
     {
         public PluginCanvas View { get; } = view;
         public CanvasTimeAxis Axis { get; } = axis;
         public CanvasPitchAxis PitchAxis { get; } = pitchAxis;
-        public IControllerConfig? Config;   // 当前工厂来自的那份声明：声明对象换了才换工厂
+        public object? Config;   // 当前工厂来自的那份声明：声明对象换了才换工厂
         public Rect Rect;                    // 本渲染器坐标里的位置（这一帧画在哪）
         public bool Shown;
         public bool Active;
@@ -145,7 +152,7 @@ internal partial class AutomationRenderer
         canvas.Rect = rect;
         canvas.Active = isActive;
         canvas.Axis.Left = left;
-        canvas.Axis.Origin = slot.Note.GlobalStartPos();   // 局部 tick 的原点：所属音符的起点（音素级同样）
+        canvas.Axis.Origin = slot.Note!.GlobalStartPos();   // 局部 tick 的原点：所属音符的起点（音素级同样）
         canvas.PitchAxis.Top = rect.Y;
         canvas.View.IsBackground = !isActive;
         if (!ReferenceEquals(canvas.Config, config) && !canvas.View.IsInUse)
@@ -158,12 +165,45 @@ internal partial class AutomationRenderer
             canvas.View.RenderInto(context);
     }
 
+    // 画一块时间轴画布：铺满面板（画布坐标 = 面板坐标），原点 = part 原点 + 偏移。还没有实例的推迟一拍再建（同画布 lane）。
+    void DrawTimelineCanvas(DrawingContext context, AutomationKey key, bool isActive)
+    {
+        if (Part is not { } part || !part.TryGetTimelineCanvas(key, out var config, out var store))
+            return;
+
+        var slot = CanvasSlot.ForTimeline(key);
+        mCanvasesShown.Add(slot);
+        if (!mCanvases.TryGetValue(slot, out var canvas))
+        {
+            mTimelinesToCreate.Add(slot);
+            return;
+        }
+
+        var rect = new Rect(0, 0, Bounds.Width, Bounds.Height);
+        canvas.Rect = rect;
+        canvas.Active = isActive;
+        canvas.Axis.Left = 0;
+        canvas.Axis.Origin = part.Pos.Value + (store.TryGetValue(key.Id, out var entry) ? entry.Offset : 0);
+        canvas.PitchAxis.Top = 0;
+        canvas.View.IsBackground = !isActive;
+        if (!ReferenceEquals(canvas.Config, config) && !canvas.View.IsInUse)
+        {
+            canvas.Config = config;
+            canvas.View.Bind(new TimelineCanvasField(store, key.Id));
+            canvas.View.SetTimelineFactory(config.CreateControl, canvas.Axis, canvas.PitchAxis);
+        }
+
+        canvas.View.SetHostedGeometry(rect.Size, rect);
+        using (context.PushClip(rect))
+            canvas.View.RenderInto(context);
+    }
+
     // 换上这份声明的工厂（连同字段绑定：路径与默认值随声明）。
     void ApplyConfig(LaneCanvas canvas, CanvasSlot slot, LanePath.Resolved resolved)
     {
         var config = resolved.Leaf;
         canvas.Config = config;
-        IDataProperty<PropertyValue> field = new LanePathField(slot.Note, slot.Phoneme ? slot.Index : -1, resolved.Steps);
+        IDataProperty<PropertyValue> field = new LanePathField(slot.Note!, slot.Phoneme ? slot.Index : -1, resolved.Steps);
         canvas.View.Bind(field);
         if (config is CanvasLaneConfig t)
             canvas.View.SetLaneFactory(t.CreateControl, canvas.Axis, canvas.PitchAxis);
@@ -175,7 +215,7 @@ internal partial class AutomationRenderer
     // 再按新位置重新布局（命中区域跟上画面）。
     void ScheduleCanvasSync()
     {
-        if (mCanvasSyncPosted || (mCanvases.Count == 0 && mCanvasesToCreate.Count == 0))
+        if (mCanvasSyncPosted || (mCanvases.Count == 0 && mCanvasesToCreate.Count == 0 && mTimelinesToCreate.Count == 0))
             return;
         mCanvasSyncPosted = true;
         Dispatcher.UIThread.Post(SyncCanvases);
@@ -186,10 +226,10 @@ internal partial class AutomationRenderer
         mCanvasSyncPosted = false;
         var part = Part;
         bool created = false;
-        foreach (var (slot, _) in mCanvasesToCreate)
+        void Create(CanvasSlot slot)
         {
             if (part == null || mCanvases.ContainsKey(slot))
-                continue;
+                return;
             var view = new PluginCanvas() { ExternallyRendered = true };
             view.RenderRequested += OnCanvasRenderRequested;
             var canvas = new LaneCanvas(view, new CanvasTimeAxis(this), new CanvasPitchAxis(this));
@@ -197,15 +237,23 @@ internal partial class AutomationRenderer
             Children.Add(view);
             created = true;
         }
+        foreach (var (slot, _) in mCanvasesToCreate)
+            Create(slot);
+        foreach (var slot in mTimelinesToCreate)
+            Create(slot);
         mCanvasesToCreate.Clear();
+        mTimelinesToCreate.Clear();
 
         List<CanvasSlot>? stale = null;
         var notes = part == null ? null : new HashSet<INote>(part.Notes);
         foreach (var (slot, canvas) in mCanvases)
         {
-            // 对象没了（note 删了）、lane 不在了（解钉）：不会再出现，丢掉。
+            // 对象没了（note 删了）、lane 不在了（解钉 / 时间轴画布不再声明）：不会再出现，丢掉。
             var lanes = slot.Phoneme ? part?.PhonemeLaneConfigs : part?.NoteLaneConfigs;
-            if (notes == null || !notes.Contains(slot.Note) || lanes == null || !lanes.ContainsKey(slot.LaneId))
+            bool gone = slot.Timeline is { } timeline
+                ? part == null || !part.IsEffectiveTimelineCanvas(timeline)
+                : notes == null || !notes.Contains(slot.Note!) || lanes == null || !lanes.ContainsKey(slot.LaneId);
+            if (gone)
             {
                 (stale ??= []).Add(slot);
                 continue;
@@ -240,6 +288,7 @@ internal partial class AutomationRenderer
         foreach (var slot in new List<CanvasSlot>(mCanvases.Keys))
             RemoveCanvas(slot);
         mCanvasesToCreate.Clear();
+        mTimelinesToCreate.Clear();
         mCanvasesShown.Clear();
         mCanvasesShownLastFrame.Clear();
     }
@@ -275,10 +324,48 @@ internal partial class AutomationRenderer
 
     readonly Dictionary<CanvasSlot, LaneCanvas> mCanvases = new();
     readonly Dictionary<CanvasSlot, LanePath.Resolved> mCanvasesToCreate = new();
+    readonly HashSet<CanvasSlot> mTimelinesToCreate = new();
     readonly HashSet<CanvasSlot> mCanvasesShown = new();            // 正在画的这一帧画到的
     readonly HashSet<CanvasSlot> mCanvasesShownLastFrame = new();   // 画完的上一帧画到的（同步按它定显隐）
     bool mCanvasSyncPosted;
     bool mInRender;
+
+    // 时间轴画布字段：读写 part / effect 上画布表里的一条（整值，没设过 = Null）。提交时插件报的改动范围随值交给存储
+    //（局部 tick，存储换成 part 局部 tick 随撤销记录存下）。撤销根、提交、通知借画布表的。
+    sealed class TimelineCanvasField(TimelineCanvases store, string id) : IDataProperty<PropertyValue>, IRawValueProperty, IRangedValueProperty
+    {
+        public PropertyValue RawValue => store.GetValue(id);
+        public PropertyValue Value => RawValue;
+        public PropertyValue GetInfo() => RawValue;
+        public void SetInfo(PropertyValue value) => Set(value);
+        public void Set(PropertyValue value) => store.SetValue(id, value);
+        public void Set(PropertyValue value, IReadOnlyList<(double Start, double End)>? ranges)
+        {
+            List<TickRange>? tickRanges = null;
+            if (ranges != null)
+            {
+                tickRanges = new(ranges.Count);
+                foreach (var (start, end) in ranges)
+                    tickRanges.Add(new TickRange(start, end));
+            }
+            store.SetValue(id, value, tickRanges);
+        }
+
+        public IModifiedEvent Modified => store.Modified;
+        public IModifiedEvent WillModify => store.WillModify;
+        public Head Head => store.Head;
+        public void Attach(IDataObject parent) => store.Attach(parent);
+        public void Detach() => store.Detach();
+        public IDisposable MergeNotify() => store.MergeNotify();
+        public void BeginMergeNotify() => store.BeginMergeNotify();
+        public void EndMergeNotify() => store.EndMergeNotify();
+        public bool Pushable() => store.Pushable();
+        public bool Commit() => store.Commit();
+        public bool Discard() => store.Discard();
+        public bool DiscardTo(Head head) => store.DiscardTo(head);
+        public bool Undo() => store.Undo();
+        public bool Redo() => store.Redo();
+    }
 
     // 画布字段：沿路径（见 LanePath）读写 note 的属性（phonemeIndex >= 0 时是该位音素的属性）。
     // 读 = 路径上存的值，缺的节点读默认值（合成音素没有属性，也读默认值）；写 = 音素级先把这个 note 的音素钉死（合成 → 固定，

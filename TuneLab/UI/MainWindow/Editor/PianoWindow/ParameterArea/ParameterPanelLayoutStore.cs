@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using TuneLab.Data;
 using TuneLab.Extensions.Formats.TLP;
@@ -37,11 +38,14 @@ internal static class ParameterPanelLayoutStore
                 return new() { Source = NoteLaneSource, Id = key.Id };
             case AutomationSource.PhonemeLane:
                 return new() { Source = PhonemeLaneSource, Id = key.Id };
+            case AutomationSource.VoiceCanvas:
+                return new() { Source = VoiceCanvasSource, Id = key.Id };
             case AutomationSource.Effect:
+            case AutomationSource.EffectCanvas:
                 if (key.EffectIndex < 0 || key.EffectIndex >= effects.Count)
                     return null;
                 var slot = effects[key.EffectIndex];
-                return new() { Source = EffectSource, Id = key.Id, EffectId = slot.Id, EffectIndex = key.EffectIndex, EffectType = slot.Type };
+                return new() { Source = key.IsEffect ? EffectSource : EffectCanvasSource, Id = key.Id, EffectId = slot.Id, EffectIndex = key.EffectIndex, EffectType = slot.Type };
             default:
                 return null;
         }
@@ -60,17 +64,21 @@ internal static class ParameterPanelLayoutStore
                 return AutomationKey.NoteLane(info.Id);
             case PhonemeLaneSource:
                 return AutomationKey.PhonemeLane(info.Id);
+            case VoiceCanvasSource:
+                return AutomationKey.VoiceCanvas(info.Id);
             case EffectSource:
+            case EffectCanvasSource:
+                Func<int, string, AutomationKey> make = info.Source == EffectSource ? AutomationKey.Effect : AutomationKey.EffectCanvas;
                 if (!string.IsNullOrEmpty(info.EffectId))
                 {
                     for (int i = 0; i < effects.Count; i++)
                     {
                         if (effects[i].Id == info.EffectId)
-                            return AutomationKey.Effect(i, info.Id);
+                            return make(i, info.Id);
                     }
                 }
                 if (info.EffectIndex >= 0 && info.EffectIndex < effects.Count && effects[info.EffectIndex].Type == info.EffectType)
-                    return AutomationKey.Effect(info.EffectIndex, info.Id);
+                    return make(info.EffectIndex, info.Id);
                 return null;
             default:
                 // 不认识的来源（更新版本写的）：跳过这一条，不让它挡住整份布局。
@@ -82,4 +90,6 @@ internal static class ParameterPanelLayoutStore
     const string EffectSource = "effect";
     const string NoteLaneSource = "noteLane";
     const string PhonemeLaneSource = "phonemeLane";
+    const string VoiceCanvasSource = "voiceCanvas";
+    const string EffectCanvasSource = "effectCanvas";
 }

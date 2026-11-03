@@ -19,7 +19,7 @@ internal static class PartPresets
     // 一次应用动了多少：**当前声源声明的**属性叶子数与自动化轨数（多 part 时累加）。
     // 【为什么要报出来】声源声明了 0 个属性时（换过引擎的 part 上很常见），"恢复默认"其实一个字段都没碰，
     // 而回一句笼统的"已重置"就是假装成功——实测里正是这一点让人以为重置坏掉了。
-    internal readonly record struct Applied(int Properties, int Automations);
+    internal readonly record struct Applied(int Properties, int Automations, int TimelineCanvases = 0);
 
     // 应用到一批 part：preset = null 即界面上那条「None」（恢复声源自己的默认值）。
     // 扇出到全部目标后**归为一个撤销步**（共享文档，commit 一次），故多选应用与单选一样能一次撤销。
@@ -36,7 +36,7 @@ internal static class PartPresets
         if (parts.Count == 0)
             return default;
 
-        int properties = 0, automations = 0;
+        int properties = 0, automations = 0, canvases = 0;
         foreach (var part in parts)
             part.BeginMergeDirty();
         foreach (var part in parts)
@@ -44,16 +44,17 @@ internal static class PartPresets
             var applied = preset == null ? ApplyDefaults(part) : ApplyTo(part, preset);
             properties += applied.Properties;
             automations += applied.Automations;
+            canvases += applied.TimelineCanvases;
         }
         foreach (var part in parts)
             part.EndMergeDirty();
         parts[0].Commit();
-        return new Applied(properties, automations);
+        return new Applied(properties, automations, canvases);
     }
 
     // 从一个 part 抓一份快照。**物化 dense**：显式值优先、absent 字段落抓取时的声明默认值——
     // 默认值也是声音的一部分，引擎日后改默认值不应改变既存 preset 的声音。
-    // 只抓自动化的默认值、不含曲线点（preset 口径：不含时间轴内容）。
+    // 只抓自动化的默认值、不含曲线点（preset 口径：不含时间轴内容）；时间轴画布例外，整值收进来（见 PartPreset）。
     public static PartPreset Capture(IMidiPart part, string presetName)
     {
         var preset = new PartPreset()
@@ -72,6 +73,12 @@ internal static class PartPresets
             preset.Automations.Add(key, new AutomationInfo() { DefaultValue = value });
         }
 
+        foreach (var kvp in part.SoundSource.TimelineCanvasConfigs)
+        {
+            if (part.TimelineCanvases.TryGetValue(kvp.Key.Id, out var entry))
+                preset.TimelineCanvases.Add(kvp.Key.Id, new TimelineCanvasInfo { Offset = entry.Offset, Value = entry.Value });
+        }
+
         return preset;
     }
 
@@ -79,7 +86,7 @@ internal static class PartPresets
     static Applied ApplyDefaults(IMidiPart part)
     {
         int properties = ResetPropertiesToDefaults(part.SoundSource.GetPartPropertyConfig(PartPropertyContext.Single(part)), part.Properties);
-        return new Applied(properties, ResetAutomationDefaults(part));
+        return new Applied(properties, ResetAutomationDefaults(part), ApplyTimelineCanvases(part, null));
     }
 
     static Applied ApplyTo(IMidiPart part, PartPreset preset)
@@ -89,7 +96,7 @@ internal static class PartPresets
         ApplyProperties(part, preset.Properties);
         // 自动化轨集合可随属性涌现（条件轨，如某条目被选中才声明的轨）：属性写入即经 part 的属性订阅重算
         //（同步，见 MidiPart.OnPartPropertiesModified），故走到这里时 AutomationConfigs 已是应用后的声明集。
-        return new Applied(properties, ApplyAutomationDefaults(part, preset));
+        return new Applied(properties, ApplyAutomationDefaults(part, preset), ApplyTimelineCanvases(part, preset));
     }
 
     // 沿 ObjectConfig 结构与数据节点并行导航：嵌套 config 走 node.Object(key) 下降，叶子 config 写 node.SetValue。
@@ -238,6 +245,25 @@ internal static class PartPresets
                 sb.Append(path).Append(':').Append(kvp.Value.GetType().Name).Append(';');
             }
         }
+    }
+
+    // 时间轴画布：当前声源声明的每条，预设里有就换成预设的（偏移 + 值），没有（或「None」）就删掉存值、回到"没设过"——
+    // 与属性"先重置再写预设的值"同一口径。孤儿 id 不碰。返回动了几条（本来就是那个值的不计）。
+    static int ApplyTimelineCanvases(IMidiPart part, PartPreset? preset)
+    {
+        int count = 0;
+        foreach (var kvp in part.SoundSource.TimelineCanvasConfigs)
+        {
+            string id = kvp.Key.Id;
+            TimelineCanvasEntry? target = preset != null && preset.TimelineCanvases.TryGetValue(id, out var info) && !info.Value.IsNull()
+                ? new TimelineCanvasEntry(info.Offset, info.Value) : null;
+            TimelineCanvasEntry? current = part.TimelineCanvases.TryGetValue(id, out var entry) ? entry : null;
+            if (Equals(current, target))
+                continue;
+            part.TimelineCanvases.SetEntry(id, target);
+            count++;
+        }
+        return count;
     }
 
     // 返回动了几条轨。没有曲线的轨（part 上还不存在这条 automation）算不上"重置"，故不计。

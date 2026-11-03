@@ -293,6 +293,8 @@ internal partial class AutomationRenderer : View
                 else
                     DrawCanvasLane(context, automationID, phoneme: true, isActive);
             }
+            else if (Part.IsEffectiveTimelineCanvas(automationID))
+                DrawTimelineCanvas(context, automationID, isActive);
             else if (Part.IsEffectiveAutomation(automationID))
                 DrawContinuous(automationID);
             else if (Part.IsEffectivePiecewiseAutomation(automationID))
@@ -489,8 +491,7 @@ internal partial class AutomationRenderer : View
         var activeAutomation = mDependency.ActiveAutomation;
         // 激活的是画布时，背景里的画布不画：画布是一整块界面（网格、文字、把手），两层叠起来哪层都看不清。
         // 背景里的曲线 / 数值 lane 照常画（细线，压暗后垫在画布下还看得清）；画布的可见开关不动，换回别的激活参数就又出现。
-        bool activeIsCanvas = activeAutomation is { } activeKey && (activeKey.IsNoteLane || activeKey.IsPhonemeLane)
-            && (Part.IsEffectiveNoteLane(activeKey) || Part.IsEffectivePhonemeLane(activeKey)) && !Part.IsNumberLane(activeKey);
+        bool activeIsCanvas = activeAutomation is { } activeKey && Part.IsCanvasParameter(activeKey);
         foreach (var automation in mDependency.VisibleAutomations)
         {
             if (automation == activeAutomation)
@@ -499,7 +500,7 @@ internal partial class AutomationRenderer : View
             if (!mDependency.IsAutomationVisible(automation))
                 continue;
 
-            if (activeIsCanvas && (Part.IsEffectiveNoteLane(automation) || Part.IsEffectivePhonemeLane(automation)) && !Part.IsNumberLane(automation))
+            if (activeIsCanvas && Part.IsCanvasParameter(automation))
                 continue;
 
             Draw(automation, false);
@@ -516,6 +517,12 @@ internal partial class AutomationRenderer : View
             return;
 
         var active = activeAutomation.Value;
+        // 时间轴画布：整块由插件画，没有值轴、颤音叠加与上下界标签。
+        if (Part.IsEffectiveTimelineCanvas(active))
+        {
+            Draw(active, true);
+            return;
+        }
         bool activeContinuous = Part.IsEffectiveAutomation(active);
         bool activePiecewise = !activeContinuous && Part.IsEffectivePiecewiseAutomation(active);
         bool activeNoteLane = Part.IsEffectiveNoteLane(active);

@@ -64,6 +64,10 @@ internal sealed class PluginCanvas : Component
     public void SetLaneFactory(Func<ICanvasLaneHost, ICanvasControl> factory, ICanvasTimeAxis timeAxis, ICanvasPitchAxis pitchAxis)
         => SetFactory(factory, (view, field) => new LaneSession(view, field, timeAxis, pitchAxis), session => factory((LaneSession)session));
 
+    // 时间轴画布（TimelineCanvasConfig）的工厂：宿主同画布 lane，另有带改动范围的提交（随值交给字段，字段须实现 IRangedValueProperty）。
+    public void SetTimelineFactory(Func<ITimelineCanvasHost, ICanvasControl> factory, ICanvasTimeAxis timeAxis, ICanvasPitchAxis pitchAxis)
+        => SetFactory(factory, (view, field) => new TimelineSession(view, field, timeAxis, pitchAxis), session => factory((TimelineSession)session));
+
     // 作背景显示（参数面板里激活的是别的参数、本画布可见）：由所在视图设，变了就重画（契约见 ICanvasHost.IsBackground）。
     public bool IsBackground
     {
@@ -752,7 +756,7 @@ internal sealed class PluginCanvas : Component
             view.mOwnWrite++;
             try
             {
-                field.Set(value);   // 与草稿据以的值相同则不产生改动，Commit 也就什么都不做
+                Write(field, value);   // 与草稿据以的值相同则不产生改动，Commit 也就什么都不做
                 field.Commit();
                 view.mSeen = view.CurrentValue;
             }
@@ -771,6 +775,10 @@ internal sealed class PluginCanvas : Component
             ClearDraft();
             view.RequestRender();
         }
+
+        // 提交时怎么写进字段：时间轴画布要把这次提交带的改动范围一起交出去（见 TimelineSession）。
+        protected virtual void Write(IDataProperty<PropertyValue> field, PropertyValue value) => field.Set(value);
+        protected string PluginPrefix => view.PluginPrefix();
 
         public void Call(Action<ICanvasControl> action)
         {
@@ -975,6 +983,49 @@ internal sealed class PluginCanvas : Component
     {
         public ICanvasTimeAxis TimeAxis => timeAxis;
         public ICanvasPitchAxis PitchAxis => pitchAxis;
+    }
+
+    // 时间轴画布的宿主：同画布 lane，另有带改动范围（局部 tick）的提交——范围只活在这一次提交里，随值交给字段（字段须实现
+    // IRangedValueProperty）。不带参数的提交、空列表 = 整条（交 null）。范围原样交出，不合并（去重归插件）。
+    sealed class TimelineSession(PluginCanvas view, IDataProperty<PropertyValue> field, ICanvasTimeAxis timeAxis, ICanvasPitchAxis pitchAxis)
+        : Session(view, field), ITimelineCanvasHost
+    {
+        public ICanvasTimeAxis TimeAxis => timeAxis;
+        public ICanvasPitchAxis PitchAxis => pitchAxis;
+
+        public void CommitValue(IReadOnlyList<TuneLab.Foundation.Range> modifiedTickRanges)
+        {
+            ArgumentNullException.ThrowIfNull(modifiedTickRanges);
+            var ranges = new List<(double Start, double End)>(modifiedTickRanges.Count);
+            foreach (var range in modifiedTickRanges)
+            {
+                if (!double.IsFinite(range.Start) || !double.IsFinite(range.End))
+                {
+                    Log.Error(PluginPrefix + "Canvas CommitValue was given a modified range with a non-finite tick; that range was ignored.");
+                    continue;
+                }
+                ranges.Add(range.Start <= range.End ? (range.Start, range.End) : (range.End, range.Start));
+            }
+            mCommitRanges = ranges.Count > 0 ? ranges : null;
+            try
+            {
+                CommitValue();
+            }
+            finally
+            {
+                mCommitRanges = null;
+            }
+        }
+
+        protected override void Write(IDataProperty<PropertyValue> field, PropertyValue value)
+        {
+            if (field is IRangedValueProperty ranged)
+                ranged.Set(value, mCommitRanges);
+            else
+                field.Set(value);
+        }
+
+        List<(double Start, double End)>? mCommitRanges;   // 只在一次带范围的提交期间有值
     }
 
     // 画布文字不传样式 / 不给字号时：字号与宿主界面上的字段文字同档（PropertyObjectController 的字段标签），宿主调整时一起改。

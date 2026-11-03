@@ -26,6 +26,9 @@ public interface IEffectSynthesisContext
     // （分段轨不在此列）。RangeModified 为可选的缓存刷新提示（调度所需的区间相交判定由宿主完成）。
     IReadOnlyMap<string, ISynthesisAutomation> Automations { get; }
 
+    // 该 effect 声明的时间轴画布（按 id）：值 + 换算；RangeModified 为可选的缓存刷新提示（与本段相交才标脏由宿主判定）。
+    IReadOnlyMap<string, ISynthesisTimelineCanvas> TimelineCanvases { get; }
+
     // 拉取跨线程冻结快照（仅 Process 同步前缀调用、可拉多份；[startTime, endTime] 为自动化开窗的全局秒
     // 区间，通常 = 输入段范围 ± 引擎自己的上下文窗）。worker 只读快照 + 自己 Read 出的音频缓冲——合成
     // 永不回碰宿主活数据（与 voice GetSnapshot 同判例）。前缀可枚举采样时刻的简单引擎直接对活视图

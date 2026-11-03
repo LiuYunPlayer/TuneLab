@@ -52,6 +52,36 @@ internal static class TrackColors
         return result;
     }
 
+    // 时间轴画布：同 Assign（标签按钮与标题用这个色），已占用 = occupied + 本集合里指定了的 + 先分到的。
+    public static IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig> AssignCanvases(IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig> configs, IEnumerable<string> occupied)
+    {
+        bool any = false;
+        var used = new List<string>(occupied);
+        foreach (var kvp in configs)
+        {
+            if (IsUnassigned(kvp.Value.Color))
+                any = true;
+            else
+                used.Add(kvp.Value.Color);
+        }
+        if (!any)
+            return configs;
+
+        var result = new OrderedMap<PropertyKey, TimelineCanvasConfig>();
+        foreach (var kvp in configs)
+        {
+            var config = kvp.Value;
+            if (IsUnassigned(config.Color))
+            {
+                var color = Pick(used);
+                used.Add(color);
+                config = config.WithColor(color);
+            }
+            result.Add(kvp.Key, config);
+        }
+        return result;
+    }
+
     // 回显轨（合成参数）：与同 id 的可编辑轨同色（同一个参数的两种呈现），没有同 id 的再从调色板分。
     public static IReadOnlyOrderedMap<PropertyKey, AutomationConfig> AssignSynthesized(IReadOnlyOrderedMap<PropertyKey, AutomationConfig> configs, IReadOnlyOrderedMap<PropertyKey, AutomationConfig> editable)
     {
