@@ -51,6 +51,7 @@ internal static class ImagePreviewOverlay
             Background = new SolidColorBrush(Colors.Black, 0.85),
             ClipToBounds = true, // 放大平移后超出视口的部分裁掉
             Focusable = true,    // 接收 Esc
+            IsTabStop = false,   // 焦点由打开时主动给，Tab 不切进来（否则会画出 Avalonia 的焦点框）
             Cursor = new Cursor(StandardCursorType.Arrow),
             Child = image,
         };

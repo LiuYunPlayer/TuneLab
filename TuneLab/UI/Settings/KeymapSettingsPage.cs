@@ -319,6 +319,7 @@ internal sealed class KeymapSettingsPage : DockPanel
             BorderBrush = (recording ? Style.HIGH_LIGHT : Style.LIGHT_WHITE.Opacity(0.12)).ToBrush(),
             Cursor = new Cursor(StandardCursorType.Hand),
             Focusable = true,
+            IsTabStop = false,   // 只在点击开始录制时接管焦点，Tab 不切进来（否则会画出 Avalonia 的焦点框）
             Child = text,
         };
         if (tip != null)

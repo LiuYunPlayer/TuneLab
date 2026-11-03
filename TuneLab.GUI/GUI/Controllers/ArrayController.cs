@@ -43,6 +43,7 @@ internal abstract class ArrayControllerBase : StackPanel, IElementRowHost
         SetTrailingGap(true);
         mDragAnimation = new RowDragAnimation(this);
         Focusable = true;   // 点序号条时接管键盘焦点，Delete 才路由得到这里（见 OnKeyDown）
+        IsTabStop = false;   // 同 Component：只在点击时接管焦点，Tab 不切进来（否则会画出 Avalonia 的焦点框）
     }
 
     // 收尾留白：+ 按钮在时由它的上下边距撑开字段底部；没有 + 时（定长数组 / 列表达上限隐藏 +）末行会直接贴住

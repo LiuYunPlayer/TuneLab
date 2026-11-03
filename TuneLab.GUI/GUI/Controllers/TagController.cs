@@ -32,6 +32,7 @@ internal sealed class TagController : Panel
     public TagController()
     {
         Focusable = true;   // 点 chip 时接管键盘焦点，Delete 才路由得到这里（见 OnKeyDown）
+        IsTabStop = false;   // 同 Component：只在点击时接管焦点，Tab 不切进来（否则会画出 Avalonia 的焦点框）
         Background = Style.INTERFACE.ToBrush();
 
         mWrap = new WrapPanel { Orientation = Orientation.Horizontal };
