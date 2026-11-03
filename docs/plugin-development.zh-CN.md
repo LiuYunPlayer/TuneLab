@@ -43,7 +43,7 @@
 |---|---|---|
 | `1.0` | TuneLab 2.0.0 | V1 SDK 的全部初始面 |
 | `1.1` | TuneLab 2.1.0 | 路径选择控件（`PathPickerConfig` / `FileTypeFilter`）、多行文本框（`TextBoxConfig.WithMultiline`） |
-| `1.2` | 尚未发布 | 标签组（`TagConfig` / `TagItem`）、按钮（`ButtonConfig` / `IButtonClickContext` / `IDialogService` / `IProgressReporter`，见 §9）、声明失效（`InvalidatePart` / `InvalidateNotes` 及配套的 `PartId` / note `Id`，见 §5.2）、`+` 菜单与下拉的分组和分隔线（`AddableElement` / `AddableKey` 分组、`Separator`、`ComboBoxItem.Separator`）、自动化轨默认不在标签栏显示（`AutomationConfig.WithShownByDefault`）；以及**实验中**的画布（`CanvasConfig` / `CanvasLaneConfig` / `ICanvasControl` / `ICanvasHost` / `ITimelineCanvasHost` / `ICanvasTimeAxis` / `ICanvasDrawing` / `CanvasImage` 及其事件类型，见 §10） |
+| `1.2` | 尚未发布 | 标签组（`TagConfig` / `TagItem`）、按钮（`ButtonConfig` / `IButtonClickContext` / `IDialogService` / `IProgressReporter`，见 §9）、声明失效（`InvalidatePart` / `InvalidateNotes` 及配套的 `PartId` / note `Id`，见 §5.2）、`+` 菜单与下拉的分组和分隔线（`AddableElement` / `AddableKey` 分组、`Separator`、`ComboBoxItem.Separator`）、自动化轨默认不在标签栏显示（`AutomationConfig.WithShownByDefault`）；以及**实验中**的画布（`CanvasConfig` / `CanvasLaneConfig` / `ICanvasControl` / `ICanvasHost` / `ICanvasLaneHost` / `ICanvasTimeAxis` / `ICanvasDrawing` / `CanvasImage` 及其事件类型，见 §10） |
 
 插件级（描述「这个包提供什么」）。**身份内联进 manifest**：一个条目 = 一个具体可注册能力，自带身份（引擎 id / 文件扩展名）+ 实现类全名。宿主读完 manifest 即知插件提供什么、无需加载程序集反射。
 
@@ -1282,12 +1282,23 @@ props.Add(("mix", "Mix"), CanvasLaneConfig.Create(host => new MixCanvas(host, va
 - **侧栏里那一行**：每个画布 lane 的位置（含数组 / 列表的每个元素里）在侧栏占一行：字段名 + 摘要 + 编辑按钮（跳到参数面板）。
   摘要用 `.WithSummary(text)` 在声明时按当时的值算好（多选写什么你定），不给则宿主显示「默认 / 已修改 / 多值」。
   列表照常在侧栏增删、调序；元素对象里别的普通字段照常显示、可以多选批量改。
-- **时间换算**：工厂收到的是 `ITimelineCanvasHost`，多一个 `TimeAxis`——`TimeToX(秒)` / `XToTime(x)`，秒是全局秒（与声明视图
-  `IVoiceSynthesisNoteView.StartTime` 同一口径），x 是画布坐标。换算跟着钢琴窗的时间轴走（速度变化处不均匀），**别假设它线性**。
-  这块画布覆盖的时间段就是 `XToTime(0)` 到 `XToTime(Width)`；它未必等于对象自己的起止（note 会被钳到下一个 note 的起点，
-  音素的显示时间由宿主排版），按秒画的内容拿自己数据里的绝对时间换算即可。
-- **所见即所闻**：按秒定义的曲线，别只换算控制点再连直线——跨过速度变化处会与按秒插值的结果不一致。逐像素采样
-  （每一列 `XToTime(x)` 换回秒、再按秒求值）就与合成严格一致。
+- **坐标**：工厂收到的是 `ICanvasLaneHost`——横向是时间、纵向是音高，有 `TimeAxis` 与 `PitchAxis`。
+  两条轴宿主一律给，用不到的不调即可。
+  - **时间，两种单位**：`TimeToX(秒)` / `XToTime(x)` 是全局秒（`TimeToX(0)` = 工程开头，与声明视图
+    `IVoiceSynthesisNoteView.StartTime` 同一口径）；`PosToX(tick)` / `XToPos(x)` 是**局部 tick**，相对这块数据的原点——所属音符的
+    起点（音素级字段同样）：`PosToX(0)` = 音符起点，局部 tick 可以为负。按自己数据的单位选一组；跟着音乐走（按拍子）的内容
+    宜按局部 tick 存，音符挪了、速度改了都不错位。`TimeAxis.TempoMap` 不经 x 换算局部 tick ↔ 全局秒（不可变；用时再取、
+    别跨 Render 缓存——改了速度就是另一份）。
+  - **音高**：`PitchToY(半音)` / `YToPitch(y)`，单位同音符 `Pitch` 与合成音高（60 = 中央 C）。**n 号键占 [n, n + 1)**：
+    `PitchToY(n)` 是它的下沿、`PitchToY(n + 1)` 是上沿，画一格琴键或音符块就在这两条线之间，指针下的键是 `Math.Floor(YToPitch(y))`。
+    音高**值**落在键的中线上（唱准的 60 画在 60 号键正中，宿主画音高曲线也在那里）：画音高值用 `PitchToY(值 + 0.5)`，由指针读出
+    音高值用 `YToPitch(y) - 0.5`——直接拿 `YToPitch(y)` 当音高存会偏高 50 音分。在参数面板里，纵轴就是面板背后那块音符区的音高。
+  - **两条轴都别假设线性。** 这块画布覆盖的时间段就是 `XToTime(0)` 到 `XToTime(Width)`；它未必等于对象自己的起止（note 会被
+    钳到下一个 note 的起点，音素的显示时间由宿主排版）。滚动、缩放、改速度后换算随之变，宿主会重新 `Render`。
+- **所见即所闻**：不在横轴线性的那个单位里定义的曲线（眼下即按秒定义的），别只换算控制点再连直线——跨过速度变化处会与按秒
+  插值的结果不一致。逐像素采样（每一列 `XToTime(x)` 换回秒、再按秒求值）就与合成严格一致。画与合成用同一个单位插值。
+- **作背景时**：`host.IsBackground` 为 true 表示画布正垫在另一个激活的参数下面（压暗、不收输入），可以画简化版（如只画轮廓、
+  不画文字），给前景让出视野。侧栏里恒为 false。
 - **以宿主的换算为准**：别用你合成时自己算出的音素时间来画。宿主给的是屏幕上显示的时间段，画布要与用户看到的音素块对齐；
   两者在合成结果回填后一致，只在改动后、合成回来前的过渡期不同，显示一更新宿主就重新 `Render`。
 - **按尺寸排版**：参数面板里可能很窄、很矮、也可能很宽（放大后上万像素）。窄、矮时画紧凑版（如只画曲线和一行符号、

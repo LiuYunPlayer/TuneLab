@@ -9,14 +9,14 @@ namespace TuneLab.TestPlugins.V1Voice;
 // 值 = { "curve": [[秒, 值], …], "symbol": "…", "lang": "…" }，秒是**距这块画布起点**（XToTime(0)）的秒数，值 0..1。
 // 默认 {} = 中性（没有曲线、没有符号）：未编辑过的对象不因合成后长度变化而改变听感。
 // 覆盖：
-// · 时间换算（ITimelineCanvasHost.TimeAxis）：点按秒存，画的时候**逐像素采样**——每列 XToTime(x) 换回秒、再按秒插值——
+// · 时间换算（ICanvasLaneHost.TimeAxis）：点按秒存，画的时候**逐像素采样**——每列 XToTime(x) 换回秒、再按秒插值——
 //   跨过速度变化处与按秒插值的合成严格一致（别只换算控制点再连直线）；左上角标出这块覆盖的秒数（XToTime(0) 到 XToTime(Width)）。
 // · 露出范围（VisibleBounds）：采样只算露出来的那几列（放大后画布可能上万像素宽）。
 // · 按尺寸排版：窄（< 72）或矮（< 56）时只画曲线，不画文字。
 // · 交互：点空白处加点、拖点移动（按下写草稿、松手提交）、右键点删除；点左上角符号弹 PopupTextBox 改符号；
 //   右键空白处弹 PopupMenu 选语言（当前语言标在项尾，不往前加符号——加在前面会让这一项文字错位）/ 清空曲线。
 // 值由插件自定形状，读取时一律校验：形状不对的部分按默认处理。
-sealed class LaneDemoCanvas(ITimelineCanvasHost host, PropertyValue value, string label) : ICanvasControl
+sealed class LaneDemoCanvas(ICanvasLaneHost host, PropertyValue value, string label) : ICanvasControl
 {
     public static readonly PropertyValue Default = PropertyObject.Empty;
 
@@ -143,14 +143,20 @@ sealed class LaneDemoCanvas(ITimelineCanvasHost host, PropertyValue value, strin
                 d.FillCircle(new Point(XOf(points[i].Time), YOf(points[i].Value)), HandleRadius, i == mHot ? HotFill : HandleFill);
         }
 
-        if (Compact)
+        // 作背景时只画曲线（IsBackground）：给前景参数让出视野。
+        if (Compact || host.IsBackground)
             return;
         string symbol = ReadText(Current, "symbol");
         string lang = ReadText(Current, "lang");
         d.DrawText(symbol.Length > 0 ? symbol : "(" + label + ")", SymbolBounds, symbol.Length > 0 ? SymbolBrush : LabelBrush, SymbolStyle);
+        // 右上角：这块覆盖的秒、局部 tick（PosToX(0) = 音符起点）与纵向覆盖的音高（YToPitch：面板背后那块音符区的音高，键中线为整数）。
         var axis = host.TimeAxis;
-        d.DrawText((lang.Length > 0 ? lang + "  " : "") + axis.XToTime(0).ToString("0.000", CultureInfo.InvariantCulture) + "–"
-            + axis.XToTime(w).ToString("0.000", CultureInfo.InvariantCulture) + "s", new Rect(w - Pad, Pad, 0, 0), LabelBrush, LabelStyle);
+        var pitch = host.PitchAxis;
+        var inv = CultureInfo.InvariantCulture;
+        d.DrawText((lang.Length > 0 ? lang + "  " : "") + axis.XToTime(0).ToString("0.000", inv) + "–" + axis.XToTime(w).ToString("0.000", inv) + "s  "
+            + axis.XToPos(0).ToString("0", inv) + "–" + axis.XToPos(w).ToString("0", inv) + "t  "
+            + "pitch " + pitch.YToPitch(host.Height).ToString("0.0", inv) + "–" + pitch.YToPitch(0).ToString("0.0", inv),
+            new Rect(w - Pad, Pad, 0, 0), LabelBrush, LabelStyle);
     }
 
     int HitTest(Point at)

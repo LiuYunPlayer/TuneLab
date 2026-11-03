@@ -6,6 +6,7 @@ using TuneLab.Data;
 using TuneLab.Foundation;
 using TuneLab.GUI.Components;
 using TuneLab.SDK;
+using TuneLab.Data.Timing;
 
 using Rect = Avalonia.Rect;
 using Size = Avalonia.Size;
@@ -28,26 +29,54 @@ internal partial class AutomationRenderer
 {
     readonly record struct CanvasSlot(string LaneId, bool Phoneme, INote Note, int Index);
 
-    sealed class LaneCanvas(PluginCanvas view, CanvasTimeAxis axis)
+    sealed class LaneCanvas(PluginCanvas view, CanvasTimeAxis axis, CanvasPitchAxis pitchAxis)
     {
         public PluginCanvas View { get; } = view;
         public CanvasTimeAxis Axis { get; } = axis;
+        public CanvasPitchAxis PitchAxis { get; } = pitchAxis;
         public IControllerConfig? Config;   // 当前工厂来自的那份声明：声明对象换了才换工厂
         public Rect Rect;                    // 本渲染器坐标里的位置（这一帧画在哪）
         public bool Shown;
         public bool Active;
     }
 
-    // 画布 lane 的换算：全局秒 ↔ 画布内横坐标，跟着钢琴窗的 tick 轴（速度变化处不均匀）。Left = 画布左缘在本渲染器里的 x。
+    // 画布 lane 的时间换算：全局秒 / 局部 tick ↔ 画布内横坐标，跟着钢琴窗的 tick 轴（速度变化处秒不均匀）。
+    // Left = 画布左缘在本渲染器里的 x；Origin = 局部 tick 的原点（所属音符的起点，工程 tick）。
     sealed class CanvasTimeAxis(AutomationRenderer renderer) : ICanvasTimeAxis
     {
         public double Left;
+        public double Origin;
 
         public double TimeToX(double time)
             => renderer.Part is { } part ? renderer.TickAxis.Tick2X(part.TempoManager.GetTick(time)) - Left : 0;
 
         public double XToTime(double x)
             => renderer.Part is { } part ? part.TempoManager.GetTime(renderer.TickAxis.X2Tick(x + Left)) : 0;
+
+        public double PosToX(double pos) => renderer.TickAxis.Tick2X(Origin + pos) - Left;
+
+        public double XToPos(double x) => renderer.TickAxis.X2Tick(x + Left) - Origin;
+
+        public ITempoMap TempoMap
+            => new LocalTempoMap(renderer.Part?.TempoManager.CreateSnapshot() ?? EmptyTempo, Origin);
+    }
+
+    static readonly TempoSnapshot EmptyTempo = new([new TempoMark(0, 120)], MusicTheory.RESOLUTION);
+
+    // 画布 lane 的音高换算：参数面板是一扇看向下方音符区的窗口，纵轴 = 面板背后那块音符区的音高（同一屏幕高度上钢琴窗的音高）。
+    // n 号键占 [n, n + 1)：PitchToY(n) = n 号键的下沿，同宿主 PitchAxis.Pitch2Y（音高值画在中线上由插件 +0.5，见 ICanvasPitchAxis）。
+    // Top = 画布上缘在本渲染器里的 y。
+    sealed class CanvasPitchAxis(AutomationRenderer renderer) : ICanvasPitchAxis
+    {
+        public double Top;
+
+        public double PitchToY(double pitch) => renderer.PianoPitchAxis.Pitch2Y(pitch) - OffsetInPiano();
+
+        public double YToPitch(double y) => renderer.PianoPitchAxis.Y2Pitch(y + OffsetInPiano());
+
+        // 画布上缘在钢琴窗音符区坐标里的 y（参数面板盖在音符区底部，二者纵坐标差一个偏移）。
+        double OffsetInPiano()
+            => Avalonia.VisualExtensions.TranslatePoint(renderer, new Avalonia.Point(0, Top), renderer.mDependency.PianoScrollView) is { } p ? p.Y : Top;
     }
 
     // 画一条画布 lane：视口内声明了该字段的对象各画一块。还没有实例的记下来，画完推迟一拍再建（绘制期间不能动子控件）。
@@ -116,6 +145,9 @@ internal partial class AutomationRenderer
         canvas.Rect = rect;
         canvas.Active = isActive;
         canvas.Axis.Left = left;
+        canvas.Axis.Origin = slot.Note.GlobalStartPos();   // 局部 tick 的原点：所属音符的起点（音素级同样）
+        canvas.PitchAxis.Top = rect.Y;
+        canvas.View.IsBackground = !isActive;
         if (!ReferenceEquals(canvas.Config, config) && !canvas.View.IsInUse)
             ApplyConfig(canvas, slot, resolved);
 
@@ -134,7 +166,7 @@ internal partial class AutomationRenderer
         IDataProperty<PropertyValue> field = new LanePathField(slot.Note, slot.Phoneme ? slot.Index : -1, resolved.Steps);
         canvas.View.Bind(field);
         if (config is CanvasLaneConfig t)
-            canvas.View.SetTimelineFactory(t.CreateControl, canvas.Axis);
+            canvas.View.SetLaneFactory(t.CreateControl, canvas.Axis, canvas.PitchAxis);
         else
             canvas.View.SetFactory(((CanvasConfig)config).CreateControl);
     }
@@ -160,7 +192,7 @@ internal partial class AutomationRenderer
                 continue;
             var view = new PluginCanvas() { ExternallyRendered = true };
             view.RenderRequested += OnCanvasRenderRequested;
-            var canvas = new LaneCanvas(view, new CanvasTimeAxis(this));
+            var canvas = new LaneCanvas(view, new CanvasTimeAxis(this), new CanvasPitchAxis(this));
             mCanvases.Add(slot, canvas);
             Children.Add(view);
             created = true;

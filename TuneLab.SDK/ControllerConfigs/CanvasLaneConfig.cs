@@ -9,7 +9,7 @@ namespace TuneLab.SDK;
 //
 // 与 CanvasConfig（侧栏画布）怎么选：界面属于侧栏、与时间无关（或只按对象内的相对位置画）→ CanvasConfig；
 // 必须与时间轴对齐、逐个对象编辑（如音素混合：曲线 + 符号 + 语言）→ 本类。同一个字段只能选一种。
-// 侧栏可以多选，多个对象没有一个共同的时间段，时间换算在那里给不出来；本类永远只对应一个对象，所以 ITimelineCanvasHost.TimeAxis 一定有。
+// 侧栏可以多选，多个对象没有一个共同的时间段，时间换算在那里给不出来；本类永远只对应一个对象，所以 ICanvasLaneHost.TimeAxis 一定有。
 //
 // 值语义与 CanvasConfig 相同：没有默认值（没设过 = 不存值，插件读值时自己补）、恢复默认 = 删掉存值，preset、撤销照常参与；
 // 值的形状由插件自定（宿主不解读），读取时须自行校验；
@@ -20,7 +20,7 @@ namespace TuneLab.SDK;
 // 构造函数全封，只走静态工厂 + With（与 SliderConfig 同款 ABI 理由：见 SliderConfig）。
 public sealed class CanvasLaneConfig : IControllerConfig
 {
-    public Func<ITimelineCanvasHost, ICanvasControl> CreateControl { get; private init; } = null!;
+    public Func<ICanvasLaneHost, ICanvasControl> CreateControl { get; private init; } = null!;
 
     // 标签栏按钮与焦点圆点的颜色（hex，"#RRGGBB" 或 "#AARRGGBB"）。与 AutomationConfig.Color 同一约定：不设 = 全透明 "#00000000" =
     // 不指定，宿主从调色板分配（确定性：按声明序、避开同一面板上已占用的颜色）；alpha 为 0 的颜色一律按"不指定"处理。
@@ -33,7 +33,7 @@ public sealed class CanvasLaneConfig : IControllerConfig
     private CanvasLaneConfig() { }
     CanvasLaneConfig Clone() => (CanvasLaneConfig)MemberwiseClone();
 
-    public static CanvasLaneConfig Create(Func<ITimelineCanvasHost, ICanvasControl> createControl)
+    public static CanvasLaneConfig Create(Func<ICanvasLaneHost, ICanvasControl> createControl)
     {
         ArgumentNullException.ThrowIfNull(createControl);
         return new() { CreateControl = createControl };

@@ -24,6 +24,7 @@ public class CanvasConfigTests
         public double Height => 0;
         public double DevicePixelRatio => 1;
         public Rect VisibleBounds => default;
+        public bool IsBackground => false;
         public void Invalidate() { }
         public void BeginEdit() => Begins++;
         public void EndEdit() => Ends++;

@@ -9,7 +9,7 @@
 | 出现在参数面板 | 用户在侧栏右键钉选后才出现 | **常驻**：哪个 note 声明了它，标签栏就有它，不用钉 |
 | 在侧栏 | 有 | 没有（侧栏不显示这个字段） |
 | 一块画布对应几个对象 | 侧栏里可能是多选；参数面板里一个 | 永远一个 |
-| 时间换算 | 没有 | 一定有（`ITimelineCanvasHost.TimeAxis`，不可空） |
+| 时间换算 | 没有 | 一定有（`ICanvasLaneHost.TimeAxis`，不可空） |
 | 典型用途 | 与时间无关、或只按对象内相对位置画的编辑（拉伸曲线、XY 面板） | 必须与时间轴对齐的编辑（如音素混合：曲线 + 符号 + 语言） |
 
 **两种"进参数面板"的性质不同**：钉选（属性 lane、侧栏画布）是**用户偏好**——同一个字段有人爱在侧栏调、有人爱在参数面板调，
@@ -52,16 +52,16 @@
 // 构造函数全封，只走静态工厂 + With（同 CanvasConfig）。
 public sealed class CanvasLaneConfig : IControllerConfig
 {
-    public Func<ITimelineCanvasHost, ICanvasControl> CreateControl { get; }
+    public Func<ICanvasLaneHost, ICanvasControl> CreateControl { get; }
     // 标签栏按钮与焦点圆点的颜色（hex）。与 AutomationConfig.Color 同一约定：默认透明（"#00000000"）= 不指定，
     // 宿主从调色板分配（确定性：按声明顺序、避开已占用色）；想定颜色就 WithColor。
     public string Color { get; }
-    public static CanvasLaneConfig Create(Func<ITimelineCanvasHost, ICanvasControl> createControl);
+    public static CanvasLaneConfig Create(Func<ICanvasLaneHost, ICanvasControl> createControl);
     public CanvasLaneConfig WithColor(string color);
 }
 
 // 画布 lane 的宿主：在 ICanvasHost 之上多一条时间轴（一定有）。
-public interface ITimelineCanvasHost : ICanvasHost
+public interface ICanvasLaneHost : ICanvasHost
 {
     ICanvasTimeAxis TimeAxis { get; }
 }
@@ -84,8 +84,11 @@ public interface ICanvasTimeAxis
 ```
 
 - 名字：声明叫 `CanvasLaneConfig`——参数面板里一个声明对应一条 lane（lane 身份 = 字段路径，§9），每个对象在这条 lane 上占一块，
-  范围严格限在对象那一段。`TimelineCanvasConfig` 这个名字留给将来定义域是整条时间轴的 part 级画布（§10）。宿主接口
-  `ITimelineCanvasHost` 不改名、两级共用（都是"多一条时间轴的画布宿主"）；time axis = 秒 / tick ↔ 横坐标换算。
+  范围严格限在对象那一段。`TimelineCanvasConfig` 这个名字留给将来定义域是整条时间轴的 part 级画布（§10）。
+  **一种画布一个宿主接口**：`CanvasConfig` ↔ `ICanvasHost`、`CanvasLaneConfig` ↔ `ICanvasLaneHost`（原名 `ITimelineCanvasHost`，与 part 级
+  撞名）、将来 `TimelineCanvasConfig` ↔ `ITimelineCanvasHost`（带它自己的成员，如提交时附带改动范围）。后两者各自声明 `TimeAxis` 与
+  `PitchAxis`，不抽共用基接口——描述"时间 × 音高"坐标系的名字要么带界面色彩（钢琴窗 / piano roll 不进 SDK）要么别扭；
+  想让同一段绘制代码给几种画布共用，就只依赖两条轴。time axis = 秒 / tick ↔ 横坐标，pitch axis = 音高 ↔ 纵坐标。
   用户界面上两者都只叫「画布」。
 - 没有首选尺寸：宽由对象的时长决定；高是用户的面板布局（各面板高度由用户调、彼此独立），切到这个参数时不随插件变。
   插件按实际尺寸响应排版。
@@ -95,9 +98,9 @@ public interface ICanvasTimeAxis
   都成立；位置枚举每加一个值老插件就得重新适配。窄、矮时画紧凑版（如只画曲线和一行符号、点字才弹 `PopupTextBox`），
   按尺寸响应。
 
-### 3.1 `ITimelineCanvasHost`：继承来的成员在参数面板里的含义
+### 3.1 `ICanvasLaneHost`：继承来的成员在参数面板里的含义
 
-`ITimelineCanvasHost` 只比 `ICanvasHost` 多一条 `TimeAxis`；其余成员照搬侧栏画布的契约，下表只列在参数面板里**含义具体化或不同**的地方。
+`ICanvasLaneHost` 只比 `ICanvasHost` 多 `TimeAxis` 与 `PitchAxis`（§12）；其余成员照搬侧栏画布的契约，下表只列在参数面板里**含义具体化或不同**的地方。
 钉进参数面板的侧栏画布（host 仍是 `ICanvasHost`）同样按这张表。
 
 | 成员 | 在参数面板里 |
@@ -354,7 +357,7 @@ public interface ICanvasTimeAxis
 - 这是宿主内部改动、SDK 不变，画布 lane 现在就受益，不必等 part 级。
 
 
-## 12. 时间轴：给插件 tick（速度映射 + 局部坐标）（已定形态，未实现）
+## 12. 时间轴：给插件 tick（速度映射 + 局部坐标）（画布侧已实现；合成侧待做）
 
 **为什么**：用户画的东西多半跟着音乐走（第几拍），不是跟着秒走。按秒存的画布数据，part 挪到别的速度区段或改了前面的速度就和音符错位；
 值宿主不解读，宿主没法替它换算 ⇒ 插件必须能自己在 tick 与秒之间换算。现状两侧都缺：画布只有横坐标 ↔ 秒；合成上下文**没有速度表**
@@ -413,11 +416,15 @@ public interface ICanvasTimeAxis
   声明上下文里的映射（声明时按拍子算摘要等，等真实需求）。
 - **命名**：秒 `Time`、tick `Pos`（术语表），方法统一 `AToB`，与现有 `TimeToX` 同风格。
 
-**音高轴**（同批做）：`ITimelineCanvasHost` 与 `TimeAxis` 平行加一条 `ICanvasPitchAxis PitchAxis`（`PitchToY` / `YToPitch`，单位半音，
-同音符 `Pitch` 与合成音高）。宿主**一律提供**，画布 lane 也有，不在声明里开关——用不到纵轴的插件不调就是了。参数面板当作迷你钢琴窗
-（显示哪段音高由宿主界面定），钉进钢琴窗只是位置与范围变了，插件同一套代码。
+**音高轴**（已实现）：`ICanvasLaneHost` 与 `TimeAxis` 平行加一条 `ICanvasPitchAxis PitchAxis`（`PitchToY` / `YToPitch`，单位半音，
+同音符 `Pitch` 与合成音高）。宿主**一律提供**，画布 lane 也有，不在声明里开关——用不到纵轴的插件不调就是了。
+- **参数面板里的纵轴 = 面板背后那块音符区的音高**（参数面板盖在音符区底部，同一屏幕高度上钢琴窗的音高）：参数面板是一扇看向
+  下方音符区的窗口，与钉进钢琴窗用同一套映射，只是露出的范围不同；纵向滚动、缩放跟着变。
+- **n 号键占 [n, n + 1)：`PitchToY(n)` = n 号键的下沿**（同宿主内部 `PitchAxis.Pitch2Y`）。画整格（琴键、音符块）在 n 与 n + 1 之间、
+  指针下的键 = `Math.Floor(YToPitch(y))`；音高值落在键中线，画值用 `PitchToY(值 + 0.5)`、由指针读值用 `YToPitch(y) - 0.5`。
+  曾考虑定在中线（画值直接用、画整格要 `n ± 0.5`），用户定为下沿；文档与注释里把画值 / 读值的 ±0.5 写明，尤其读值漏减会把数据写偏 50 音分。
 
-**前景 / 背景**（同批做）：`ITimelineCanvasHost.IsBackground`（普通 getter，变化时宿主重调 `Render`，同 `Width` / `VisibleBounds`），
+**前景 / 背景**（已实现）：`ICanvasHost.IsBackground`（放在基接口上：钉进参数面板的侧栏画布同样会作背景）（普通 getter，变化时宿主重调 `Render`，同 `Width` / `VisibleBounds`），
 作背景显示时插件可简化绘制（如只画轮廓、不画文字），给前景参数让出视野。画布 lane 现在就有背景状态（宿主压暗、不收输入）。
 
 **落地拆分**：画布侧（`ICanvasTimeAxis` 加 tick 换算与 `TempoMap`）改的是未发布 API，宜在画布合入 master 发布前做；合成侧（音符代理

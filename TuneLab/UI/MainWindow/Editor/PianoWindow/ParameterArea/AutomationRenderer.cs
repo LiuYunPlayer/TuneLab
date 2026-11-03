@@ -28,6 +28,8 @@ namespace TuneLab.UI;
 internal partial class AutomationRenderer : View
 {
     public TickAxis TickAxis => mDependency.TickAxis;
+    // 面板背后那块音符区的音高轴（画布 lane 的纵轴取它，见 CanvasPitchAxis）。
+    public PitchAxis PianoPitchAxis => mDependency.PianoScrollView.PitchAxis;
     public IMidiPart? Part => mDependency.PartHolder.Value;
     public bool IsOperating => mState != State.None;
     // 当前活动（可编辑）轨：范围选区菜单在参数区弹出时据此定位固定目标（见 PianoScrollView.OpenRegionMenu）。

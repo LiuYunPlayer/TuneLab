@@ -60,9 +60,24 @@ internal sealed class PluginCanvas : Component
     public void SetFactory(Func<ICanvasHost, ICanvasControl> factory)
         => SetFactory(factory, (view, field) => new Session(view, field), session => factory(session));
 
-    // 画布 lane（CanvasLaneConfig）的工厂：实例拿到的宿主多一条时间轴（ITimelineCanvasHost）。
-    public void SetTimelineFactory(Func<ITimelineCanvasHost, ICanvasControl> factory, ICanvasTimeAxis timeAxis)
-        => SetFactory(factory, (view, field) => new TimelineSession(view, field, timeAxis), session => factory((TimelineSession)session));
+    // 画布 lane（CanvasLaneConfig）的工厂：实例拿到的宿主多一条时间轴与一条音高轴（ICanvasLaneHost）。
+    public void SetLaneFactory(Func<ICanvasLaneHost, ICanvasControl> factory, ICanvasTimeAxis timeAxis, ICanvasPitchAxis pitchAxis)
+        => SetFactory(factory, (view, field) => new LaneSession(view, field, timeAxis, pitchAxis), session => factory((LaneSession)session));
+
+    // 作背景显示（参数面板里激活的是别的参数、本画布可见）：由所在视图设，变了就重画（契约见 ICanvasHost.IsBackground）。
+    public bool IsBackground
+    {
+        get => mIsBackground;
+        set
+        {
+            if (mIsBackground == value)
+                return;
+            mIsBackground = value;
+            RequestRender();
+        }
+    }
+
+    bool mIsBackground;
 
     void SetFactory(Delegate source, Func<PluginCanvas, IDataProperty<PropertyValue>, Session> createSession, Func<Session, ICanvasControl> factory)
     {
@@ -629,6 +644,7 @@ internal sealed class PluginCanvas : Component
         public double Width => view.CurrentSize.Width;
         public double Height => view.CurrentSize.Height;
         public double DevicePixelRatio => view.Scaling;
+        public bool IsBackground => view.IsBackground;
         public TuneLab.Foundation.Rect VisibleBounds
         {
             get
@@ -930,10 +946,12 @@ internal sealed class PluginCanvas : Component
         IDisposable? mEditing;   // 面板在用期间在所在窗口 EditGate 上的登记（见 UpdateLock）
     }
 
-    // 画布 lane 的宿主：多一条时间轴（由所在视图给、跟着它的时间轴走）。
-    sealed class TimelineSession(PluginCanvas view, IDataProperty<PropertyValue> field, ICanvasTimeAxis timeAxis) : Session(view, field), ITimelineCanvasHost
+    // 画布 lane 的宿主：多一条时间轴与一条音高轴（由所在视图给、跟着它的坐标轴走）。
+    sealed class LaneSession(PluginCanvas view, IDataProperty<PropertyValue> field, ICanvasTimeAxis timeAxis, ICanvasPitchAxis pitchAxis)
+        : Session(view, field), ICanvasLaneHost
     {
         public ICanvasTimeAxis TimeAxis => timeAxis;
+        public ICanvasPitchAxis PitchAxis => pitchAxis;
     }
 
     // 画布文字不传样式 / 不给字号时：字号与宿主界面上的字段文字同档（PropertyObjectController 的字段标签），宿主调整时一起改。

@@ -38,7 +38,7 @@ static TuneLab.SDK.TagItem.implicit operator TuneLab.SDK.TagItem(long value) -> 
 static TuneLab.SDK.TagItem.implicit operator TuneLab.SDK.TagItem(string! value) -> TuneLab.SDK.TagItem
 static TuneLab.SDK.TagItem.implicit operator TuneLab.SDK.TagItem(TuneLab.Foundation.PropertyValue value) -> TuneLab.SDK.TagItem
 static TuneLab.SDK.TagItem.Separator(string? label = null) -> TuneLab.SDK.TagItem
-static TuneLab.SDK.CanvasLaneConfig.Create(System.Func<TuneLab.SDK.ITimelineCanvasHost!, TuneLab.SDK.ICanvasControl!>! createControl) -> TuneLab.SDK.CanvasLaneConfig!
+static TuneLab.SDK.CanvasLaneConfig.Create(System.Func<TuneLab.SDK.ICanvasLaneHost!, TuneLab.SDK.ICanvasControl!>! createControl) -> TuneLab.SDK.CanvasLaneConfig!
 TuneLab.SDK.ButtonConfig
 TuneLab.SDK.ButtonConfig.OnClick.get -> System.Func<TuneLab.SDK.IButtonClickContext!, System.Threading.Tasks.Task!>!
 TuneLab.SDK.ButtonConfig.Text.get -> string!
@@ -213,13 +213,20 @@ TuneLab.SDK.ICanvasHost.DiscardValue() -> void
 TuneLab.SDK.ICanvasHost.EndEdit() -> void
 TuneLab.SDK.ICanvasHost.Height.get -> double
 TuneLab.SDK.ICanvasHost.Invalidate() -> void
+TuneLab.SDK.ICanvasHost.IsBackground.get -> bool
 TuneLab.SDK.ICanvasHost.PopupMenu(TuneLab.Foundation.Rect anchor, System.Collections.Generic.IReadOnlyList<TuneLab.SDK.ComboBoxItem>! items) -> System.Threading.Tasks.Task<TuneLab.Foundation.PropertyValue?>!
 TuneLab.SDK.ICanvasHost.PopupTextBox(string! text, TuneLab.Foundation.Rect bounds, TuneLab.SDK.CanvasTextStyle? style = null, TuneLab.SDK.CanvasTextBoxOptions? options = null) -> System.Threading.Tasks.Task<string?>!
 TuneLab.SDK.ICanvasHost.SetValue(TuneLab.Foundation.PropertyValue value) -> bool
 TuneLab.SDK.ICanvasHost.VisibleBounds.get -> TuneLab.Foundation.Rect
 TuneLab.SDK.ICanvasHost.Width.get -> double
+TuneLab.SDK.ICanvasPitchAxis
+TuneLab.SDK.ICanvasPitchAxis.PitchToY(double pitch) -> double
+TuneLab.SDK.ICanvasPitchAxis.YToPitch(double y) -> double
 TuneLab.SDK.ICanvasTimeAxis
+TuneLab.SDK.ICanvasTimeAxis.PosToX(double pos) -> double
+TuneLab.SDK.ICanvasTimeAxis.TempoMap.get -> TuneLab.SDK.ITempoMap!
 TuneLab.SDK.ICanvasTimeAxis.TimeToX(double time) -> double
+TuneLab.SDK.ICanvasTimeAxis.XToPos(double x) -> double
 TuneLab.SDK.ICanvasTimeAxis.XToTime(double x) -> double
 TuneLab.SDK.IDialogService
 TuneLab.SDK.IDialogService.Confirm(string! title, string! message) -> System.Threading.Tasks.Task<bool>!
@@ -233,11 +240,15 @@ TuneLab.SDK.IInstrumentSynthesisContext.PartId.get -> string!
 TuneLab.SDK.IInstrumentSynthesisNote.Id.get -> string!
 TuneLab.SDK.IInstrumentSynthesisNoteView.Id.get -> string!
 TuneLab.SDK.IInstrumentSynthesisPartView.PartId.get -> string!
+TuneLab.SDK.ICanvasLaneHost.PitchAxis.get -> TuneLab.SDK.ICanvasPitchAxis!
 TuneLab.SDK.IProgressReporter
 TuneLab.SDK.IProgressReporter.Report(double? fraction, string? status = null) -> void
 TuneLab.SDK.IProgressReporter.SetCancellable(bool cancellable) -> void
-TuneLab.SDK.ITimelineCanvasHost
-TuneLab.SDK.ITimelineCanvasHost.TimeAxis.get -> TuneLab.SDK.ICanvasTimeAxis!
+TuneLab.SDK.ICanvasLaneHost
+TuneLab.SDK.ICanvasLaneHost.TimeAxis.get -> TuneLab.SDK.ICanvasTimeAxis!
+TuneLab.SDK.ITempoMap
+TuneLab.SDK.ITempoMap.PosToTime(double pos) -> double
+TuneLab.SDK.ITempoMap.TimeToPos(double time) -> double
 TuneLab.SDK.IVoiceSynthesisContext.InvalidateNotes(System.Collections.Generic.IEnumerable<string!>! noteIds) -> void
 TuneLab.SDK.IVoiceSynthesisContext.InvalidatePart() -> void
 TuneLab.SDK.IVoiceSynthesisContext.PartId.get -> string!
@@ -264,7 +275,7 @@ TuneLab.SDK.TagItem.TagItem(TuneLab.Foundation.PropertyValue value, string? disp
 TuneLab.SDK.TagItem.Value.get -> TuneLab.Foundation.PropertyValue
 TuneLab.SDK.CanvasLaneConfig
 TuneLab.SDK.CanvasLaneConfig.Color.get -> string!
-TuneLab.SDK.CanvasLaneConfig.CreateControl.get -> System.Func<TuneLab.SDK.ITimelineCanvasHost!, TuneLab.SDK.ICanvasControl!>!
+TuneLab.SDK.CanvasLaneConfig.CreateControl.get -> System.Func<TuneLab.SDK.ICanvasLaneHost!, TuneLab.SDK.ICanvasControl!>!
 TuneLab.SDK.CanvasLaneConfig.Summary.get -> string?
 TuneLab.SDK.CanvasLaneConfig.WithColor(string! color) -> TuneLab.SDK.CanvasLaneConfig!
 TuneLab.SDK.CanvasLaneConfig.WithSummary(string! summary) -> TuneLab.SDK.CanvasLaneConfig!

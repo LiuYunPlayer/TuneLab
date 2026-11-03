@@ -43,7 +43,7 @@ Package level (top level):
 |---|---|---|
 | `1.0` | TuneLab 2.0.0 | Everything the V1 SDK shipped with |
 | `1.1` | TuneLab 2.1.0 | Path picker controls (`PathPickerConfig` / `FileTypeFilter`), multiline text boxes (`TextBoxConfig.WithMultiline`) |
-| `1.2` | Not released yet | Tag groups (`TagConfig` / `TagItem`), buttons (`ButtonConfig` / `IButtonClickContext` / `IDialogService` / `IProgressReporter`, see §9), declaration invalidation (`InvalidatePart` / `InvalidateNotes` with the matching `PartId` / note `Id`, see §5.2), groups and separators in `+` menus and drop-downs (`AddableElement` / `AddableKey` groups, `Separator`, `ComboBoxItem.Separator`), automation tracks hidden from the tab bar by default (`AutomationConfig.WithShownByDefault`); plus the **experimental** canvas (`CanvasConfig` / `CanvasLaneConfig` / `ICanvasControl` / `ICanvasHost` / `ITimelineCanvasHost` / `ICanvasTimeAxis` / `ICanvasDrawing` / `CanvasImage` and their event types, see §10) |
+| `1.2` | Not released yet | Tag groups (`TagConfig` / `TagItem`), buttons (`ButtonConfig` / `IButtonClickContext` / `IDialogService` / `IProgressReporter`, see §9), declaration invalidation (`InvalidatePart` / `InvalidateNotes` with the matching `PartId` / note `Id`, see §5.2), groups and separators in `+` menus and drop-downs (`AddableElement` / `AddableKey` groups, `Separator`, `ComboBoxItem.Separator`), automation tracks hidden from the tab bar by default (`AutomationConfig.WithShownByDefault`); plus the **experimental** canvas (`CanvasConfig` / `CanvasLaneConfig` / `ICanvasControl` / `ICanvasHost` / `ICanvasLaneHost` / `ICanvasTimeAxis` / `ICanvasDrawing` / `CanvasImage` and their event types, see §10) |
 
 Plugin level (describing "what this package provides"). **Identity is inlined into the manifest**: one entry = one concrete registrable capability, carrying its own identity (engine id / file extension) + the full name of the implementing class. After reading the manifest the host knows what the plugin provides without loading assemblies and reflecting.
 
@@ -1294,14 +1294,29 @@ props.Add(("mix", "Mix"), CanvasLaneConfig.Create(host => new MixCanvas(host, va
   `.WithSummary(text)` (what to show for a multi-selection is up to you); without it the host shows "Default / Modified /
   Multiple". Lists keep their add / remove / reorder in the side panel, and other plain fields in the element objects still show
   and still edit across a multi-selection.
-- **Time mapping**: the factory receives an `ITimelineCanvasHost` with a `TimeAxis` — `TimeToX(seconds)` / `XToTime(x)`, in
-  global seconds (the same as the declaration view's `IVoiceSynthesisNoteView.StartTime`) and canvas coordinates. It follows the
-  piano roll's time axis (uneven across tempo changes); **do not assume it is linear**. The block covers `XToTime(0)` to
-  `XToTime(Width)`, which is not necessarily the object's own start / end (a note is clamped to the next note's start; phoneme
-  display times are laid out by the host) — map the absolute times in your own data.
-- **What you see is what you hear**: for a curve defined in seconds, do not map only the control points and join them with
-  straight lines — across a tempo change that differs from interpolating in seconds. Sample per pixel (`XToTime(x)` for each
-  column, then evaluate in seconds) and it matches synthesis exactly.
+- **Coordinates**: the factory receives an `ICanvasLaneHost` — time runs horizontally and pitch vertically, so it has a
+  `TimeAxis` and a `PitchAxis`. The host always provides both; ignore what you don't need.
+  - **Time, two units**: `TimeToX(seconds)` / `XToTime(x)` in global seconds (`TimeToX(0)` = project start, the same as the
+    declaration view's `IVoiceSynthesisNoteView.StartTime`), and `PosToX(ticks)` / `XToPos(x)` in **local ticks** relative to the
+    data's origin — the owning note's start (phoneme-level fields too): `PosToX(0)` = the note's start. Local ticks may be
+    negative. Pick the pair that matches your data's unit; content tied to the music (beats) is best stored in local ticks, so it
+    stays put when the note moves or the tempo changes. `TimeAxis.TempoMap` converts local ticks ↔ global seconds without x
+    (immutable; take it when you need it, don't cache it across renders — a tempo change gives a new one).
+  - **Pitch**: `PitchToY(semitones)` / `YToPitch(y)`, the same unit as a note's `Pitch` and synthesized pitch (60 = middle C).
+    **Key n spans [n, n + 1)**: `PitchToY(n)` is its lower edge and `PitchToY(n + 1)` its upper edge, so a key cell or note block
+    lies between those two lines and the key under the pointer is `Math.Floor(YToPitch(y))`. A pitch **value** sits on the key's
+    center line (an in-tune 60 is drawn in the middle of key 60, where the host draws its pitch curve): draw a value with
+    `PitchToY(value + 0.5)`, and read a value from the pointer with `YToPitch(y) - 0.5` — storing `YToPitch(y)` as is would be
+    50 cents sharp. In the parameter panel the vertical axis is the pitch of the note area behind the panel.
+  - **Do not assume either axis is linear.** The block covers `XToTime(0)` to `XToTime(Width)`, which is not necessarily the
+    object's own start / end (a note is clamped to the next note's start; phoneme display times are laid out by the host).
+    Scrolling, zooming and tempo edits change the mappings; the host re-renders.
+- **What you see is what you hear**: a curve defined in a unit the horizontal axis isn't linear in (today: seconds) must not be
+  drawn by mapping only its control points and joining them with straight lines — across a tempo change that differs from
+  interpolating in that unit. Sample per pixel (`XToTime(x)` for each column, then evaluate in seconds) and it matches synthesis
+  exactly. Draw and synthesize in the same unit.
+- **Background**: `host.IsBackground` is true while the canvas is shown behind another active parameter (dimmed, no input);
+  draw a simplified version then (say, only the outline, no text) to keep the foreground clear. It is false in the side panel.
 - **The host's mapping wins**: do not draw with the phoneme times your synthesis computed. The host gives the time span shown on
   screen, and the canvas must line up with the phoneme blocks the user sees. The two agree once synthesis results are in; they
   differ only between an edit and the synthesis coming back, and the host re-renders as soon as the display updates.
