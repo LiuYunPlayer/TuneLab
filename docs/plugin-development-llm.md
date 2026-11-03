@@ -68,7 +68,7 @@ public interface IExportFormat { void Serialize(Stream output, ProjectInfo info)
 ### Voice 接口（命名空间 `TuneLab.SDK`）
 > voice = **会话托管厚模型**：每种引擎一个 `IVoiceSynthesisEngine`；宿主为每条 MidiPart 建一个 `IVoiceSynthesisSession`，
 > 引擎承担声明（自动化轨/回显轨/属性面板，纯函数、不依赖会话）；会话承担默认歌词 + 逐步合成 + 产物（音高/回显/音素/音频/状态）。
-> 时间量一律**全局秒**；按拍子定义的数据（如画布 lane 里按 tick 存的内容）经 `context.TimeConverter`（`ITimeConverter`：局部 tick ↔ 全局秒，原点 = part 原点，音符级原点用 `TimeConverter.ToTick(note.StartTime)` 换出；不可变、任何线程可用，同步前缀取出连同快照带进 worker）换算。
+> 时间量一律**全局秒**；按拍子定义的数据（如画布 lane 里按 tick 存的内容）经 `context.TimeConverter`（`ITimeConverter`：局部 tick ↔ 全局秒，原点 = part 原点，音符级原点用 `TimeConverter.ToTick(note.StartTime)` 换出；不可变、任何线程可用；合成快照带同一份 `snapshot.TimeConverter`，worker 里用那份）换算。
 ```csharp
 public interface IVoiceSynthesisEngine {
     IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceSourceInfos { get; }   // 声库目录；须立即返回不阻塞（Init 期缓存）

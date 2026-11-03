@@ -40,4 +40,13 @@ public class LocalTimeConverterTests
         foreach (double pos in new[] { -240.0, 0, 120, 960 })      // 跨过速度变化处、也含负的局部 tick
             Assert.Equal(canvas.ToSecond(pos), context.ToSecond(origin + pos), 9);
     }
+
+    // 快照发布后才加的 TimeConverter 字段：插件自己拼的快照没填时，一调用就报错（不悄悄按假速度算错）。
+    [Fact]
+    public void ASnapshotWithoutTimeConverterFailsLoudly()
+    {
+        var snapshot = new EffectSynthesisSnapshot { Properties = TuneLab.Foundation.PropertyObject.Empty, Automations = new TuneLab.Foundation.Map<string, SynthesisAutomationSnapshot>() };
+        var error = Assert.Throws<System.InvalidOperationException>(() => snapshot.TimeConverter.ToSecond(0));
+        Assert.Contains("TimeConverter", error.Message);
+    }
 }

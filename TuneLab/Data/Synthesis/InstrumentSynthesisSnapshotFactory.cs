@@ -1,3 +1,4 @@
+using TuneLab.Data.Timing;
 using System;
 using System.Collections.Generic;
 using TuneLab.Foundation;
@@ -67,6 +68,7 @@ internal static class InstrumentSynthesisSnapshotFactory
         {
             Notes = notes,
             Automations = automations,
+            TimeConverter = new LocalTimeConverter(timing, part.Pos.Value),
             PartProperties = part.Properties.GetInfo(),
         };
     }

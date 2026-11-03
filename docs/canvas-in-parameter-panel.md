@@ -389,9 +389,11 @@ public interface ICanvasTimeAxis
 是一等公民，不该为画几条秒线先学局部 tick；插件按自己数据的单位选一组，不经另一单位中转。两组**都不承诺线性**：眼下横轴是 tick 轴、
 `TickToX` 恰好线性，但钢琴窗以后若能切成均匀时间轴，线性的就换成 `SecondToX`。
 
-合成侧（已实现）：**合成上下文（声源 / 乐器 / 效果器）上挂一份** `ITimeConverter TimeConverter { get; }`，原点 = part 原点。**快照不另带**：映射不可变、
-任何线程可用，插件在同步前缀取出、连同快照带进 worker 即可——免得给已发布的快照 DTO 加一个按规矩不能标 required、又给不出合理默认值的字段。
-宿主每次读给当时的映射（效果器上下文不随速度改动重建，读时取最新）。
+合成侧（已实现）：**合成上下文（声源 / 乐器 / 效果器）上挂一份** `ITimeConverter TimeConverter { get; }`，原点 = part 原点；**三类合成快照也带同一份**
+（`TimeConverter`）：快照是 worker 需要的一切、与活视图镜像，跨进程时它就是一次批量返回体，速度数据只能随快照过去（它本来就已经在快照
+里——冻结的自动化求值器内部攥着同一份速度表快照，只是没开放）。已发布的快照 DTO 加字段按规矩不标 required、带默认：默认是"未提供"的
+换算器，一调用就报错——宿主构造的快照永远填好，只有插件自己拼的快照（测试里）忘了填才会碰到，当场报错、不悄悄按假速度算错。
+宿主每次读上下文给当时的换算器（效果器上下文不随速度改动重建，读时取最新）。
 **不需要可通知**：速度表改动与 part 平移都走会话整体重建（见 `IVoiceSynthesisNote` / `ISynthesisAutomation` 注释），会话内恒定。
 音符级数据的局部 tick 由插件用音符的 `StartTime` 换出原点：`origin = map.ToTick(note.StartTime)`，`time = map.ToSecond(origin + pos)`
 （音素级用所属音符的 `StartTime`）——与画布侧的局部 tick 一致（画布原点就是音符起点的 tick，`StartTime` 正是由它按同一速度表换来的）。

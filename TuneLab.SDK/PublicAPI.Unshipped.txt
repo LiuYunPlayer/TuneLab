@@ -185,6 +185,8 @@ TuneLab.SDK.CanvasTextStyle.WithAlignment(TuneLab.SDK.CanvasAlignment alignment)
 TuneLab.SDK.CanvasTextStyle.WithFontSize(double fontSize) -> TuneLab.SDK.CanvasTextStyle!
 TuneLab.SDK.CanvasWheelEvent
 TuneLab.SDK.CanvasWheelEvent.Delta.get -> TuneLab.Foundation.Point
+TuneLab.SDK.EffectSynthesisSnapshot.TimeConverter.get -> TuneLab.SDK.ITimeConverter!
+TuneLab.SDK.EffectSynthesisSnapshot.TimeConverter.init -> void
 TuneLab.SDK.IButtonClickContext
 TuneLab.SDK.IButtonClickContext.DialogService.get -> TuneLab.SDK.IDialogService!
 TuneLab.SDK.ICanvasControl
@@ -245,6 +247,8 @@ TuneLab.SDK.IInstrumentSynthesisNote.Id.get -> string!
 TuneLab.SDK.IInstrumentSynthesisNoteView.Id.get -> string!
 TuneLab.SDK.IInstrumentSynthesisPartView.PartId.get -> string!
 TuneLab.SDK.ICanvasLaneHost.PitchAxis.get -> TuneLab.SDK.ICanvasPitchAxis!
+TuneLab.SDK.InstrumentSynthesisSnapshot.TimeConverter.get -> TuneLab.SDK.ITimeConverter!
+TuneLab.SDK.InstrumentSynthesisSnapshot.TimeConverter.init -> void
 TuneLab.SDK.IProgressReporter
 TuneLab.SDK.IProgressReporter.Report(double? fraction, string? status = null) -> void
 TuneLab.SDK.IProgressReporter.SetCancellable(bool cancellable) -> void
@@ -287,3 +291,5 @@ TuneLab.SDK.CanvasLaneConfig.WithSummary(string! summary) -> TuneLab.SDK.CanvasL
 TuneLab.SDK.AutomationConfig.ShownByDefault.get -> bool
 TuneLab.SDK.AutomationConfig.WithShownByDefault(bool shown) -> TuneLab.SDK.AutomationConfig!
 TuneLab.SDK.TimeConverterExtensions
+TuneLab.SDK.VoiceSynthesisSnapshot.TimeConverter.get -> TuneLab.SDK.ITimeConverter!
+TuneLab.SDK.VoiceSynthesisSnapshot.TimeConverter.init -> void

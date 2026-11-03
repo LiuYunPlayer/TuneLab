@@ -15,4 +15,8 @@ public sealed class EffectSynthesisSnapshot
     // 已声明自动化轨的冻结求值器（按 key；连续轨 = 曲线/默认冻结，分段轨 = 曲线冻结、无曲线处 NaN）。
     // 仅开窗区间内取值有一致性保证（区间外边缘斜率信息不完整）。
     public required IReadOnlyMap<string, SynthesisAutomationSnapshot> Automations { get; init; }
+
+    // 时间换算器（局部 tick ↔ 全局秒，原点 = part 原点），与活视图 context.TimeConverter 同一份：worker 里换算按拍子定义的数据用。
+    // 不可变、任何线程可用。快照发布后才加的字段：不标 required，默认是"未提供"（一调用就报错）——宿主构造的快照永远填好。
+    public ITimeConverter TimeConverter { get; init; } = UnprovidedTimeConverter.Instance;
 }

@@ -23,4 +23,8 @@ public sealed class InstrumentSynthesisSnapshot
     // 已声明 automation 轨按开窗区间物化，只读 map：可枚举可点取（与活视图
     // IInstrumentSynthesisContext.Automations 同构）。
     public required IReadOnlyMap<string, SynthesisAutomationSnapshot> Automations { get; init; }
+
+    // 时间换算器（局部 tick ↔ 全局秒，原点 = part 原点），与活视图 context.TimeConverter 同一份：worker 里换算按拍子定义的数据用。
+    // 不可变、任何线程可用。快照发布后才加的字段：不标 required，默认是"未提供"（一调用就报错）——宿主构造的快照永远填好。
+    public ITimeConverter TimeConverter { get; init; } = UnprovidedTimeConverter.Instance;
 }
