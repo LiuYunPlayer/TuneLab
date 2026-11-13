@@ -381,10 +381,19 @@ internal sealed class PluginCanvas : Component
     //   这次拖动的移动与抬起都归外层（如中键平移时间轴）。归属只在按下时定，之后不变。
     // · 移动：插件接了（或正拖着自己接住的按下）就不冒泡；否则外层照常收到（悬停等）。
     // · 抬起：配对的那次按下归插件 → 不冒泡。
+    // 宿主先截的按下（插件先问的唯一例外）：返回 true 则这一下不给插件、直接交给外层。参数面板用它让"选区带内的右键"
+    // 总弹出选区菜单——选区是宿主的状态、插件看不到，画布叠在带上时不能让插件把菜单吃掉。
+    public Func<MouseDownEventArgs, bool>? HostTakesPress { get; set; }
+
     protected override void OnMouseDown(MouseDownEventArgs e)
     {
         if (mPointerFromPopup)
             return;
+        if (HostTakesPress?.Invoke(e) == true)
+        {
+            e.Declined = true;
+            return;
+        }
         var button = ToButton(e.MouseButtonType);
         var args = new CanvasMouseButtonEvent(ToPoint(e.Position), ToModifiers(e.KeyModifiers), button, e.IsDoubleClick, false);
         if (Prepare() is { } session)

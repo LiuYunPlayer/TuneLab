@@ -1241,6 +1241,8 @@ Two things are kept apart: the **editing state** (is the canvas being edited) an
   - **Move**: with no button held, set `Handled` if you want it to yourself (say, hover changed your state), otherwise the outer layer also
     gets it; while dragging a press you accepted, moves never bubble.
   - **Release**: if you accepted the matching press, the release is yours.
+  - The one press you aren't asked about: in the parameter panel, a right-click inside the range selection — the host opens the selection menu
+    directly, and you get neither that press nor its release.
   - Enter / leave don't read `Handled`.
 - **Threading**: every callback runs on the main thread, and `host` may only be used there; don't block in callbacks.
 - **Exceptions**: the host logs them (naming your plugin) and stops calling that instance until it is rebuilt; its draft is dropped.

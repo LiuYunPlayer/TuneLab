@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using TuneLab.Data;
 using TuneLab.Foundation;
 using TuneLab.GUI.Components;
+using TuneLab.GUI.Input;
 using TuneLab.SDK;
 using TuneLab.Data.Timing;
 
@@ -232,6 +233,9 @@ internal partial class AutomationRenderer
                 return;
             var view = new PluginCanvas() { ExternallyRendered = true };
             view.RenderRequested += OnCanvasRenderRequested;
+            // 右键落在范围选区带内 → 宿主先截，弹选区菜单（同自动化轨）；带外的右键照常先问插件。
+            view.HostTakesPress = e => e.MouseButtonType == MouseButtonType.SecondaryButton
+                && mDependency.PianoScrollView.IsInRegion(view.Bounds.X + e.Position.X);
             var canvas = new LaneCanvas(view, new CanvasTimeAxis(this), new CanvasPitchAxis(this));
             mCanvases.Add(slot, canvas);
             Children.Add(view);
