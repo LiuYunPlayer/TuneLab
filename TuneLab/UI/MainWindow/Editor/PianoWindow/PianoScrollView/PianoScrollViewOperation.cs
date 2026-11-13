@@ -1031,16 +1031,35 @@ internal partial class PianoScrollView
                     e.Handled = true;
                 }
                 break;
-            case State.None:
-                // Shift 按下即进"画范围选区"模式 → 光标变 I-beam（不依赖鼠标移动即时反馈）；悬停 note 本体时是约束移动，不变。
-                if ((e.Key is Key.LeftShift or Key.RightShift) && Part != null)
-                {
-                    Cursor = IsShiftNoteMove(ItemAt(MousePosition)) ? null : new Cursor(StandardCursorType.Ibeam);
-                    e.Handled = true;
-                }
-                break;
         }
     }
+
+    // Shift 按下即进"画范围选区"模式 → 光标变 I-beam（不依赖鼠标移动即时反馈）；悬停 note 本体时是约束移动，不变。松开即复位
+    //（下次移动按 item/tool 重算）。在窗口上监听：焦点在画布、侧栏等别处时钢琴窗收不到按键，光标也要跟着 Shift 走（同参数区）。
+    void OnWindowKey(object? sender, KeyEventArgs e)
+    {
+        if (e.Key is not (Key.LeftShift or Key.RightShift) || mState != State.None || Part == null)
+            return;
+        Cursor = e.RoutedEvent == KeyDownEvent && !IsShiftNoteMove(ItemAt(MousePosition)) ? new Cursor(StandardCursorType.Ibeam) : null;
+    }
+
+    protected override void OnAttachedToVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        mKeyWindow = Avalonia.Controls.TopLevel.GetTopLevel(this);
+        mKeyWindow?.AddHandler(KeyDownEvent, OnWindowKey, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+        mKeyWindow?.AddHandler(KeyUpEvent, OnWindowKey, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+    }
+
+    protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        mKeyWindow?.RemoveHandler(KeyDownEvent, OnWindowKey);
+        mKeyWindow?.RemoveHandler(KeyUpEvent, OnWindowKey);
+        mKeyWindow = null;
+    }
+
+    Avalonia.Controls.TopLevel? mKeyWindow;
 
     protected override void OnKeyUpEvent(KeyEventArgs e)
     {
@@ -1085,13 +1104,6 @@ internal partial class PianoScrollView
                 if (e.Key == Key.LeftAlt)
                 {
                     mVibratoMoveOperation.Move(MousePosition, false);
-                    e.Handled = true;
-                }
-                break;
-            case State.None:
-                if (e.Key is Key.LeftShift or Key.RightShift)
-                {
-                    Cursor = null;   // 松 Shift：复位（下次移动按 item/tool 重算）
                     e.Handled = true;
                 }
                 break;
