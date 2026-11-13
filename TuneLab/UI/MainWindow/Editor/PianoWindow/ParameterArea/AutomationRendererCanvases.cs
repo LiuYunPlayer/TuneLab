@@ -48,6 +48,7 @@ internal partial class AutomationRenderer
         public Rect Rect;                    // 本渲染器坐标里的位置（这一帧画在哪）
         public bool Shown;
         public bool Active;
+        public int Order;                    // 这一帧在本条 lane 里的叠放序（后放的在上），画完后同步成命中顺序（ZIndex）
     }
 
     // 画布 lane 的时间换算：全局秒 / 局部 tick ↔ 画布内横坐标，跟着钢琴窗的 tick 轴（速度变化处秒不均匀）。
@@ -96,7 +97,7 @@ internal partial class AutomationRenderer
     // 钢琴窗里音符本身看得见，不画。
     // 叠放（音符重叠时，乐器 part）：先按音符顺序放没选中的，再按音符顺序放选中的，后放的在上。音符顺序是起点升序、同起点时
     // 尾巴长的在前——同起点的短的在上、长的在它结束后露出来；起点不同的后开始的在上、先开始的露出前面一截，于是每块都点得到；
-    // 起止完全相同的靠选中区分。命中顺序跟着放的顺序走（ZIndex，见 DrawCanvas）。
+    // 起止完全相同的靠选中区分。命中顺序跟着放的顺序走（ZIndex，画完后在 SyncCanvases 里同步）。
     void DrawCanvasLane(DrawingContext context, AutomationKey key, bool phoneme, bool isActive)
     {
         if (Part is not { } part)
@@ -202,9 +203,7 @@ internal partial class AutomationRenderer
         canvas.Axis.Origin = slot.Note!.GlobalStartPos();   // 局部 tick 的原点：所属音符的起点（音素级同样）
         canvas.PitchAxis.Top = rect.Y;
         canvas.View.IsBackground = !isActive;
-        if (canvas.View.ZIndex != mCanvasOrder)
-            canvas.View.ZIndex = mCanvasOrder;   // 只在变了时设：叠放顺序随选中 / 移动而变
-        mCanvasOrder++;
+        canvas.Order = mCanvasOrder++;   // 命中顺序画完后再同步（绘制期间改 ZIndex 会让视图失效，Avalonia 不允许）
         if (!ReferenceEquals(canvas.Config, config) && !canvas.View.IsInUse)
             ApplyConfig(canvas, slot, resolved);
 
@@ -321,6 +320,8 @@ internal partial class AutomationRenderer
             canvas.Shown = shown;
             canvas.View.IsVisible = shown;
             canvas.View.IsHitTestVisible = shown && canvas.Active;   // 背景画布不收输入
+            if (canvas.View.ZIndex != canvas.Order)
+                canvas.View.ZIndex = canvas.Order;   // 命中顺序跟上这一帧的叠放（见 DrawCanvasLane）
         }
         if (stale != null)
         {
