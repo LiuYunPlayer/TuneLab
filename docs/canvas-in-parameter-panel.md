@@ -133,7 +133,7 @@ public interface ICanvasTimeAxis
 ## 5. 几何与长度变化
 
 - 一块画布的横向范围：note 级 = 该 note 的 lane 段（与属性 lane 同一套去重叠，`NoteLaneRanges`）；
-  音素级 = 该音素的显示几何（`note.DisplayPhonemes`）。纵向 = 参数面板高度。**不留缝**（数值 lane 的 1px 缝不照搬）：画布正好覆盖时间段，`XToSecond(0)` / `XToSecond(Width)` 就是起止，分隔由插件自己画。
+  音素级 = 该音素的显示几何（`note.DisplayPhonemes`）。纵向 = 参数面板高度。**不留缝**（数值 lane 的 1px 缝不照搬）：画布正好覆盖时间段，`XToSecond(0)` / `XToSecond(Width)` 就是起止。分界由宿主在激活的 lane 上画（参数面板看不到音符本身）：音符 / 音素真实的边界去重后盖在插件内容上；插件不必画。
 - 缩放、滚动、改面板高度、未钉住的音素在合成后变长变短，都只是 `Width` / `Height` / `TimeAxis` 变了，宿主重新调 `Render`。
 - 音素级画布的提交走属性 lane 的写回范式：先 `LockPhonemes`（合成音素 → 钉死，保几何），再写属性，同一个撤销步。
   草稿不是工程数据，不触发合成，所以编辑过程中几何不会因为自己的草稿而变。

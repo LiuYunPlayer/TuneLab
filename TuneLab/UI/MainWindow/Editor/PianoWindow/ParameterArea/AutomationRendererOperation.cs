@@ -649,6 +649,7 @@ internal partial class AutomationRenderer
     // 与连续轨 DrawOperation 同用「DiscardTo 重放」模式：每帧丢弃未提交命令、按各 note 最新目标值整批重写
     //（同一 note 只留最后一次赋值，命令数有界），抬起统一 Commit——整段拖动一个撤销步。
     // 值写 note.Properties（数据在 note 上、非时间曲线）；命中区间与渲染共用 NoteLaneRanges（去重叠口径）。
+    // 有选中的音符时只改选中的：见 SweptNotes。
     class NoteLaneDrawOperation(AutomationRenderer automationRenderer) : Operation(automationRenderer)
     {
         // 与 phoneme lane 操作共用 State.NoteLaneDrawing，靠 mPart 区分是否本操作在跑（镜像连续/分段轨的判别方式）。
@@ -704,14 +705,8 @@ internal partial class AutomationRenderer
             double tick1 = AutomationRenderer.TickAxis.X2Tick(Math.Max(mLastX, position.X));
             mLastX = position.X;
 
-            foreach (var (note, startTick, endTick) in NoteLaneRanges(mPart!))
+            foreach (var note in SweptNotes(mPart!, tick0, tick1))
             {
-                if (endTick <= tick0)
-                    continue;
-
-                if (startTick > tick1)
-                    break;
-
                 if (ShapeOf(note) is { } shape)
                     mValues[note] = AutomationRenderer.YToValue(y, shape.Scale);
             }
@@ -800,14 +795,8 @@ internal partial class AutomationRenderer
         void Apply()
         {
             mPart!.DiscardTo(mHead);
-            foreach (var (note, startTick, endTick) in NoteLaneRanges(mPart))
+            foreach (var note in SweptNotes(mPart, mStart, mEnd))
             {
-                if (endTick <= mStart)
-                    continue;
-
-                if (startTick > mEnd)
-                    break;
-
                 // 没声明这个字段的 note 在 lane 上没有段，它存着的值（字段被条件藏起来时）不归这次清除管。
                 if (mPart.TryGetNoteLaneShape(note, mId, out _) && mPart.ResolveNoteLane(note, mId) is { } resolved)
                     LanePath.Remove(note.Properties, resolved.Steps);
@@ -822,6 +811,35 @@ internal partial class AutomationRenderer
     }
 
     readonly NoteLaneClearOperation mNoteLaneClearOperation;
+
+    // note lane 横扫命中的音符（[tick0, tick1] 与段相交）。**有选中的音符时只改选中的**（扫过没选中的也不动）；没有选中时扫到哪改到哪。
+    // 和弦里想只改一个音，先在钢琴窗选中它（重叠的段也是选中的画在上面）。
+    static List<INote> SweptNotes(IMidiPart part, double tick0, double tick1)
+    {
+        bool selectedOnly = HasSelectedNote(part);
+        var result = new List<INote>();
+        foreach (var (note, startTick, endTick) in NoteLaneRanges(part))
+        {
+            if (endTick <= tick0)
+                continue;
+            if (startTick > tick1)
+                break;
+            if (!selectedOnly || note.IsSelected)
+                result.Add(note);
+        }
+        return result;
+    }
+
+    // lane 横扫"只改选中的"的判据：part 里有没有选中的音符（音素 lane 按音素所属的音符算）。
+    static bool HasSelectedNote(IMidiPart part)
+    {
+        foreach (var note in part.Notes)
+        {
+            if (note.IsSelected)
+                return true;
+        }
+        return false;
+    }
 
     // phoneme lane 绘制：主键拖动把扫过的显示音素属性值写为鼠标处值（Ctrl = 锁定按下的高度）。写回走音素编辑统一范式：
     // 受影响 note 先 LockPhonemes（幂等，合成→钉死保几何）再写该位音素 Properties；DiscardTo 重放、抬起单 Commit。
@@ -884,10 +902,13 @@ internal partial class AutomationRenderer
             double sec1 = tempoManager.GetTime(Math.Max(0, AutomationRenderer.TickAxis.X2Tick(Math.Max(mLastX, position.X))));
             mLastX = position.X;
 
+            bool selectedOnly = HasSelectedNote(mPart);   // 有选中的音符时只改选中音符的音素（同 note lane，见 SweptNotes）
             foreach (var note in mPart.Notes)
             {
                 if (note.StartTime > sec1 + LeadExtensionSlack)
                     break;
+                if (selectedOnly && !note.IsSelected)
+                    continue;
 
                 var phonemes = note.DisplayPhonemes;
                 for (int i = 0; i < phonemes.Count; i++)
@@ -984,12 +1005,13 @@ internal partial class AutomationRenderer
         void Apply()
         {
             mPart!.DiscardTo(mHead);
+            bool selectedOnly = HasSelectedNote(mPart);   // 同 note lane，见 SweptNotes
             foreach (var note in mPart.Notes)
             {
                 if (note.StartTime > mEnd + LeadExtensionSlack)
                     break;
 
-                if (note.Phonemes.Count == 0)
+                if (note.Phonemes.Count == 0 || selectedOnly && !note.IsSelected)
                     continue;
 
                 var phonemes = note.DisplayPhonemes;

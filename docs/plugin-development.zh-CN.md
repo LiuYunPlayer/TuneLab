@@ -969,7 +969,7 @@ class MyEffectProcessor : IEffectSynthesisSession
 
 Instrument 是**多声部音源**（合成器 / 采样器 / 和弦音源）。它与 voice **机制同构**（引擎生命周期、调度 peek/commit、隔离快照、音频段交付、effect 链、扩展设置全部一样），接口族用 `IInstrument*` 前缀平行成套，与 voice 族无继承。**只在三处与 voice 实质不同**：
 
-- **note 满末、不去重叠**：`IInstrumentSynthesisNote.EndTime` / `InstrumentSynthesisNoteSnapshot.EndTime` 是 note 满末（`Pos+Dur`），宿主**不**钳到下一 note 起点。`Notes` 直传原始可重叠 note（和弦 / 多声部），引擎自行叠加发声（参考实现按每个 note 的 pitch 各加一段波形、混音求和）。
+- **note 满末、不去重叠**：`IInstrumentSynthesisNote.EndTime` / `InstrumentSynthesisNoteSnapshot.EndTime` 是 note 满末（`Pos+Dur`），宿主**不**钳到下一 note 起点。`Notes` 直传原始可重叠 note（和弦 / 多声部），引擎自行叠加发声（参考实现按每个 note 的 pitch 各加一段波形、混音求和）。界面上也一样：参数面板里 note 级的 lane（数值 lane、画布 lane）按每个 note 的完整区间出段，重叠的叠在一起——**声明画布 lane 时要考虑音符重叠**（见 §10.6）。
 - **无歌词 / 无音素**：`IInstrumentSynthesisNote` 没有 `Lyric`，也完全没有音素面（`LeadingPhonemes` / `BodyPhonemes` / `BodyOffset` 都没有）；会话没有 `DefaultLyric`、不产 `SynthesizedPhonemes`。
 - **无 pitch 曲线、产物仅音频**：`IInstrumentSynthesisContext` 没有 `Pitch` / `PitchDeviation`（v1 纯按 note 整数 `Pitch` 发声）；会话不产 `SynthesizedPitch`。仍可声明 automation 轨与 `SynthesizedParameters` 回显（引擎不声明即无）。
 
@@ -1332,7 +1332,13 @@ props.Add(("mix", "Mix"), CanvasLaneConfig.Create(host => new MixCanvas(host, va
 - **你的默认值宜中性**（未调即无效果），或只按对象内的相对位置定义：未钉住的音素长度随合成变化，默认值的作用若依赖长度，
   用户没碰过的对象会在别处编辑后听感改变。
 - **在参数面板里的样子**（宿主负责，你不用做什么，知道了好排版）：
-  - 每块正好覆盖对象的时间段，**相邻两块之间不留缝**、底是透明的——要不要画分隔由你定。
+  - 每块正好覆盖对象的时间段，**相邻两块之间不留缝**、底是透明的。人声 part 的音符按"后盖前"截到下一个音符起点（同人声合成）；
+    乐器 part 的音符按完整的时间区间，重叠的块叠在一起。**分界不用自己画**：参数面板里看不到音符本身，宿主在激活的那条 lane
+    上画各块的分界（音符 / 音素真实的边界，去重后盖在你的内容上面）；将来挂到钢琴窗里时音符本身看得见，宿主不画——那里要不要标出范围由你定。
+  - **乐器插件注意：音符会重叠**（和弦、多声部），各音符的块随之叠在一起。叠放顺序：先按音符顺序放没选中的，再按音符顺序放选中的，
+    后放的在上（音符顺序 = 起点升序、同起点时长的在前，所以每块都至少露出一截）；重叠处只有最上面那块收事件。设计画布内容时要考虑到这一点：
+    别把整块铺满、别在整块上接按下——只在需要的地方画、只在画了东西的地方接，否则上面那块会把下面那块完全挡住；要编辑被挡住的音符，
+    用户得先在钢琴窗选中它。
   - 作为**背景参数**（可见、但激活的是别的参数）时照常 `Render`，宿主把它压暗、垫在激活参数下面，这时不收任何输入。
   - **画布不叠画布**：激活的是画布时，别的画布不画；一块面板里画布的可见是互斥的（用户打开一个，别的就关掉）。
     所以你的画布不会和另一块画布叠着显示，但可能垫着别的曲线。

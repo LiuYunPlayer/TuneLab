@@ -319,8 +319,13 @@ internal partial class AutomationRenderer : View
             double minVisibleTick = TickAxis.MinVisibleTick;
             double maxVisibleTick = TickAxis.MaxVisibleTick;
             double topLineWidth = isActive ? 2 : 1;
+            // 重叠的段（乐器 part）先画没选中的、再画选中的：选中的在上，同画布块的叠放与横扫写值的选中优先。
+            foreach (bool selectedPass in NoteLaneSelectionPasses)
             foreach (var (note, startTick, endTick) in NoteLaneRanges(Part))
             {
+                if (note.IsSelected != selectedPass)
+                    continue;
+
                 if (endTick <= minVisibleTick)
                     continue;
 
@@ -783,16 +788,20 @@ internal partial class AutomationRenderer : View
     // 只能做宽松截断，本值是前伸量的保守上界（秒）。
     const double LeadExtensionSlack = 2;
 
-    // note lane 的呈现/命中区间（全局 tick）：起点 = note 起点，终点 = min(note 满末, 下一 note 起点)——
-    // 展示宽度去重叠，镜像合成侧「后盖前」钳位口径（尾巴钳到数据序下一 note 起点、起点从不动）；
-    // 钳后无宽度者（被完全覆盖 / 同起点和弦兄弟）不出段。渲染与编辑命中共用本口径，所见即所改。
+    // note lane 的呈现/命中区间（全局 tick），按 note 起点升序（调用方据此提前跳出）。渲染与编辑命中共用本口径，所见即所改。
+    // · 人声：起点 = note 起点，终点 = min(note 满末, 下一 note 起点)——展示宽度去重叠，镜像人声合成「后盖前」的钳位口径
+    //  （单声部：尾巴钳到数据序下一 note 起点、起点从不动）；钳后无宽度者（被完全覆盖 / 同起点的兄弟）不出段。
+    // · 乐器：复音，音符本来就可以重叠——不去重叠，每个音符完整的时间区间都出段，重叠的段叠在一起（和弦里每个音符都编辑得到）。
+    static readonly bool[] NoteLaneSelectionPasses = [false, true];
+
     static IEnumerable<(INote Note, double StartTick, double EndTick)> NoteLaneRanges(IMidiPart part)
     {
+        bool polyphonic = part.SoundSource.Kind == SourceKind.Instrument;
         for (var note = part.Notes.First; note != null; note = note.Next)
         {
             double startTick = note.GlobalStartPos();
             double endTick = note.GlobalEndPos();
-            if (note.Next != null)
+            if (!polyphonic && note.Next != null)
                 endTick = Math.Min(endTick, note.Next.GlobalStartPos());
             if (endTick <= startTick)
                 continue;

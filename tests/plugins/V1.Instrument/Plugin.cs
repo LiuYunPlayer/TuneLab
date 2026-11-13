@@ -57,11 +57,16 @@ public sealed class TestInstrumentEngine : IInstrumentSynthesisEngine, IExtensio
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IInstrumentSynthesisPartPropertyContext context) => mEmptyConfigs;
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IInstrumentSynthesisPartPropertyContext context) => mEmptyConfigs;
     public ObjectConfig GetPartPropertyConfig(IInstrumentSynthesisPartPropertyContext context) => mEmptyPanel;
-    public ObjectConfig GetNotePropertyConfig(IInstrumentSynthesisNotePropertyContext context) => mEmptyPanel;
+    // 一个可钉进参数面板的音符属性（只展示、不参与合成）：验证乐器 part 的 note lane 不去重叠——和弦里每个音符都有完整的段。
+    public ObjectConfig GetNotePropertyConfig(IInstrumentSynthesisNotePropertyContext context) => mNotePanel;
 
     readonly OrderedMap<string, InstrumentSourceInfo> mInfos = new();
     static readonly OrderedMap<PropertyKey, AutomationConfig> mEmptyConfigs = new();
     static readonly ObjectConfig mEmptyPanel = ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>());
+    static readonly ObjectConfig mNotePanel = ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>
+    {
+        { ("accent", "Accent"), SliderConfig.Linear(0, 0, 1) },
+    });
 }
 
 public sealed class TestSession : IInstrumentSynthesisSession

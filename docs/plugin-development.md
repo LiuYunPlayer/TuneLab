@@ -971,7 +971,7 @@ The related interfaces are all in `TuneLab.SDK`: `IEffectSynthesisEngine` / `IEf
 
 An instrument is a **polyphonic sound source** (synth / sampler / chord source). It is **mechanically isomorphic to voice** (engine lifecycle, peek/commit scheduling, isolated snapshot, audio-segment delivery, effect chain, extension settings are all the same), with the interface family paralleled by the `IInstrument*` prefix, not inheriting from the voice family. **It differs substantially from voice in only three places**:
 
-- **Notes go to full end, no de-overlap**: `IInstrumentSynthesisNote.EndTime` / `InstrumentSynthesisNoteSnapshot.EndTime` is the note's full end (`Pos+Dur`), and the host does **not** clamp it to the next note's start. `Notes` passes through the original overlappable notes (chords / polyphony), and the engine superimposes voicing itself (the reference implementation adds one waveform segment per note's pitch and mixes by sum).
+- **Notes go to full end, no de-overlap**: `IInstrumentSynthesisNote.EndTime` / `InstrumentSynthesisNoteSnapshot.EndTime` is the note's full end (`Pos+Dur`), and the host does **not** clamp it to the next note's start. `Notes` passes through the original overlappable notes (chords / polyphony), and the engine superimposes voicing itself (the reference implementation adds one waveform segment per note's pitch and mixes by sum). The UI does the same: note-level lanes in the parameter panel (number lanes, canvas lanes) take each note's full span, and overlapping ones stack — **keep overlapping notes in mind when you declare a canvas lane** (see §10.6).
 - **No lyrics / no phonemes**: `IInstrumentSynthesisNote` has no `Lyric`, and no phoneme surface at all (no `LeadingPhonemes` / `BodyPhonemes` / `BodyOffset`); the session has no `DefaultLyric` and produces no `SynthesizedPhonemes`.
 - **No pitch curve, product is audio only**: `IInstrumentSynthesisContext` has no `Pitch` / `PitchDeviation` (v1 voices purely by the note's integer `Pitch`); the session produces no `SynthesizedPitch`. It may still declare automation tracks and `SynthesizedParameters` synthesized parameters (none if the engine declares none).
 
@@ -1363,8 +1363,17 @@ props.Add(("mix", "Mix"), CanvasLaneConfig.Create(host => new MixCanvas(host, va
   phonemes change length with synthesis, so a default whose effect depends on length makes objects the user never touched sound
   different after an edit elsewhere.
 - **How it looks in the parameter panel** (the host does this; nothing for you to do, but it helps your layout):
-  - Each block covers exactly the object's time span, **with no gap between neighbouring blocks**, on a transparent background —
-    whether to draw a separator is up to you.
+  - Each block covers exactly the object's time span, **with no gap between neighbouring blocks**, on a transparent background. In a voice part a
+    note is cut at the next note's start (later covers earlier, as voice synthesis does); in an instrument part each note keeps its full span and
+    overlapping blocks stack. **You don't need to
+    draw the boundaries**: the parameter panel doesn't show the notes themselves, so the host draws the block boundaries on the active lane (the real
+    note / phoneme boundaries, de-duplicated, on top of your content); once canvases can be hung in the piano roll, the notes are visible there and the host draws none — marking the extent there is
+    up to you.
+  - **Instrument plugins: notes overlap** (chords, polyphony), and so do their blocks. Stacking order: the unselected notes' blocks in note order,
+    then the selected ones in note order, later on top (note order = start ascending, longer first on equal starts, so every block shows at
+    least a slice); where they overlap only the topmost block gets events. Design the canvas content for this: don't fill the whole block or take
+    presses across all of it — draw only where needed and take presses only where you drew, or the block on top hides the one below entirely and
+    the user has to select that note in the piano roll first to edit it.
   - As a **background parameter** (visible while another parameter is active) it still renders; the host dims it and puts it
     under the active parameter, and it receives no input then.
   - **Canvases never stack**: while a canvas is the active parameter, other canvases are not drawn, and within one panel only one

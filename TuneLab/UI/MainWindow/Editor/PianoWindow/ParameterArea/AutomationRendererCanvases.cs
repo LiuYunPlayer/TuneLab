@@ -4,9 +4,11 @@ using System;
 using System.Collections.Generic;
 using TuneLab.Data;
 using TuneLab.Foundation;
+using TuneLab.GUI;
 using TuneLab.GUI.Components;
 using TuneLab.GUI.Input;
 using TuneLab.SDK;
+using TuneLab.Utils;
 using TuneLab.Data.Timing;
 
 using Rect = Avalonia.Rect;
@@ -88,23 +90,59 @@ internal partial class AutomationRenderer
     }
 
     // 画一条画布 lane：视口内声明了该字段的对象各画一块。还没有实例的记下来，画完推迟一拍再建（绘制期间不能动子控件）。
+    // 激活的那条由宿主画各块的分界（参数区里看不到音符本身，靠它分清哪块是哪个对象）：各块的起止（音符 / 音素真实的边界 tick），
+    // 按值去重（相邻两块共用的边、同时开始的和弦音符只画一条），全部块画完后统一盖在插件内容上面；插件不必自己画分隔。
+    // 叠在下面的 lane 不画，免得几层分界叠成一片。
+    // 钢琴窗里音符本身看得见，不画。
+    // 叠放（音符重叠时，乐器 part）：先按音符顺序放没选中的，再按音符顺序放选中的，后放的在上。音符顺序是起点升序、同起点时
+    // 尾巴长的在前——同起点的短的在上、长的在它结束后露出来；起点不同的后开始的在上、先开始的露出前面一截，于是每块都点得到；
+    // 起止完全相同的靠选中区分。命中顺序跟着放的顺序走（ZIndex，见 DrawCanvas）。
     void DrawCanvasLane(DrawingContext context, AutomationKey key, bool phoneme, bool isActive)
     {
         if (Part is not { } part)
             return;
+        mCanvasOrder = 0;
 
+        var lanes = phoneme ? part.PhonemeLaneConfigs : part.NoteLaneConfigs;
+        mLaneBoundaryPen = isActive && lanes.TryGetValue(key.Id, out var entry)
+            ? new Pen(ColorUtils.ParseOrFallback(entry.Color).Opacity(0.35).ToBrush(), 1)
+            : null;
+
+        mLaneBoundaries.Clear();
+        try
+        {
+            DrawCanvasLaneBlocks(context, part, key, phoneme, isActive);
+        }
+        finally
+        {
+            if (mLaneBoundaryPen != null)
+            {
+                foreach (var tick in mLaneBoundaries)
+                {
+                    double x = Math.Floor(TickAxis.Tick2X(tick)) + 0.5;   // 对齐像素，1px 线不发虚
+                    context.DrawLine(mLaneBoundaryPen, new Avalonia.Point(x, 0), new Avalonia.Point(x, Bounds.Height));
+                }
+            }
+        }
+    }
+
+    void DrawCanvasLaneBlocks(DrawingContext context, IMidiPart part, AutomationKey key, bool phoneme, bool isActive)
+    {
         double minVisibleTick = TickAxis.MinVisibleTick;
         double maxVisibleTick = TickAxis.MaxVisibleTick;
         if (!phoneme)
         {
-            foreach (var (note, startTick, endTick) in NoteLaneRanges(part))
+            foreach (bool selectedPass in SelectionPasses)
             {
-                if (endTick <= minVisibleTick)
-                    continue;
-                if (startTick >= maxVisibleTick)
-                    break;
-                if (part.ResolveNoteLane(note, key.Id) is { } resolved)
-                    DrawCanvas(context, new CanvasSlot(key.Id, false, note, -1), resolved, startTick, endTick, isActive);
+                foreach (var (note, startTick, endTick) in NoteLaneRanges(part))
+                {
+                    if (endTick <= minVisibleTick)
+                        continue;
+                    if (startTick >= maxVisibleTick)
+                        break;
+                    if (note.IsSelected == selectedPass && part.ResolveNoteLane(note, key.Id) is { } resolved)
+                        DrawCanvas(context, new CanvasSlot(key.Id, false, note, -1), resolved, startTick, endTick, isActive);
+                }
             }
             return;
         }
@@ -112,10 +150,13 @@ internal partial class AutomationRenderer
         var tempo = part.TempoManager;
         double minVisibleSec = tempo.GetTime(Math.Max(0, minVisibleTick));
         double maxVisibleSec = tempo.GetTime(Math.Max(0, maxVisibleTick));
+        foreach (bool selectedPass in SelectionPasses)
         foreach (var note in part.Notes)
         {
             if (note.StartTime > maxVisibleSec + LeadExtensionSlack)
                 break;
+            if (note.IsSelected != selectedPass)
+                continue;
             var phonemes = note.DisplayPhonemes;
             if (phonemes.Count == 0 || phonemes[^1].EndTime <= minVisibleSec)
                 continue;
@@ -130,13 +171,18 @@ internal partial class AutomationRenderer
         }
     }
 
+    Pen? mLaneBoundaryPen;   // 本次画的这条 lane 的分界线（只有激活的那条有，见 DrawCanvasLane）
+    readonly HashSet<double> mLaneBoundaries = [];   // 本条 lane 各块的起止 tick（按值去重），全部块画完后统一画
+    int mCanvasOrder;        // 本条 lane 里放到第几块了：命中顺序（ZIndex）跟着它，后放的在上
+    static readonly bool[] SelectionPasses = [false, true];   // 先没选中的、后选中的
+
     void DrawCanvas(DrawingContext context, CanvasSlot slot, LanePath.Resolved resolved, double startTick, double endTick, bool isActive)
     {
         var config = resolved.Leaf;
         if (config is not (CanvasConfig or CanvasLaneConfig))
             return;
         // 不留缝（数值 lane 留 1px 缝是因为段由宿主画）：画布正好覆盖对象的时间段，XToSecond(0) / XToSecond(Width) 就是它的起止，
-        // 跨对象连续的内容也接得上；要不要分隔由插件自己画（底是透明的）。
+        // 跨对象连续的内容也接得上；分界由宿主画（见 DrawCanvasLane）。
         double left = TickAxis.Tick2X(startTick);
         double right = TickAxis.Tick2X(endTick);
         if (right - left < 1)
@@ -156,11 +202,19 @@ internal partial class AutomationRenderer
         canvas.Axis.Origin = slot.Note!.GlobalStartPos();   // 局部 tick 的原点：所属音符的起点（音素级同样）
         canvas.PitchAxis.Top = rect.Y;
         canvas.View.IsBackground = !isActive;
+        if (canvas.View.ZIndex != mCanvasOrder)
+            canvas.View.ZIndex = mCanvasOrder;   // 只在变了时设：叠放顺序随选中 / 移动而变
+        mCanvasOrder++;
         if (!ReferenceEquals(canvas.Config, config) && !canvas.View.IsInUse)
             ApplyConfig(canvas, slot, resolved);
 
         var visible = rect.Intersect(new Rect(Bounds.Size));
         canvas.View.SetHostedGeometry(rect.Size, visible.Width > 0 && visible.Height > 0 ? visible.Translate(new(-left, 0)) : default);
+        if (mLaneBoundaryPen != null)
+        {
+            mLaneBoundaries.Add(startTick);
+            mLaneBoundaries.Add(endTick);
+        }
         using (context.PushClip(visible))
         using (context.PushTransform(Avalonia.Matrix.CreateTranslation(left, 0)))
             canvas.View.RenderInto(context);
