@@ -54,6 +54,9 @@ internal partial class AutomationRenderer
                 bool shift = (e.KeyModifiers & ModifierKeys.Shift) != 0;
                 var item = ItemAt(e.Position);
 
+                // 认领（e.Handled）：插件画布没接住、转过来的按下，这里认领了就归这里（之后的移动与抬起），没认领则先不定、
+                // 后续移动仍先问画布（见 Container）。下面三种手势认领；激活的是画布时只有这三种。
+
                 // Shift+主键拖 = 画范围选区（与音符区共用同一条 tick 带，零工具切换）。先于工具/锚点/绘制逻辑拦截。
                 // 未拖(点击)的清空交给 OnMouseUp 的点击阈值统一判定（mPrimaryDownPos 记于此）。
                 if (e.MouseButtonType == MouseButtonType.PrimaryButton)
@@ -62,7 +65,10 @@ internal partial class AutomationRenderer
                     if (shift)
                     {
                         if (Part != null)
+                        {
                             mRegionSelectionOperation.Down(e.Position.X, alt);
+                            e.Handled = true;
+                        }
                         break;
                     }
                 }
@@ -71,8 +77,14 @@ internal partial class AutomationRenderer
                 if (e.MouseButtonType == MouseButtonType.SecondaryButton && (mDependency.PianoScrollView.HasRegionSelection || shift))
                 {
                     mDependency.PianoScrollView.OpenRegionMenu(e.Position.X);
+                    e.Handled = true;
                     break;
                 }
+
+                // 激活的是画布：编辑归插件，宿主的工具在这里没有对象（锚点、颤音幅度、画线都针对曲线）。不跳过的话，
+                // 锚点工具会清掉音高锚点的选中、颤音工具会选中颤音块，时间轴画布与自动化轨同 id 时画线还会画到那条轨上。
+                if (Part != null && mDependency.ActiveAutomation is { } activeKey && Part.IsCanvasParameter(activeKey))
+                    break;
 
                 if (mDependency.PianoTool.Value == PianoTool.Anchor)
                 {
@@ -215,7 +227,10 @@ internal partial class AutomationRenderer
         }
 
         if (e.MouseButtonType == MouseButtonType.MiddleButton)
+        {
             mMiddleDragOperation.Down(e.Position.X);
+            e.Handled = true;
+        }
     }
 
     protected override void OnMouseAbsoluteMove(MouseMoveEventArgs e)
@@ -294,13 +309,54 @@ internal partial class AutomationRenderer
         InvalidateVisual();
     }
 
+    // 指针形状跟着 Shift 走：按下即 I 形（画范围选区模式），松开即复位——不等鼠标移动、也不管焦点在哪（在窗口上监听按键，
+    // 见 OnAttachedToVisualTree）。拉选区途中保持 I 形，结束时按 Shift 当时的状态定。
+    static readonly Avalonia.Input.Cursor IbeamCursor = new(Avalonia.Input.StandardCursorType.Ibeam);
+
+    void OnWindowKey(object? sender, Avalonia.Input.KeyEventArgs e)
+    {
+        if (e.Key is not (Avalonia.Input.Key.LeftShift or Avalonia.Input.Key.RightShift))
+            return;
+        mShiftHeld = e.RoutedEvent == Avalonia.Input.InputElement.KeyDownEvent;
+        if (mState == State.None)
+            Cursor = mShiftHeld ? IbeamCursor : null;
+    }
+
+    protected override void OnChildHandledPointerMove()
+    {
+        if (mState == State.None)
+            Cursor = mShiftHeld ? IbeamCursor : null;
+    }
+
+    protected override void OnAttachedToVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        mKeyWindow = Avalonia.Controls.TopLevel.GetTopLevel(this);
+        mKeyWindow?.AddHandler(Avalonia.Input.InputElement.KeyDownEvent, OnWindowKey, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+        mKeyWindow?.AddHandler(Avalonia.Input.InputElement.KeyUpEvent, OnWindowKey, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+    }
+
+    protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        mKeyWindow?.RemoveHandler(Avalonia.Input.InputElement.KeyDownEvent, OnWindowKey);
+        mKeyWindow?.RemoveHandler(Avalonia.Input.InputElement.KeyUpEvent, OnWindowKey);
+        mKeyWindow = null;
+    }
+
+    Avalonia.Controls.TopLevel? mKeyWindow;
+    bool mShiftHeld;
+
     protected override void OnMouseUp(MouseUpEventArgs e)
     {
         switch (mState)
         {
             case State.RegionSelecting:
                 if (e.MouseButtonType == MouseButtonType.PrimaryButton)
+                {
                     mRegionSelectionOperation.Up();
+                    Cursor = mShiftHeld ? IbeamCursor : null;
+                }
                 break;
             case State.Drawing:
                 if (e.MouseButtonType == MouseButtonType.PrimaryButton)

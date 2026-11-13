@@ -1236,18 +1236,29 @@ Two things are kept apart: the **editing state** (is the canvas being edited) an
 - **Redraw**: the host redraws when the value, the draft or the size changes; when your own state changes (hover, say) call `host.Invalidate()`.
 - **Mouse**: `OnMouseDown` / `OnMouseMove` / `OnMouseUp` / `OnMouseEnter` / `OnMouseLeave` / `OnScroll` — these and `Render` all have empty default implementations; implement only what you need. After a press the host captures the mouse (you keep getting moves and the release outside the canvas); double-clicks (`IsDoubleClick`) and clicks (`IsClick`) are decided by the host; modifier keys are normalized across platforms (Cmd on macOS reads as `Ctrl`).
 - **Keyboard**: `OnKeyDown` / `OnKeyUp(CanvasKeyEvent)` (`Key`, `Modifiers`, `IsRepeat`), delivered only while the canvas **has focus** — clicking the canvas gives it focus; clicking elsewhere or switching windows takes it away. Only the keys in `CanvasKey` are forwarded (letters, digits, F1–F12, arrows, Enter, Esc, Tab, Backspace, Delete, Home / End, PageUp / PageDown, Space, Ctrl / Alt / Shift — modifier keys get their own down / up too, left and right not distinguished); other keys bypass the canvas. Presses the system repeats while a key is held have `IsRepeat` true, at the system's repeat rate. Keys come in **strict pairs** as well: every `OnKeyUp` has a matching `OnKeyDown` this instance received; if focus is lost or the canvas leaves the screen while a key is held, the host sends the release; after the instance is replaced, the first press the new instance gets has `IsRepeat` false (to it, the key was just pressed). For press-and-hold adjustments, as usual **write a draft on the first press and commit on release** — one held key becomes one undo step. There is no text input (IME / characters).
+  **Ownership works as for the mouse**: one keystroke (press → repeats → release) has one owner, decided by the initial press — set `Handled` there and
+  it's yours, its repeats and release don't bubble; leave it and it belongs to the outer layer (shortcuts, the panel), its repeats and release bubble
+  as usual, and you still receive them (in pairs) but setting `Handled` on them has no effect.
 - **`e.Handled`**: every event argument has it (base class `CanvasEvent`). Set it to `true` when you handled the event and the host skips that event's default action; leave it (the default) to hand the event back to the host. The wheel and the keyboard have default actions: the wheel scrolls the panel the canvas sits in, and a key bubbles to the outer layers (shortcuts, the panel's own key handling). **Set it only when you actually use the event** (say, the pointer is over something adjustable, or it's a key you handle), never swallow wholesale — swallow the wheel and the panel gets stuck whenever the pointer sweeps across the canvas while the user scrolls; swallow keys and shortcuts like Space to play or undo stop working while the canvas has focus.
   **The mouse is routed the same way** (the canvas's outer layer = the sidebar / parameter panel; in the parameter panel the host has gestures
   such as middle-drag to pan the timeline, Shift-drag for a range selection and the range-selection context menu):
-  - **Press**: set `Handled = true` when you want this operation — the following moves and the release go to you only (the mouse is captured
-    for you). Leave it and you don't want it: the host immediately sends you a release (`IsClick = false`) and the drag's moves and release go to
-    the outer layer; you won't see them. **Ownership is decided at the press** and can't be handed over or taken back later.
-  - So a canvas that decides by how far the pointer travelled between press and release (a click means one thing, a drag another) has to accept
-    every such press, and the host never gets it. Canvases will later be stackable with host tools in the piano roll; one meant to be used that
-    way should accept presses only where it drew something, not on empty space.
+  - **A drag has one owner**: press, moves and release form one loop at one receiver (as in UI frameworks generally — once you own it you get the
+    moves even outside your bounds); whoever claims it keeps it, and it is never handed over or taken back.
+  - **Press**: set `Handled = true` to take this drag — the following moves and the release go to you only. Leave it and you don't take it yet:
+    the press bubbles to the outer layer; if the outer layer claims it (middle-button pan, Shift range selection…) you get a synthesized release
+    (at the press position, `IsClick = false`) and nothing after that; if nobody claims it, ownership stays open.
+  - **Moves with a button held while ownership is open**: you are asked first; setting `Handled` claims the drag (everything after goes to you).
+    Leave it and the move goes to the outer layer, which may claim it — you then get the synthesized release as above. So "a click goes to the host,
+    a drag is mine" is written like this: don't take the press, and set `Handled` on a move once the pointer has travelled past your own threshold.
+    Don't set `Handled` on held-button moves out of habit (say, for hover) — that claims the drag. If nobody claims it before the button comes up,
+    the release comes to you as usual (`IsClick` computed as usual), and you can treat it as a click.
+  - **Double-clicks**: a double-click is two complete clicks, and each press decides on its own whether you accept it. To act on a double-click
+    only, decline the first press (the host gets it) and accept the second one when its `IsDoubleClick` is set.
+  - Canvases will later be stackable with host tools in the piano roll; one meant to be used that way should take presses only where it drew
+    something and leave presses on empty space (claim a drag from a move as above if it needs one).
   - **Move**: with no button held, set `Handled` if you want it to yourself (say, hover changed your state), otherwise the outer layer also
-    gets it; while dragging a press you accepted, moves never bubble.
-  - **Release**: if you accepted the matching press, the release is yours.
+    gets it; once the drag is yours, moves never bubble.
+  - **Release**: if the press is still with you (you claimed the drag, or nobody did), the release is yours.
   - The one press you aren't asked about: in the parameter panel, a right-click inside the range selection — the host opens the selection menu
     directly, and you get neither that press nor its release.
   - Enter / leave don't read `Handled`.

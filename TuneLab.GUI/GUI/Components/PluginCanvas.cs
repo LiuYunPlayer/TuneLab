@@ -377,10 +377,11 @@ internal sealed class PluginCanvas : Component
     bool mPointerFromPopup;
 
     // 鼠标事件先问插件，插件没置 Handled 就冒泡给外层（参数面板 / 侧栏），与滚轮、按键同一约定（契约见 ICanvasControl）：
-    // · 按下：插件接了 = 这次拖动归插件（捕获留在画布，移动与抬起只给它）；没接 = 当场补发抬起（IsClick = false），捕获交给外层、
-    //   这次拖动的移动与抬起都归外层（如中键平移时间轴）。归属只在按下时定，之后不变。
-    // · 移动：插件接了（或正拖着自己接住的按下）就不冒泡；否则外层照常收到（悬停等）。
-    // · 抬起：配对的那次按下归插件 → 不冒泡。
+    // · 按下：插件接了 = 这次拖动归插件（捕获留在画布，移动与抬起只给它）；没接 = 冒泡给外层，外层认领（中键平移、Shift 拉选区……）
+    //   就拿走捕获，插件因捕获丢失收到补发的抬起（IsClick = false）；外层也没认领 = 归属先不定（见 Container）。
+    // · 移动：没按着键时，插件接了就不冒泡，否则外层照常收到（悬停等）。按着键时：这次拖动已归插件 = 不冒泡；归属还没定 = 先问插件，
+    //   它置 Handled 就认领了这次拖动，否则冒泡给外层（外层可以认领，插件随即收到补发的抬起）。
+    // · 抬起：配对的那次按下还在插件这边（它认领了，或谁都没认领）→ 给插件、不冒泡。
     // 宿主先截的按下（插件先问的唯一例外）：返回 true 则这一下不给插件、直接交给外层。参数面板用它让"选区带内的右键"
     // 总弹出选区菜单——选区是宿主的状态、插件看不到，画布叠在带上时不能让插件把菜单吃掉。
     public Func<MouseDownEventArgs, bool>? HostTakesPress { get; set; }
@@ -390,25 +391,20 @@ internal sealed class PluginCanvas : Component
         if (mPointerFromPopup)
             return;
         if (HostTakesPress?.Invoke(e) == true)
-        {
-            e.Declined = true;
-            return;
-        }
+            return;   // 不问插件、照常冒泡给外层
         var button = ToButton(e.MouseButtonType);
         var args = new CanvasMouseButtonEvent(ToPoint(e.Position), ToModifiers(e.KeyModifiers), button, e.IsDoubleClick, false);
         if (Prepare() is { } session)
         {
             mPressed |= Bit(button);
             session.Pressed |= Bit(button);
+            mDownPoint = args.Position;
             session.Call(control => control.OnMouseDown(args));
+            mClaimed = args.Handled;
             if (args.Handled)
-            {
                 e.Handled = true;
-                return;
-            }
-            Release(button, args.Position, args.Modifiers, false);   // 没接：补发抬起，这次按下配上对
+            // 没接：按下冒泡给外层；外层认领则捕获丢失、补发抬起（ReleaseAll），没认领则按着的状态留着，等后续移动再定。
         }
-        e.Declined = true;
     }
 
     protected override void OnMouseUp(MouseUpEventArgs e)
@@ -432,7 +428,10 @@ internal sealed class PluginCanvas : Component
     {
         var args = new CanvasMouseEvent(ToPoint(e.Position), ToModifiers(e.KeyModifiers));
         Prepare()?.Call(control => control.OnMouseMove(args));
-        if (args.Handled || mPressed != 0)
+        // 按着键、归属还没定：插件这一下置了 Handled 就认领了这次拖动。
+        if (mPressed != 0 && args.Handled)
+            mClaimed = true;
+        if (args.Handled || (mPressed != 0 && mClaimed))
             e.Handled = true;
     }
 
@@ -463,7 +462,10 @@ internal sealed class PluginCanvas : Component
     //   于是按住方向键微调、每格都提交（每次提交都换实例）也能一直连下去；
     // · 抬起只转发给收到过对应按下的实例；失去焦点 / 离开界面时补发抬起（之后的抬起到不了这里）。
     // 多个物理键映到同一个 CanvasKey（左右 Shift、macOS 的 Cmd 与 Control）：第一个按下才算按下、最后一个抬起才算抬起。
-    // 没收录的键不经画布、照常冒泡。插件置 Handled 才吞掉这个键（快捷键、外层面板就收不到）。
+    // 没收录的键不经画布、照常冒泡。
+    // 归属同鼠标：一次按键（按下 → 系统重复 → 抬起）只归一个接收者。按下时插件置 Handled = 这个键归插件，之后的重复与抬起都不冒泡；
+    // 没置 = 归外层（快捷键、面板），之后的重复与抬起照常冒泡——插件照样收到它们（成对），但它在上面置的 Handled 不算数，
+    // 否则外层收到了按下却收不到抬起。归属按物理按键算、与实例无关：中途换了实例，新实例的第一个按下（IsRepeat = false）也不改归属。
 
     protected override void OnKeyDownEvent(KeyEventArgs e) => KeyDown(e);
     protected override void OnKeyPressedEvent(KeyEventArgs e) => KeyDown(e);   // Component 把同一键的后续按下（系统重复）分到这里
@@ -472,20 +474,23 @@ internal sealed class PluginCanvas : Component
     {
         if (ToKey(e.Key) is not { } key)
             return;
+        bool fresh = !mKeys.ContainsValue(key);   // 这个键刚被按下（不是重复、也不是同一 CanvasKey 的另一个物理键）
         mKeys[e.Key] = key;
         if (Ensure() is not { } session)
             return;
         var args = new CanvasKeyEvent(key, ToModifiers(e.ModifierKeys()), isRepeat: !session.Keys.Add(key));
         session.Call(control => control.OnKeyDown(args));
-        e.Handled = args.Handled;
+        if (fresh && args.Handled)
+            mOwnedKeys.Add(key);
+        e.Handled = mOwnedKeys.Contains(key);
     }
 
     protected override void OnKeyUpEvent(KeyEventArgs e)
     {
         if (!mKeys.Remove(e.Key, out var key) || mKeys.ContainsValue(key))
             return;   // 在别处按下的键 / 同一 CanvasKey 还有别的物理键按着
-        if (ReleaseKey(key, ToModifiers(e.ModifierKeys())) is { } args)
-            e.Handled = args.Handled;
+        ReleaseKey(key, ToModifiers(e.ModifierKeys()));
+        e.Handled = mOwnedKeys.Remove(key);   // 按下归谁，抬起就归谁
     }
 
     protected override void OnLostFocus(RoutedEventArgs e)
@@ -507,6 +512,7 @@ internal sealed class PluginCanvas : Component
     {
         var keys = new HashSet<CanvasKey>(mKeys.Values);
         mKeys.Clear();
+        mOwnedKeys.Clear();
         foreach (var key in keys)
             ReleaseKey(key, ToModifiers(Modifiers));
     }
@@ -602,6 +608,8 @@ internal sealed class PluginCanvas : Component
     void Release(CanvasMouseButton button, Point position, CanvasModifierKeys modifiers, bool isClick)
     {
         mPressed &= ~Bit(button);
+        if (mPressed == 0)
+            mClaimed = false;
         if (mSession is { } session && (session.Pressed & Bit(button)) != 0)
         {
             session.Pressed &= ~Bit(button);
@@ -609,12 +617,15 @@ internal sealed class PluginCanvas : Component
         }
     }
 
+    // 捕获丢失时补发抬起：插件没认领这次拖动（外层认领走了）就补在按下的位置——对它来说这次按下没有拖动过；
+    // 认领了的（拖到一半捕获意外丢失）补在指针当前位置。
     void ReleaseAll()
     {
+        var position = mClaimed ? ToPoint(MousePosition) : mDownPoint;
         foreach (var button in Enum.GetValues<CanvasMouseButton>())
         {
             if ((mPressed & Bit(button)) != 0)
-                Release(button, ToPoint(MousePosition), ToModifiers(Modifiers), false);
+                Release(button, position, ToModifiers(Modifiers), false);
         }
     }
 
@@ -1236,6 +1247,9 @@ internal sealed class PluginCanvas : Component
     PropertyValue mSeen;
     int mOwnWrite;
     int mPressed;              // 当前按着的键（按 CanvasMouseButton 取位），与实例无关
+    bool mClaimed;             // 按着的这次拖动已归插件（按下时接住，或归属未定时某次移动接住）
+    Point mDownPoint;          // 这次按下的位置（外层认领走时，补发的抬起落在这里）
     readonly Dictionary<Key, CanvasKey> mKeys = [];
+    readonly HashSet<CanvasKey> mOwnedKeys = [];   // 按下时插件接住了的键（之后的重复与抬起不冒泡），与实例无关
     Avalonia.Controls.TopLevel? mTopLevel;   // 画布有焦点时按下、还没抬起的物理键，与实例无关
 }

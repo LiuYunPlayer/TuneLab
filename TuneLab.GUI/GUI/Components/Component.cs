@@ -79,17 +79,16 @@ internal class Component : Control
             Position = p.Position,
             MouseButtonType = p.Properties.PointerUpdateKind.ToMouseButtonType(),
         };
-        CallMouseDown(args);
+        CallMouseDown(args, e.GetPosition(null));
         ApplyDown(e, args);
     }
 
-    // 按下的去向：消费了 = 不再冒泡；不要 = 放掉鼠标捕获（按下随后冒泡到外层，由接手的那一层重新捕获，见 Container）。
+    // 按下的去向：认领了 = 不再冒泡；没认领 = 按下照常冒泡，鼠标捕获先留在本组件——外层认领时由它把捕获拿走（见 Container），
+    // 本组件随即因捕获丢失收到补发的抬起；谁都没认领，后续的移动与抬起仍到本组件。
     void ApplyDown(PointerEventArgs e, MouseDownEventArgs args)
     {
         if (args.Handled)
             e.Handled = true;
-        else if (args.Declined && e.Pointer.Captured == this)
-            e.Pointer.Capture(null);
     }
 
     // 没处理的指针事件（按下 / 移动 / 滚轮）交给所在的 Container 去处理（它的输入由内部的主组件收，与子元素是兄弟，
@@ -131,7 +130,7 @@ internal class Component : Control
                     Position = p.Position,
                     MouseButtonType = p.Properties.PointerUpdateKind.ToMouseButtonType(),
                 };
-                CallMouseDown(down);
+                CallMouseDown(down, e.GetPosition(null));
                 ApplyDown(e, down);
                 break;
             case PointerUpdateKind.LeftButtonReleased:
@@ -143,7 +142,7 @@ internal class Component : Control
                     Position = p.Position,
                     MouseButtonType = p.Properties.PointerUpdateKind.ToMouseButtonType(),
                 };
-                CallMouseUp(up);
+                CallMouseUp(up, e.GetPosition(null));
                 if (up.Handled)
                     e.Handled = true;
                 break;
@@ -175,7 +174,7 @@ internal class Component : Control
             Position = p.Position,
             MouseButtonType = p.Properties.PointerUpdateKind.ToMouseButtonType(),
         };
-        CallMouseUp(args);
+        CallMouseUp(args, e.GetPosition(null));
         if (args.Handled)
             e.Handled = true;
     }
@@ -226,9 +225,9 @@ internal class Component : Control
 
     void ReleasePressedButtons()
     {
-        if (mIsPrimaryButtonPressed) CallMouseUp(SynthesizedUp(MouseButtonType.PrimaryButton), synthesized: true);
-        if (mIsMiddleButtonPressed) CallMouseUp(SynthesizedUp(MouseButtonType.MiddleButton), synthesized: true);
-        if (mIsSecondaryButtonPressed) CallMouseUp(SynthesizedUp(MouseButtonType.SecondaryButton), synthesized: true);
+        if (mIsPrimaryButtonPressed) CallMouseUp(SynthesizedUp(MouseButtonType.PrimaryButton), default, synthesized: true);
+        if (mIsMiddleButtonPressed) CallMouseUp(SynthesizedUp(MouseButtonType.MiddleButton), default, synthesized: true);
+        if (mIsSecondaryButtonPressed) CallMouseUp(SynthesizedUp(MouseButtonType.SecondaryButton), default, synthesized: true);
     }
 
     MouseUpEventArgs SynthesizedUp(MouseButtonType button) => new()
@@ -238,11 +237,13 @@ internal class Component : Control
         MouseButtonType = button,
     };
 
-    void CallMouseDown(MouseDownEventArgs e)
+    // 双击判定按窗口坐标（globalPosition）比，不按本组件坐标：上一下点击可能落在别的组件上——插件画布不要的按下交给外层，
+    // 那一下的抬起由外层收（见 Container），记下的是外层的坐标；第二下若仍按画布的局部坐标比，原点不同（画布 lane 摆在音符处）就永远对不上。
+    void CallMouseDown(MouseDownEventArgs e, Avalonia.Point globalPosition)
     {
         mLastMousePosition = e.Position;
         mDownPosition = e.Position;
-        e.IsDoubleClick = mLastClickPosition == e.Position && mStopwatch.ElapsedMilliseconds - mLastClickTime <= DoubleClickInterval;
+        e.IsDoubleClick = globalPosition.FuzzyEquals(mLastClickGlobalPosition) && mStopwatch.ElapsedMilliseconds - mLastClickTime <= DoubleClickInterval;
 
         switch (e.MouseButtonType)
         {
@@ -267,7 +268,7 @@ internal class Component : Control
     }
 
     // synthesized：补发的抬起（见 OnPointerCaptureLost）——恒不算点击，也不参与双击计时，免得误触发点击动作。
-    void CallMouseUp(MouseUpEventArgs e, bool synthesized = false)
+    void CallMouseUp(MouseUpEventArgs e, Avalonia.Point globalPosition, bool synthesized = false)
     {
         if (synthesized)
         {
@@ -277,7 +278,7 @@ internal class Component : Control
         {
             mLastClickTime = mStopwatch.ElapsedMilliseconds;
             e.IsClick = e.Position.FuzzyEquals(mDownPosition);
-            if (e.IsClick) mLastClickPosition = e.Position;
+            if (e.IsClick) mLastClickGlobalPosition = globalPosition;
         }
 
         switch (e.MouseButtonType)
@@ -316,7 +317,7 @@ internal class Component : Control
     bool mIsSecondaryButtonPressed = false;
     static Stopwatch mStopwatch = new();
     static long mLastClickTime = 0;
-    static Avalonia.Point mLastClickPosition;
+    static Avalonia.Point mLastClickGlobalPosition = new(double.NaN, double.NaN);
     static bool mFirstKeyDown = true;
     static ModifierKeys mLastKeyModifiers = ModifierKeys.None;
     Avalonia.Point mLastMousePosition = new(-1, -1);

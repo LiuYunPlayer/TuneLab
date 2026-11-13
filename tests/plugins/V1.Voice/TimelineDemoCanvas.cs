@@ -12,6 +12,9 @@ namespace TuneLab.TestPlugins.V1Voice;
 // · 改动范围：加 / 拖 / 删提交时带上受影响的那几拍（CommitValue(ranges)，重复的自己去掉）；会话订阅后只重合成相交的块（状态带可见）。
 // · IsBackground：作背景只画格子，不画文字与原点线。
 // · 事件归属：只接自己用的按下（左键、右键点中格子）并置 Handled；中键、空白处右键不接，冒泡给宿主。
+//   空白处左键演示"按下不接、拖动再认领"：按下不接（宿主有自己的手势就归宿主），按着拖过几像素才在移动里置 Handled 认领，
+//   沿路刷出标记；没拖就松手 = 点击，加一个标记（宿主没认领时抬起回到这里，IsClick = true）。宿主认领走了则收到补发的抬起
+//   （IsClick = false），什么都不做。
 sealed class TimelineDemoCanvas(ITimelineCanvasHost host, PropertyValue value) : ICanvasControl
 {
     public const string Id = "markers";
@@ -126,25 +129,49 @@ sealed class TimelineDemoCanvas(ITimelineCanvasHost host, PropertyValue value) :
         }
         if (e.Button != CanvasMouseButton.Primary)
             return;   // 中键不接：参数面板照常平移时间轴
-        e.Handled = true;
 
         if (hit < 0)
         {
-            marks.Add(CellAt(e.Position));
-            hit = marks.Count - 1;
-            Draft(marks);
-            mOrigin = null;   // 新加的：只报落点
+            mBlankDown = e.Position;   // 空白处：按下不接，等拖动或抬起再定
+            return;
         }
-        else
-        {
-            mOrigin = marks[hit];
-        }
+        e.Handled = true;
+        mOrigin = marks[hit];
         mDragging = hit;
         mDragEdit = host.EditScope();
     }
 
+    const double PaintThreshold = 4;
+
+    // 刷标记：经过的格子没有标记就加一个。
+    void PaintAt(Point at)
+    {
+        var cell = CellAt(at);
+        var marks = ReadMarks(Current);
+        if (marks.Contains(cell))
+            return;
+        marks.Add(cell);
+        mPainted.Add(cell);
+        Draft(marks);
+    }
+
     public void OnMouseMove(CanvasMouseEvent e)
     {
+        // 空白处按下后：拖过阈值才认领（置 Handled），之后的移动与抬起都归这里。
+        if (mBlankDown is { } down && !mPainting)
+        {
+            if (Math.Abs(e.Position.X - down.X) < PaintThreshold && Math.Abs(e.Position.Y - down.Y) < PaintThreshold)
+                return;
+            mPainting = true;
+            mDragEdit = host.EditScope();
+            PaintAt(down);
+        }
+        if (mPainting)
+        {
+            e.Handled = true;
+            PaintAt(e.Position);
+            return;
+        }
         if (mDragging >= 0)
         {
             var marks = ReadMarks(Current);
@@ -168,6 +195,32 @@ sealed class TimelineDemoCanvas(ITimelineCanvasHost host, PropertyValue value) :
 
     public void OnMouseUp(CanvasMouseButtonEvent e)
     {
+        if (e.Button == CanvasMouseButton.Primary && mBlankDown is { } down)
+        {
+            mBlankDown = null;
+            if (mPainting)
+            {
+                mPainting = false;
+                if (mPainted.Count > 0)
+                    Commit(mPainted.ToArray());
+                mPainted.Clear();
+                mDragEdit?.Dispose();
+                mDragEdit = null;
+            }
+            else if (e.IsClick)
+            {
+                // 没拖、也没被宿主认领走：一次点击，加一个标记。
+                var current = ReadMarks(Current);
+                var cell = CellAt(down);
+                if (!current.Contains(cell))
+                {
+                    current.Add(cell);
+                    Draft(current);
+                    Commit(cell);
+                }
+            }
+            return;
+        }
         if (e.Button != CanvasMouseButton.Primary || mDragging < 0)
             return;
         var marks = ReadMarks(Current);
@@ -204,5 +257,8 @@ sealed class TimelineDemoCanvas(ITimelineCanvasHost host, PropertyValue value) :
     (double Tick, int Pitch)? mOrigin;
     int mDragging = -1;
     int mHot = -1;
+    Point? mBlankDown;          // 空白处按下的位置（还没定是点击还是拖动）
+    bool mPainting;             // 已认领：正在刷标记
+    readonly List<(double Tick, int Pitch)> mPainted = [];
     IDisposable? mDragEdit;
 }
