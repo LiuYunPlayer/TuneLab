@@ -1,4 +1,4 @@
-using Avalonia;
+﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Layout;
@@ -101,7 +101,8 @@ internal class ParameterTabBar : Panel
             .AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, ColorSet = new() { HoveredColor = hoverBack, PressedColor = hoverBack } })
             .AddContent(new() { Item = new IconItem() { Icon = Assets.Checklist }, ColorSet = new() { Color = Colors.White } });
         mParameterMenuButton.SetupToolTip("Parameters in Tab Bar".Tr(TC.Menu));
-        mParameterMenuButton.Clicked += () => OpenParameterMenu(mParameterMenuButton);
+        // 列表开着时再点一下 = 收起（见 MenuButtonToggle）。
+        MenuButtonToggle.Attach(mParameterMenuButton, () => OpenParameterMenu(mParameterMenuButton));
         Children.Add(mParameterMenuButton);
 
         // 标签栏空白处右键：标签栏上显示哪些参数（隐藏常驻的 / 钉可钉的；按音源记、跨所有面板生效，所以挂在标签栏而不是
@@ -166,16 +167,16 @@ internal class ParameterTabBar : Panel
     {
         if (!ReferenceEquals(e.Source, this) && !ReferenceEquals(e.Source, mAutomationLayout))
             return;
-        if (OpenParameterMenu(null))
+        if (OpenParameterMenu(null) != null)
             e.Handled = true;
     }
 
-    // anchor = null：在指针处弹（右键空白处）；否则贴着这个按钮向上弹（标签栏在参数区底下，往上才不出窗口）。返回是否弹出了。
-    bool OpenParameterMenu(Control? anchor)
+    // anchor = null：在指针处弹（右键空白处）；否则贴着这个按钮向上弹（标签栏在参数区底下，往上才不出窗口）。返回弹出的菜单（没弹 = null）。
+    ContextMenu? OpenParameterMenu(Control? anchor)
     {
         var part = Part;
         if (part == null)
-            return false;
+            return null;
 
         var groups = new List<(string Name, List<MenuItem> Items)>();
 
@@ -246,14 +247,14 @@ internal class ParameterTabBar : Panel
                 menu.Items.Add(item);
         }
         if (menu.Items.Count == 0)
-            return false;
+            return null;
         if (anchor != null)
         {
             menu.PlacementTarget = anchor;
             menu.Placement = PlacementMode.TopEdgeAlignedRight;
         }
         menu.Open(anchor ?? this);
-        return true;
+        return menu;
     }
 
     // 点一项不关菜单、可以连续勾选，所以按存储此刻的状态切换（不用打开菜单那一刻的），勾选态也按它回填——

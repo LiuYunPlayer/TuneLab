@@ -1334,7 +1334,7 @@ props.Add(("mix", "Mix"), CanvasLaneConfig.Create(host => new MixCanvas(host, va
 - **在参数面板里的样子**（宿主负责，你不用做什么，知道了好排版）：
   - 每块正好覆盖对象的时间段，**相邻两块之间不留缝**、底是透明的。人声 part 的音符按"后盖前"截到下一个音符起点（同人声合成）；
     乐器 part 的音符按完整的时间区间，重叠的块叠在一起。**分界不用自己画**：参数面板里看不到音符本身，宿主在激活的那条 lane
-    上画各块的分界（音符 / 音素真实的边界，去重后盖在你的内容上面）；将来挂到钢琴窗里时音符本身看得见，宿主不画——那里要不要标出范围由你定。
+    上画各块的分界（音符 / 音素真实的边界，去重后盖在你的内容上面）；叠到钢琴窗上时（见下）音符本身看得见，宿主不画——那里要不要标出范围由你定。
   - **乐器插件注意：音符会重叠**（和弦、多声部），各音符的块随之叠在一起。叠放顺序：先按音符顺序放没选中的，再按音符顺序放选中的，
     后放的在上（音符顺序 = 起点升序、同起点时长的在前，所以每块都至少露出一截）；重叠处只有最上面那块收事件。设计画布内容时要考虑到这一点：
     别把整块铺满、别在整块上接按下——只在需要的地方画、只在画了东西的地方接，否则上面那块会把下面那块完全挡住；要编辑被挡住的音符，
@@ -1345,10 +1345,18 @@ props.Add(("mix", "Mix"), CanvasLaneConfig.Create(host => new MixCanvas(host, va
   - 写入音素级字段时，宿主先把这个音符的音素固定下来再写值，同一个撤销步骤。
   - 用户也可以把**侧栏画布**（`CanvasConfig`）钉进参数面板：那时同样每个对象一块，宽是对象的时长、高是面板高度，host 仍是
     `ICanvasHost`（没有时间轴）——侧栏画布本就要能接受任意宽高。
+- **叠到钢琴窗上**：用户还可以把画布 lane 叠到钢琴窗的音符区上（音符区右上角悬浮标签的「+」），和钢琴窗当前的工具一起操作。
+  - 每块横向同参数区（对象的时间段），纵向铺满音符区；纵轴就是钢琴窗的音高轴，所以 `PitchToY(音符的 Pitch)` 正好是音符那一行的下沿。
+    在声明时取到音符的 `Pitch`（声明视图 `IVoiceSynthesisNoteView.Pitch`），就能把内容贴着音符画。
+  - 宿主不画分界（音符看得见），`IsBackground` 为 false。几块画布叠在一起时按用户在悬浮标签里排的顺序叠，规则同参数区。
+  - 画布不接的按下落到钢琴窗当前的工具上（选音符、框选、画音高……），所以在这里**更要只在画了东西的地方接按下**，
+    否则用户在你的块上什么都选不了。
+  - 同一块画布可能同时出现在参数区和钢琴窗：两处是两个实例、共用同一份值，一处提交后另一处按新声明重建。插件不需要知道自己在哪。
 
 参考实现：`tests/plugins/V1.Voice/LaneDemoCanvas.cs`（音符级「Timeline Demo」与核音素级「Phoneme Timeline」：点按秒存、
 逐像素采样按秒插值、只算 `VisibleBounds` 露出的列；点空白加点、拖点、右键删点；点符号弹文本框、右键空白弹菜单选语言；
-窄矮时只画曲线）与 `tools/ScreenshotBot/demo-plugins/DemoVoice/BreathCanvas.cs`（只展示的最小写法）。
+窄矮时只画曲线）、`tests/plugins/V1.Voice/NoteLanguageCanvas.cs`（叠到钢琴窗上用：按声明时的音高在音符正下方画语言标签，
+只在标签上接按下）与 `tools/ScreenshotBot/demo-plugins/DemoVoice/BreathCanvas.cs`（只展示的最小写法）。
 
 ### 10.7 时间轴画布（TimelineCanvasConfig）
 
@@ -1376,7 +1384,7 @@ public IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig> GetTimelineCanvasC
   从声明视图的 `TimelineCanvases` 取（`IVoiceSynthesisPartView` / `IInstrumentSynthesisPartView` / `IEffectSynthesisView`），
   实例寿命 = 一次声明，与 `CanvasConfig` 同一套契约。
 - **宿主**：工厂收到 `ITimelineCanvasHost`——与画布 lane 一样有 `TimeAxis`（秒 / 局部 tick）与 `PitchAxis`（同 §10.6），另多一个
-  带改动范围的提交 `CommitValue(modifiedTickRanges)`（见下）。画布铺满整个参数面板：`Width` / `Height` 是面板的尺寸，画布坐标就是面板坐标，内容按两条轴的换算摆。
+  带改动范围的提交 `CommitValue(modifiedTickRanges)`（见下）。画布铺满整个参数面板：`Width` / `Height` 是面板的尺寸，画布坐标就是面板坐标，内容按两条轴的换算摆。叠到钢琴窗上时（见 §10.6）铺满音符区，同理。
 - **时间**：定义域是**整条时间轴**。局部 tick 相对 part 原点（`TickToX(0)`），可以为负、可以超出 part——part 裁剪外照样画、照样能编辑
   （与自动化轨一致；出不出声你不用管，合成按裁剪范围取）。值里存 tick 就存局部 tick：挪动 part 什么都不用改；拆分、合并后宿主自己维护
   原点（存一个你看不见的偏移），`TickToX(0)` 仍落在你数据的原点上，对你无感。按秒存的内容同 §10.6「所见即所闻」那条。

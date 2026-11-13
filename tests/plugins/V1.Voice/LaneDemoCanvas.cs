@@ -36,7 +36,6 @@ sealed class LaneDemoCanvas(ICanvasLaneHost host, PropertyValue value, string la
     const double HandleRadius = 4;
     const double CompactWidth = 72, CompactHeight = 56;
 
-    static readonly CanvasPen Frame = CanvasPen.Create(Color.FromArgb(70, 255, 255, 255));
     static readonly CanvasPen Curve = CanvasPen.Create(Color.FromHex("#E58AC9"), 2);
     static readonly CanvasBrush HandleFill = CanvasBrush.Solid(Color.FromRgb(240, 240, 240));
     static readonly CanvasBrush HotFill = CanvasBrush.Solid(Color.FromRgb(255, 196, 64));
@@ -125,8 +124,8 @@ sealed class LaneDemoCanvas(ICanvasLaneHost host, PropertyValue value, string la
 
     public void Render(ICanvasDrawing d)
     {
-        double w = host.Width, h = host.Height;
-        d.StrokeRectangle(new Rect(0.5, 0.5, Math.Max(0, w - 1), Math.Max(0, h - 1)), Frame);
+        // 不画边框：参数面板里宿主在激活的 lane 上画分界，叠到钢琴窗上音符本身就是分界（自己描框会变成贯穿音符区的竖线）。
+        double w = host.Width;
 
         var points = ReadCurve(Current);
         if (points.Count > 0)

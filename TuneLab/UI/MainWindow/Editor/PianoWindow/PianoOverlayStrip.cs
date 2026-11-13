@@ -58,30 +58,8 @@ internal class PianoOverlayStrip : Border
             .AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, ColorSet = new() { HoveredColor = hoverBack, PressedColor = hoverBack } })
             .AddContent(new() { Item = new IconItem() { Icon = Assets.Plus }, ColorSet = new() { Color = Colors.White } });
         mAddButton.SetupToolTip("Place on the Piano Roll".Tr(TC.Menu));
-        // 列表开着时再点「+」= 收起列表（不重新弹）。按下「+」的那一下列表可能已被"点到外面"关掉了，所以按下时就记下
-        // 它是不是开着（或刚被这一下关掉），点击时据此只收不弹。
-        bool closeOnClick = false;
-        mAddButton.AddHandler(PointerPressedEvent, (_, _) =>
-            closeOnClick = mMenu != null || Environment.TickCount64 - mMenuClosedAt < MenuReopenGuardMs,
-            RoutingStrategies.Tunnel, handledEventsToo: true);
-        mAddButton.Clicked += () =>
-        {
-            if (closeOnClick)
-            {
-                mMenu?.Close();
-                return;
-            }
-            if (mPartHolder.Value is not { } part)
-                return;
-            var menu = PianoOverlayMenu.Open(mAddButton, part);
-            mMenu = menu;
-            menu.Closed += (_, _) =>
-            {
-                if (ReferenceEquals(mMenu, menu))
-                    mMenu = null;
-                mMenuClosedAt = Environment.TickCount64;
-            };
-        };
+        // 列表开着时再点「+」= 收起列表（见 MenuButtonToggle）。
+        MenuButtonToggle.Attach(mAddButton, () => mPartHolder.Value is { } part ? PianoOverlayMenu.Open(mAddButton, part) : null);
 
         var content = new StackPanel() { Orientation = Orientation.Horizontal, Margin = new(4, 0, 0, 0) };
         content.Children.Add(mTabs);
@@ -421,10 +399,7 @@ internal class PianoOverlayStrip : Border
 
     const double DragThreshold = 4;
     const double CollapseMillisec = 200;
-    const long MenuReopenGuardMs = 300;
 
-    ContextMenu? mMenu;           // 「+」弹出、还开着的勾选列表
-    long mMenuClosedAt = long.MinValue / 2;
 
     TabDrag? mDrag;
     ParameterButton? mPressed;

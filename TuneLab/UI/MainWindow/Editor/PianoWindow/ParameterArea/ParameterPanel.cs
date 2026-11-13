@@ -1,4 +1,4 @@
-using Avalonia.Controls;
+﻿using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
@@ -255,10 +255,41 @@ internal sealed class ParameterPanel : AutomationRenderer.IDependency, Parameter
         set
         {
             Part?.DeselectAllAutomationPoints();
+            if (ActiveAutomation is { } old && old != value)
+            {
+                mActiveHistory.Remove(old);
+                mActiveHistory.Add(old);
+                if (mActiveHistory.Count > ActiveHistoryLimit)
+                    mActiveHistory.RemoveAt(0);
+            }
             mActiveAutomation = value;
             ActiveAutomationChanged?.Invoke();
         }
     }
+
+    // 再点一下已激活的标签 = 关掉它、回到上一个激活的参数（之前激活过、此刻还在标签栏上的最近一个）；没有就回落到默认那条。
+    // 退回不记进历史：连点几下是一路往回退，不是在两条之间来回跳。
+    public void RevertActiveAutomation()
+    {
+        var current = ActiveAutomation;
+        AutomationKey? previous = null;
+        while (mActiveHistory.Count > 0)
+        {
+            var candidate = mActiveHistory[^1];
+            mActiveHistory.RemoveAt(mActiveHistory.Count - 1);
+            if (candidate != current && IsAutomationAvailable(candidate))
+            {
+                previous = candidate;
+                break;
+            }
+        }
+        Part?.DeselectAllAutomationPoints();
+        mActiveAutomation = previous;   // null = 回落到默认（见 ActiveAutomation 的 get）
+        ActiveAutomationChanged?.Invoke();
+    }
+
+    readonly List<AutomationKey> mActiveHistory = [];   // 之前激活过的，最近的在末尾
+    const int ActiveHistoryLimit = 16;
 
     // 回落目标：Volume 在标签栏上就是它（老行为）；被藏了就按标签栏的顺序取第一条还在的。
     static AutomationKey? FirstShownAutomation(IMidiPart part)

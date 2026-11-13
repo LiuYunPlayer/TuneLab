@@ -355,7 +355,79 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
                 Execute = token => SetHiddenFromTabBar(token, false),
             },
         });
+
+        // ── 叠到钢琴窗上（PianoOverlay）：与悬浮标签「+」那张勾选列表的勾是同一件事（同一个 PianoOverlay.SetOverlaid）。
+        // AppState 的理由同上：写的是界面偏好（Configs/PianoOverlay.json），一眼看得见（音符区上多 / 少一层、悬浮标签多 / 少一个）。
+        ActionRegistry.Register(new()
+        {
+            Id = "parameter.placeOnPianoRoll",
+            DisplayName = () => "Place on the Piano Roll".Tr(TC.Menu),
+            Kind = ActionKind.AppState,
+            Unavailable = OverlayUnavailable,
+            Parameter = new()
+            {
+                Name = "canvas",
+                Description = OverlayParameterDescription,
+                Values = OverlayValues,
+                Execute = token => SetOverlaid(token, true),
+            },
+        });
+        ActionRegistry.Register(new()
+        {
+            Id = "parameter.removeFromPianoRoll",
+            DisplayName = () => "Remove from the Piano Roll".Tr(TC.Menu),
+            Kind = ActionKind.AppState,
+            Unavailable = OverlayUnavailable,
+            Parameter = new()
+            {
+                Name = "canvas",
+                Description = OverlayParameterDescription,
+                Values = OverlayValues,
+                Execute = token => SetOverlaid(token, false),
+            },
+        });
     }
+
+    const string OverlayParameterDescription =
+        "Which canvas, written \"source-canvas:<id>\" / \"effect<n>-canvas:<id>\" for a timeline canvas of the sound source / of the n-th effect in the chain (0-based), "
+        + "or \"note:<path>\" / \"phoneme:<path>\" for a canvas lane. Placed canvases lie over the note area of the piano roll, on top of the notes, and are operated together with whichever tool is selected; "
+        + "a newly placed one goes on top. Each value says whether it is on the piano roll right now. Side-panel canvases and value-only parameters can't be placed and are not in this list. The label works too.";
+
+    string? OverlayUnavailable()
+    {
+        if (Part == null)
+            return "no part is open in the piano roll";
+        return PianoOverlay.Candidates(Part).Count == 0 ? "this part's sound source and effects declare no canvas that can be placed on the piano roll" : null;
+    }
+
+    // 值域 = 此刻能叠的全部画布（含已叠的：终态幂等），序同「+」那张勾选列表。
+    IReadOnlyList<ActionArgument> OverlayValues()
+    {
+        var part = Part;
+        var values = new List<ActionArgument>();
+        if (part == null)
+            return values;
+        foreach (var candidate in PianoOverlay.Candidates(part))
+            values.Add(new ActionArgument(ParameterToken(candidate.Key), candidate.Name + " (" + candidate.Group + ")",
+                PianoOverlay.IsOverlaid(part, candidate.Key) ? "on the piano roll" : "not on the piano roll"));
+        return values;
+    }
+
+    void SetOverlaid(string token, bool overlaid)
+    {
+        if (Part is { } part)
+            PianoOverlay.SetOverlaid(part, ParseParameterToken(token), overlaid);
+    }
+
+    // 时间轴画布与画布 lane 的 token（拼法同 HideableValues，解析见 ParseParameterToken）。
+    static string ParameterToken(AutomationKey key) => key.Source switch
+    {
+        AutomationSource.VoiceCanvas => "source-canvas:" + key.Id,
+        AutomationSource.EffectCanvas => "effect" + key.EffectIndex.ToString(System.Globalization.CultureInfo.InvariantCulture) + "-canvas:" + key.Id,
+        AutomationSource.NoteLane => "note:" + key.Id,
+        AutomationSource.PhonemeLane => "phoneme:" + key.Id,
+        _ => TrackToken(key),
+    };
 
     const string HideableParameterDescription =
         "Which parameter, written \"source:<id>\" for an automation track of the part's sound source, \"effect<n>:<id>\" for one of the n-th effect in the chain (0-based, the same position as in part.effects()), "
@@ -409,19 +481,21 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         return values;
     }
 
-    // token 只按第一个冒号切（路径与 id 里带冒号也无碍）；source / effect<n> 的拼法同合成参数轨（ParseTrackToken）。
     void SetHiddenFromTabBar(string token, bool hidden)
     {
-        var part = Part;
-        if (part == null)
-            return;
+        if (Part is { } part)
+            ParameterHiding.SetHidden(part, ParseParameterToken(token), hidden);
+    }
 
+    // token 只按第一个冒号切（路径与 id 里带冒号也无碍）；source / effect<n> 的拼法同合成参数轨（ParseTrackToken）。
+    static AutomationKey ParseParameterToken(string token)
+    {
         int colon = token.IndexOf(':');
         var source = token[..colon];
         var id = token[(colon + 1)..];
         // 时间轴画布：source-canvas / effect<n>-canvas（拼法见 HideableValues）。
         const string CanvasSuffix = "-canvas";
-        var key = source switch
+        return source switch
         {
             "note" => AutomationKey.NoteLane(id),
             "phoneme" => AutomationKey.PhonemeLane(id),
@@ -430,7 +504,6 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
                 => AutomationKey.EffectCanvas(int.Parse(source["effect".Length..^CanvasSuffix.Length], System.Globalization.CultureInfo.InvariantCulture), id),
             _ => ParseTrackToken(token),
         };
-        ParameterHiding.SetHidden(part, key, hidden);
     }
 
     // 参数面板堆本身（几块、哪块是焦点、各自收起没有、整个区显示没有）的动作。与标题栏 / 标签栏那几个按钮是同一件事。
@@ -975,6 +1048,8 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
             SetParameterAreaHidden(false);
             FocusedPanel.ActiveAutomation = automation;
         }
+        else if (automation == FocusedPanel.ActiveAutomation && !mAreaHidden)
+            FocusedPanel.RevertActiveAutomation();   // 再点一下已激活的标签：关掉它、回到上一个激活的
         else
             FocusedPanel.SetAutomationVisible(automation, state == ParameterButton.ButtonState.Visible);
     }

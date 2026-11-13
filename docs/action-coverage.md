@@ -51,7 +51,7 @@
 | `by-design` | **刻意不从外部驱动**，理由见 §3 |
 | `dialog` | 模态框里的一步（确认 / 取消 / 关闭）。它属于某条已经被触发的动作，不是独立的一件事 |
 | `internal` | 纯界面内务：点开一个下拉、切侧栏内部视图、禁用的占位项，以及 agent 面板自身（外部驱动它是自指） |
-| `todo` | 应该进动作面、但还没进。**今天是 1 条**（叠到钢琴窗上）；这个词留着，好让下一批如实标记进度 |
+| `todo` | 应该进动作面、但还没进。**今天是 0 条**；这个词留着，好让下一批如实标记进度 |
 
 ## 3 刻意不收的（`by-design`）
 
@@ -98,7 +98,7 @@
 一行一个入口。**入口**列是这个文件里的稳定 key（菜单项取显示名字面量、按钮/开关取变量名；同名的按出现
 次序加 `#2`），**不带行号**——行号天天变，那样这张表会因为无关改动天天红。
 
-**179 个入口**：`action` 32 · `command` 15 · `script` 73 · `pending` 0 · `dialog` 35 · `internal` 22 · `by-design` 1 · `todo` 1
+**178 个入口**：`action` 33 · `command` 15 · `script` 73 · `pending` 0 · `dialog` 35 · `internal` 21 · `by-design` 1 · `todo` 0
 
 #### TuneLab/App.axaml.cs
 
@@ -217,16 +217,20 @@
 |---|---|---|---|
 | mWaveformToggle | toggle | `action:view.toggleWaveform` | 开关与动作都是切换：波形带显隐是一件事，人心里也是一件事 |
 | mAddPanelButton | button | `action:view.addParameterPanel` | 「+」加一块参数面板（照着焦点面板、插在它下方）；右键「+」关掉焦点面板 = view.closeParameterPanel 不给参数。藏着时点「+」只唤醒参数区，动作则唤醒并真加一块（动作说的是「加一块」） |
-| mParameterMenuButton | button | `internal` | 标签栏最右「显示哪些参数」：只是点开与空白处右键同一张勾选列表，列表里各项的裁决见下一行 |
 | label | menu | `action:parameter.pinProperty` | 标签栏空白处右键弹出的勾选列表的一项：打勾 = 在标签栏上，点一下切换（标签按钮自己的右键是开关可见，不弹菜单）。同一个构造出两类项：可钉属性的项对应 `parameter.pinProperty` / `unpinProperty`（列表 = 能钉的 + 引擎不再声明的孤儿钉选；与侧栏属性右键共用 `ParameterPinning.SetPinned`）；常驻参数（声源 / 效果器的自动化轨与时间轴画布、画布 lane；只传值的不列）的项对应 `parameter.hideFromTabBar` / `showInTabBar`（`ParameterHiding.SetHidden`）。作用在哪一个是它们的选择器参数 |
+
+#### TuneLab/UI/MainWindow/Editor/PianoWindow/MenuButtonToggle.cs
+
+| 入口 | 种类 | 裁决 | 说明 |
+|---|---|---|---|
+| button | button | `internal` | "点一下弹菜单、再点一下收起"的按钮，两处在用：标签栏最右「显示哪些参数」（`mParameterMenuButton`，点开与空白处右键同一张勾选列表，列表各项见 ParameterTabBar.cs 的 label 行）与悬浮标签最右的「+」（`mAddButton`，点开叠哪些画布的勾选列表，列表各项见 PianoOverlayStrip.cs 的 candidate.Name 行）。按钮本身只是打开列表 |
 
 #### TuneLab/UI/MainWindow/Editor/PianoWindow/PianoOverlayStrip.cs
 
 | 入口 | 种类 | 裁决 | 说明 |
 |---|---|---|---|
 | mCollapseButton | button | `internal` | 悬浮标签最左的「>」/「<」：收起 / 展开这排标签，纯界面内务 |
-| mAddButton | button | `internal` | 悬浮标签最右的「+」：只是点开叠哪些画布的勾选列表，列表里各项的裁决见下一行 |
-| candidate.Name | menu | `todo` | 「+」弹出的勾选列表的一项：打勾 = 这块画布叠在钢琴窗上（`PianoOverlay.SetOverlaid`）。悬浮标签上的激活 / 小眼睛 / 拖动排序（`SetActive` / `SetShown` / `Reorder`）同属这一族。界面偏好（同 `parameter.hideFromTabBar`，AppState）；动作（画布作选择器参数）后补 |
+| candidate.Name | menu | `action:parameter.placeOnPianoRoll` | 「+」弹出的勾选列表的一项：打勾 = 这块画布叠在钢琴窗上，点一下切换；对应 `parameter.placeOnPianoRoll` / `removeFromPianoRoll`（同一个 `PianoOverlay.SetOverlaid`），作用在哪块画布是选择器参数。界面偏好（同 `parameter.hideFromTabBar`，AppState）。悬浮标签上的激活 / 小眼睛 / 拖动排序不是这张表扫得到的入口，也不收：它们只调这一层的显示与叠放，外部需要的是"叠没叠上"这个结果 |
 
 #### TuneLab/UI/MainWindow/Editor/PianoWindow/PianoScrollView/PianoScrollViewOperation.cs
 

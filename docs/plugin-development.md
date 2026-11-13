@@ -1367,7 +1367,7 @@ props.Add(("mix", "Mix"), CanvasLaneConfig.Create(host => new MixCanvas(host, va
     note is cut at the next note's start (later covers earlier, as voice synthesis does); in an instrument part each note keeps its full span and
     overlapping blocks stack. **You don't need to
     draw the boundaries**: the parameter panel doesn't show the notes themselves, so the host draws the block boundaries on the active lane (the real
-    note / phoneme boundaries, de-duplicated, on top of your content); once canvases can be hung in the piano roll, the notes are visible there and the host draws none — marking the extent there is
+    note / phoneme boundaries, de-duplicated, on top of your content); when placed on the piano roll (below), the notes are visible there and the host draws none — marking the extent there is
     up to you.
   - **Instrument plugins: notes overlap** (chords, polyphony), and so do their blocks. Stacking order: the unselected notes' blocks in note order,
     then the selected ones in note order, later on top (note order = start ascending, longer first on equal starts, so every block shows at
@@ -1383,6 +1383,17 @@ props.Add(("mix", "Mix"), CanvasLaneConfig.Create(host => new MixCanvas(host, va
   - Users can also pin a **side-panel canvas** (`CanvasConfig`) into the parameter panel: it is then one block per object too, with
     the object's duration as width and the panel height as height, and the host is still an `ICanvasHost` (no time axis) — a
     side-panel canvas has to cope with any size anyway.
+- **Placed on the piano roll**: users can also place a canvas lane over the note area of the piano roll (the "+" on the floating tab strip at the
+  note area's top right), where it is operated together with whichever piano-roll tool is selected.
+  - Each block spans the object's time span as in the parameter panel and the full height of the note area; the vertical axis is the piano roll's
+    pitch axis, so `PitchToY(note's Pitch)` is exactly the bottom edge of that note's row. Take the note's `Pitch` at declaration time
+    (`IVoiceSynthesisNoteView.Pitch`) and you can draw right next to the note.
+  - The host draws no boundaries (the notes are visible) and `IsBackground` is false. Several placed canvases stack in the order the user arranged
+    on the floating tabs, with the same rules as the parameter panel.
+  - A press your canvas doesn't take falls through to the current piano-roll tool (selecting notes, box selection, drawing pitch…), so here
+    it matters even more to **take presses only where you drew** — otherwise the user can't select anything over your blocks.
+  - The same canvas may be in the parameter panel and on the piano roll at once: two instances sharing one value; after one commits, the other is
+    rebuilt from the new declaration. The plugin never needs to know where it is.
 
 Reference implementations: `tests/plugins/V1.Voice/LaneDemoCanvas.cs` (the note-level "Timeline Demo" and core-phoneme
 "Phoneme Timeline": points stored in seconds, per-pixel sampling interpolated in seconds, only the columns `VisibleBounds` shows;
@@ -1418,7 +1429,7 @@ public IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig> GetTimelineCanvasC
   `IInstrumentSynthesisPartView` / `IEffectSynthesisView`); an instance lives for one declaration, the same contract as `CanvasConfig`.
 - **Host**: the factory receives `ITimelineCanvasHost` — `TimeAxis` (seconds / local ticks) and `PitchAxis` as for canvas lanes (§10.6), plus
   a commit that carries the modified ranges, `CommitValue(modifiedTickRanges)` (below). The canvas fills the whole parameter panel: `Width` / `Height` are the panel's size and canvas coordinates are
-  panel coordinates; place content through the two axes.
+  panel coordinates; place content through the two axes. Placed on the piano roll (see §10.6) it fills the note area the same way.
 - **Time**: the domain is the **whole timeline**. Local ticks are relative to the part's origin (`TickToX(0)`), may be negative and may run past
   the part — outside the part's trim you can still draw and edit (as with automation; whether it sounds is not your concern, synthesis takes the
   trimmed range). Store ticks as local ticks: moving the part changes nothing; after a split or merge the host keeps the origin itself (a hidden
