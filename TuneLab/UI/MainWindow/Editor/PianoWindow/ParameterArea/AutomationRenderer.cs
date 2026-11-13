@@ -494,9 +494,9 @@ internal partial class AutomationRenderer : View
         }
 
         var activeAutomation = mDependency.ActiveAutomation;
-        // 激活的是画布时，背景里的画布不画：画布是一整块界面（网格、文字、把手），两层叠起来哪层都看不清。
-        // 背景里的曲线 / 数值 lane 照常画（细线，压暗后垫在画布下还看得清）；画布的可见开关不动，换回别的激活参数就又出现。
-        bool activeIsCanvas = activeAutomation is { } activeKey && Part.IsCanvasParameter(activeKey);
+        // 开着小眼睛的（不是激活的那条）：曲线 / 数值 lane 是背景，画在压暗层下面、不接收事件；画布是一摞里的层，
+        // 画在压暗层上面、照常接收事件，按开启的先后叠（后开的在上），激活的那条最后画、在最上（见 canvas-stacking.md）。
+        var backgroundCanvases = new List<AutomationKey>();
         foreach (var automation in mDependency.VisibleAutomations)
         {
             if (automation == activeAutomation)
@@ -505,8 +505,11 @@ internal partial class AutomationRenderer : View
             if (!mDependency.IsAutomationVisible(automation))
                 continue;
 
-            if (activeIsCanvas && Part.IsCanvasParameter(automation))
+            if (Part.IsCanvasParameter(automation))
+            {
+                backgroundCanvases.Add(automation);
                 continue;
+            }
 
             Draw(automation, false);
         }
@@ -517,6 +520,9 @@ internal partial class AutomationRenderer : View
         DrawSynthesizedParameters(context);
 
         DrawRegionSelection(context);
+
+        foreach (var automation in backgroundCanvases)
+            Draw(automation, false);
 
         if (activeAutomation == null)
             return;

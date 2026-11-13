@@ -95,6 +95,10 @@ internal class Component : Control
     // 不在冒泡路径上，得由 Container 转过去）。只给"下面还有一层宿主手势"的控件开（如插件画布），普通子控件不受影响。
     public bool ForwardsUnhandledPointerToContainer { get; protected set; }
 
+    // 收过这次按下、没认领，而这次拖动被别的层认领走了（见 Container）：之后的移动与抬起不会来，撤掉按着的状态。
+    // 插件画布还要给插件补发抬起（见 PluginCanvas）。
+    internal virtual void AbandonPress(MouseButtonType button) => ForgetPress(button);
+
     // Container 转来的按下本组件没认领：之后的移动与抬起不会来（捕获留在子元素），撤掉按着的状态，免得一直挂着
     //（之后捕获丢失时会补发一个莫名的抬起）。
     internal void ForgetPress(MouseButtonType button)
@@ -113,8 +117,24 @@ internal class Component : Control
         }
     }
 
+    // 正在处理 Container 转来的事件（事件的 Source 不是本组件）。
+    protected bool IsForwarded { get; private set; }
+
     // Container 转来的、子元素没处理的指针事件：与自己收到一样处理（位置按本组件坐标算）。
     internal void ReceiveForwarded(PointerEventArgs e)
+    {
+        IsForwarded = true;
+        try
+        {
+            Dispatch(e);
+        }
+        finally
+        {
+            IsForwarded = false;
+        }
+    }
+
+    void Dispatch(PointerEventArgs e)
     {
         switch (e)
         {

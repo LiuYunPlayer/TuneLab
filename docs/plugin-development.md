@@ -1350,8 +1350,8 @@ props.Add(("mix", "Mix"), CanvasLaneConfig.Create(host => new MixCanvas(host, va
   drawn by mapping only its control points and joining them with straight lines — across a tempo change that differs from
   interpolating in that unit. Sample per pixel (`XToSecond(x)` for each column, then evaluate in seconds) and it matches synthesis
   exactly. Draw and synthesize in the same unit.
-- **Background**: `host.IsBackground` is true while the canvas is shown behind another active parameter (dimmed, no input);
-  draw a simplified version then (say, only the outline, no text) to keep the foreground clear. It is false in the side panel.
+- **Background**: `host.IsBackground` is true while the canvas is shown but another parameter is active (it still gets events, see
+  "Stacking" below); draw a simplified version then (say, only the outline, no text) to keep the active parameter clear. It is false in the side panel.
 - **The host's mapping wins**: do not draw with the phoneme times your synthesis computed. The host gives the time span shown on
   screen, and the canvas must line up with the phoneme blocks the user sees. The two agree once synthesis results are in; they
   differ only between an edit and the synthesis coming back, and the host re-renders as soon as the display updates.
@@ -1374,11 +1374,11 @@ props.Add(("mix", "Mix"), CanvasLaneConfig.Create(host => new MixCanvas(host, va
     least a slice); where they overlap only the topmost block gets events. Design the canvas content for this: don't fill the whole block or take
     presses across all of it — draw only where needed and take presses only where you drew, or the block on top hides the one below entirely and
     the user has to select that note in the piano roll first to edit it.
-  - As a **background parameter** (visible while another parameter is active) it still renders; the host dims it and puts it
-    under the active parameter, and it receives no input then.
-  - **Canvases never stack**: while a canvas is the active parameter, other canvases are not drawn, and within one panel only one
-    canvas can be visible at a time (the user turning one on turns the others off). So your canvas never shares the space with
-    another canvas, though it may sit over other curves.
+  - **Stacking**: within one parameter panel the user can turn on several canvases at once (the eye); they are all drawn and all get
+    events, stacked in the order they were turned on (later on top), with the active one on top and the host's own editing at the
+    bottom. Events go through the layers top-down and whoever sets `Handled` takes them (rules in "Mouse"). So **any canvas may be
+    stacked with others**: mostly transparent, drawing only where needed and taking presses only where it drew. A canvas that is on
+    but not active has `IsBackground` true.
   - When a phoneme-level field is written, the host locks that note's phonemes first and then writes the value, in one undo step.
   - Users can also pin a **side-panel canvas** (`CanvasConfig`) into the parameter panel: it is then one block per object too, with
     the object's duration as width and the panel height as height, and the host is still an `ICanvasHost` (no time axis) — a
@@ -1447,8 +1447,7 @@ public IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig> GetTimelineCanvasC
   shown or synthesized; declaring it again restores it. After switching sources you may read a value some other plugin wrote — always validate.
 - **Project file**: the value is saved with the part / effect (`TimelineCanvases` on `MidiPartInfo` / `EffectInfo`: offset + value). Exporting
   to another project format drops that table (format plugins don't know it).
-- **As background**: as for canvas lanes (`IsBackground`, simplify the drawing). Canvases never stack: when a canvas is active, other canvases
-  aren't drawn.
+- **As background**: as for canvas lanes (`IsBackground`, simplify the drawing); it may likewise be stacked with other canvases and still gets events.
 
 Reference implementation: `tests/plugins/V1.Voice/TimelineDemoCanvas.cs` ("Markers": cells placed on tick × pitch, aligned with the piano keys;
 an origin line; add / drag / delete all report the affected half-beats before committing; the session subscribes to `RangeModified` and dirties only

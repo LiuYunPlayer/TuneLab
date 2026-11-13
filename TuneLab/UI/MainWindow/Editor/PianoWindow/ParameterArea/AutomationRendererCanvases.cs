@@ -102,12 +102,9 @@ internal partial class AutomationRenderer
     {
         if (Part is not { } part)
             return;
-        mCanvasOrder = 0;
 
-        var lanes = phoneme ? part.PhonemeLaneConfigs : part.NoteLaneConfigs;
-        mLaneBoundaryPen = isActive && lanes.TryGetValue(key.Id, out var entry)
-            ? new Pen(ColorUtils.ParseOrFallback(entry.Color).Opacity(0.35).ToBrush(), 1)
-            : null;
+        // 中性的灰白：轨色已用在 lane 的条与标签上，分界再用它会和插件画的内容混在一起。
+        mLaneBoundaryPen = isActive ? LaneBoundaryPen : null;
 
         mLaneBoundaries.Clear();
         try
@@ -173,8 +170,9 @@ internal partial class AutomationRenderer
     }
 
     Pen? mLaneBoundaryPen;   // 本次画的这条 lane 的分界线（只有激活的那条有，见 DrawCanvasLane）
+    static readonly Pen LaneBoundaryPen = new(Style.LIGHT_WHITE.Opacity(0.3).ToBrush(), 1);
     readonly HashSet<double> mLaneBoundaries = [];   // 本条 lane 各块的起止 tick（按值去重），全部块画完后统一画
-    int mCanvasOrder;        // 本条 lane 里放到第几块了：命中顺序（ZIndex）跟着它，后放的在上
+    int mCanvasOrder;        // 这一帧放到第几块了（跨 lane 与时间轴画布）：命中顺序（ZIndex）跟着它，后放的在上
     static readonly bool[] SelectionPasses = [false, true];   // 先没选中的、后选中的
 
     void DrawCanvas(DrawingContext context, CanvasSlot slot, LanePath.Resolved resolved, double startTick, double endTick, bool isActive)
@@ -237,6 +235,7 @@ internal partial class AutomationRenderer
         var rect = new Rect(0, 0, Bounds.Width, Bounds.Height);
         canvas.Rect = rect;
         canvas.Active = isActive;
+        canvas.Order = mCanvasOrder++;
         canvas.Axis.Left = 0;
         canvas.Axis.Origin = part.Pos.Value + (store.TryGetValue(key.Id, out var entry) ? entry.Offset : 0);
         canvas.PitchAxis.Top = 0;
@@ -319,7 +318,7 @@ internal partial class AutomationRenderer
             bool shown = mCanvasesShownLastFrame.Contains(slot);
             canvas.Shown = shown;
             canvas.View.IsVisible = shown;
-            canvas.View.IsHitTestVisible = shown && canvas.Active;   // 背景画布不收输入
+            canvas.View.IsHitTestVisible = shown;   // 开着的画布都是一摞里的层，都接收事件（激活的在最上）
             if (canvas.View.ZIndex != canvas.Order)
                 canvas.View.ZIndex = canvas.Order;   // 命中顺序跟上这一帧的叠放（见 DrawCanvasLane）
         }
@@ -366,6 +365,7 @@ internal partial class AutomationRenderer
     {
         mInRender = true;
         mCanvasesShown.Clear();
+        mCanvasOrder = 0;
     }
 
     void EndCanvasFrame()

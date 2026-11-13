@@ -244,20 +244,18 @@ internal sealed class ParameterPanel : AutomationRenderer.IDependency, Parameter
             if (Part is not { } part)
                 return null;
 
-            if (mActiveAutomation.HasValue && IsAutomationVisible(mActiveAutomation.Value))
+            if (mActiveAutomation.HasValue && IsAutomationAvailable(mActiveAutomation.Value))
                 return mActiveAutomation.Value;
 
             return FirstShownAutomation(part);
         }
+        // 激活与可见（小眼睛）脱钩：激活的总是显示（画在最上面），小眼睛只表示"不激活时也留在这块面板里"、由用户自己开关——
+        // 激活不再顺带打开它的小眼睛（原先会，切几次标签就攒下一串画布叠在一起）。
+        // 回显轨（合成参数）的显示也只由用户决定（标题栏的 chip），激活、开小眼睛都不再连带点亮它。
         set
         {
             Part?.DeselectAllAutomationPoints();
             mActiveAutomation = value;
-            if (mActiveAutomation.HasValue)
-            {
-                SetAutomationVisible(mActiveAutomation.Value, true);
-            }
-
             ActiveAutomationChanged?.Invoke();
         }
     }
@@ -318,8 +316,8 @@ internal sealed class ParameterPanel : AutomationRenderer.IDependency, Parameter
 
     public IReadOnlyList<AutomationKey> VisibleAutomations => mVisibleAutomations;
 
-    // 从标签栏隐藏的不算可见（不作背景、不能激活）；可见记录本身不动，显示回标签栏即复原。
-    public bool IsAutomationVisible(AutomationKey automation)
+    // 能显示 / 能激活：在当前 part 里有效、没被从标签栏隐藏。
+    bool IsAutomationAvailable(AutomationKey automation)
     {
         if (Part == null)
             return false;
@@ -328,39 +326,23 @@ internal sealed class ParameterPanel : AutomationRenderer.IDependency, Parameter
             && !Part.IsEffectiveNoteLane(automation) && !Part.IsEffectivePhonemeLane(automation) && !Part.IsEffectiveTimelineCanvas(automation))
             return false;
 
-        if (ParameterHiding.IsHidden(Part, automation))
-            return false;
-
-        return mVisibleAutomations.Contains(automation);
+        return !ParameterHiding.IsHidden(Part, automation);
     }
+
+    // 小眼睛开着（不激活时也留在面板里）。从标签栏隐藏的不算可见（不作背景、不能激活）；可见记录本身不动，显示回标签栏即复原。
+    public bool IsAutomationVisible(AutomationKey automation)
+        => IsAutomationAvailable(automation) && mVisibleAutomations.Contains(automation);
 
     public void SetAutomationVisible(AutomationKey automation, bool isVisible)
     {
-        bool wasVisible = mVisibleAutomations.Contains(automation);
         mVisibleAutomations.Remove(automation);
 
+        // 画布可以同时开几块：开着的都画出来、都接收事件，按开启的先后叠（后开的在上，激活的总在最上）——叠哪些由用户决定。
         if (isVisible)
-        {
-            // 画布的可见互斥：一块面板里至多一个画布可见（作背景时画），打开一个就关掉别的——画布是一整块界面，
-            // 两块叠起来哪块都看不清。激活也会把它设为可见，所以切回普通参数后作背景的是最近用过的那个画布。
-            // 曲线 / 数值 lane 不受影响，照常与一个画布同时可见。
-            if (IsCanvasLane(automation))
-                mVisibleAutomations.RemoveAll(IsCanvasLane);
             mVisibleAutomations.Add(automation);
-        }
 
         VisibleAutomationChanged?.Invoke();
-
-        // 配对轨的单向联动：点亮可编辑轨（灭→亮的那一刻）⇒ 同 key 的回显轨一起亮。需求本身不对称——
-        // 只看回显是独立的合法用法（对着模型输出观察），而查看自己画的曲线时几乎总要参照模型输出。
-        // 故只带亮、不连带熄灭（否则会吞掉用户原本单独开着的回显），也不锁 chip（允许手动关掉）；
-        // 一次性带亮而非持续绑定，与固定"不自动同步"同一种克制。
-        if (isVisible && !wasVisible && SynthesizedParameterConfigs.ContainsKey(automation))
-            SetSynthesizedParameterVisible(automation, true);
     }
-
-    bool IsCanvasLane(AutomationKey key)
-        => Part is { } part && part.IsCanvasParameter(key);
 
     // —— 合成参数回显轨显隐（只读轨集合；独立于可编辑轨的 Visible/Active 机制；显隐由本面板标题栏管控）——
     public bool IsSynthesizedParameterVisible(AutomationKey key) => mVisibleSynthesizedParameters.Contains(key);

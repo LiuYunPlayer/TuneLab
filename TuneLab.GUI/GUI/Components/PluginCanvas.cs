@@ -376,6 +376,10 @@ internal sealed class PluginCanvas : Component
 
     bool mPointerFromPopup;
 
+    // 这一下来自弹出（不是落在画布上的操作）。Container 按叠放顺序转来的事件（上面那层没认领，见 Container）Source 是上面那层，
+    // 不经本画布的隧道阶段，不算弹出。
+    bool FromPopup => mPointerFromPopup && !IsForwarded;
+
     // 鼠标事件先问插件，插件没置 Handled 就冒泡给外层（参数面板 / 侧栏），与滚轮、按键同一约定（契约见 ICanvasControl）：
     // · 按下：插件接了 = 这次拖动归插件（捕获留在画布，移动与抬起只给它）；没接 = 冒泡给外层，外层认领（中键平移、Shift 拉选区……）
     //   就拿走捕获，插件因捕获丢失收到补发的抬起（IsClick = false）；外层也没认领 = 归属先不定（见 Container）。
@@ -388,7 +392,7 @@ internal sealed class PluginCanvas : Component
 
     protected override void OnMouseDown(MouseDownEventArgs e)
     {
-        if (mPointerFromPopup)
+        if (FromPopup)
             return;
         if (HostTakesPress?.Invoke(e) == true)
             return;   // 不问插件、照常冒泡给外层
@@ -409,18 +413,29 @@ internal sealed class PluginCanvas : Component
 
     protected override void OnMouseUp(MouseUpEventArgs e)
     {
-        if (mPointerFromPopup)
+        if (FromPopup)
             return;
         var button = ToButton(e.MouseButtonType);
         if ((mPressed & Bit(button)) == 0)   // 在别处按下、到画布上才松开的抬起不算（也不是插件的）
             return;
-        Release(button, ToPoint(e.Position), ToModifiers(e.KeyModifiers), e.IsClick);
-        e.Handled = true;
+        // 这次拖动归插件：抬起不冒泡。归属一直没定：插件在抬起上置 Handled 才算拿走这次点击，否则冒泡给下面的层（见 Container）。
+        bool claimed = mClaimed;
+        bool handled = Release(button, ToPoint(e.Position), ToModifiers(e.KeyModifiers), e.IsClick);
+        e.Handled = claimed || handled;
+    }
+
+    // 收过按下、没认领，这次拖动被下面的层认领走了（Container 转来的那一下）：补发抬起（在按下的位置，IsClick = false）。
+    internal override void AbandonPress(MouseButtonType button)
+    {
+        base.AbandonPress(button);
+        var canvasButton = ToButton(button);
+        if ((mPressed & Bit(canvasButton)) != 0)
+            Release(canvasButton, mDownPoint, ToModifiers(Modifiers), false);
     }
 
     protected override void OnMouseMove(MouseMoveEventArgs e)
     {
-        if (!mPointerFromPopup)
+        if (!FromPopup)
             MoveTo(e);
     }
 
@@ -450,7 +465,7 @@ internal sealed class PluginCanvas : Component
     // 插件置了 Handled 才消费这次滚轮；没置（含没实现 OnScroll、实例失效）则照常冒泡去滚面板。
     protected override void OnScroll(WheelEventArgs e)
     {
-        if (mPointerFromPopup)
+        if (FromPopup)
             return;
         var args = new CanvasWheelEvent(ToPoint(e.Position), ToModifiers(e.KeyModifiers), ToPoint(e.Delta));
         Prepare()?.Call(control => control.OnScroll(args));
@@ -605,7 +620,8 @@ internal sealed class PluginCanvas : Component
         session.Call(control => control.OnMouseLeave(new CanvasMouseEvent(position, modifiers)));
     }
 
-    void Release(CanvasMouseButton button, Point position, CanvasModifierKeys modifiers, bool isClick)
+    // 返回插件是否在这次抬起上置了 Handled。
+    bool Release(CanvasMouseButton button, Point position, CanvasModifierKeys modifiers, bool isClick)
     {
         mPressed &= ~Bit(button);
         if (mPressed == 0)
@@ -613,8 +629,11 @@ internal sealed class PluginCanvas : Component
         if (mSession is { } session && (session.Pressed & Bit(button)) != 0)
         {
             session.Pressed &= ~Bit(button);
-            session.Call(control => control.OnMouseUp(new CanvasMouseButtonEvent(position, modifiers, button, false, isClick)));
+            var args = new CanvasMouseButtonEvent(position, modifiers, button, false, isClick);
+            session.Call(control => control.OnMouseUp(args));
+            return args.Handled;
         }
+        return false;
     }
 
     // 捕获丢失时补发抬起：插件没认领这次拖动（外层认领走了）就补在按下的位置——对它来说这次按下没有拖动过；
