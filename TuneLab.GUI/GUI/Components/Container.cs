@@ -62,6 +62,8 @@ internal class Container : ContainerBase
         // 主组件认领了这次按下 / 按着键时的这次移动：之后的移动与抬起归它。
         if (e.Handled && (e is PointerPressedEventArgs || (e.RoutedEvent == PointerMovedEvent && IsAnyButtonPressed(e))))
             e.Pointer.Capture(mMainComponent);
+        else if (e is PointerPressedEventArgs pressed)
+            mMainComponent.ForgetPress(pressed.GetCurrentPoint(mMainComponent).Properties.PointerUpdateKind.ToMouseButtonType());
     }
 
     // 子元素接走了一次移动时本层的指针形状：默认清掉（本层按位置算出的形状在子元素上不适用）。与位置无关的形状（如按着 Shift 的

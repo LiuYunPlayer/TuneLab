@@ -95,6 +95,24 @@ internal class Component : Control
     // 不在冒泡路径上，得由 Container 转过去）。只给"下面还有一层宿主手势"的控件开（如插件画布），普通子控件不受影响。
     public bool ForwardsUnhandledPointerToContainer { get; protected set; }
 
+    // Container 转来的按下本组件没认领：之后的移动与抬起不会来（捕获留在子元素），撤掉按着的状态，免得一直挂着
+    //（之后捕获丢失时会补发一个莫名的抬起）。
+    internal void ForgetPress(MouseButtonType button)
+    {
+        switch (button)
+        {
+            case MouseButtonType.PrimaryButton:
+                mIsPrimaryButtonPressed = false;
+                break;
+            case MouseButtonType.MiddleButton:
+                mIsMiddleButtonPressed = false;
+                break;
+            case MouseButtonType.SecondaryButton:
+                mIsSecondaryButtonPressed = false;
+                break;
+        }
+    }
+
     // Container 转来的、子元素没处理的指针事件：与自己收到一样处理（位置按本组件坐标算）。
     internal void ReceiveForwarded(PointerEventArgs e)
     {
@@ -237,12 +255,12 @@ internal class Component : Control
         MouseButtonType = button,
     };
 
-    // 双击判定按窗口坐标（globalPosition）比，不按本组件坐标：上一下点击可能落在别的组件上——插件画布不要的按下交给外层，
-    // 那一下的抬起由外层收（见 Container），记下的是外层的坐标；第二下若仍按画布的局部坐标比，原点不同（画布 lane 摆在音符处）就永远对不上。
+    // 点击、双击的判定都按窗口坐标（globalPosition）比，不按本组件坐标：同一次按下可能先后交给几个组件（插件画布不要的按下转给外层，
+    // 见 Container），按下、抬起、上一下点击各自落在哪个组件的坐标系里不一定，原点不同（画布 lane 摆在音符处）时局部坐标永远对不上。
     void CallMouseDown(MouseDownEventArgs e, Avalonia.Point globalPosition)
     {
         mLastMousePosition = e.Position;
-        mDownPosition = e.Position;
+        mDownGlobalPosition = globalPosition;
         e.IsDoubleClick = globalPosition.FuzzyEquals(mLastClickGlobalPosition) && mStopwatch.ElapsedMilliseconds - mLastClickTime <= DoubleClickInterval;
 
         switch (e.MouseButtonType)
@@ -277,7 +295,7 @@ internal class Component : Control
         else
         {
             mLastClickTime = mStopwatch.ElapsedMilliseconds;
-            e.IsClick = e.Position.FuzzyEquals(mDownPosition);
+            e.IsClick = globalPosition.FuzzyEquals(mDownGlobalPosition);
             if (e.IsClick) mLastClickGlobalPosition = globalPosition;
         }
 
@@ -321,6 +339,6 @@ internal class Component : Control
     static bool mFirstKeyDown = true;
     static ModifierKeys mLastKeyModifiers = ModifierKeys.None;
     Avalonia.Point mLastMousePosition = new(-1, -1);
-    static Avalonia.Point mDownPosition;
+    static Avalonia.Point mDownGlobalPosition;
     static Avalonia.Point mLastMoveGlobalPosition = new(-1, -1);
 }
