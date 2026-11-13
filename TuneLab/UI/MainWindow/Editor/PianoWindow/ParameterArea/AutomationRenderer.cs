@@ -494,8 +494,9 @@ internal partial class AutomationRenderer : View
         }
 
         var activeAutomation = mDependency.ActiveAutomation;
-        // 开着小眼睛的（不是激活的那条）：曲线 / 数值 lane 是背景，画在压暗层下面、不接收事件；画布是一摞里的层，
-        // 画在压暗层上面、照常接收事件，按开启的先后叠（后开的在上），激活的那条最后画、在最上（见 canvas-stacking.md）。
+        // 开着小眼睛的（不是激活的那条）是背景，都画在压暗层下面：曲线 / 数值 lane 不接收事件；画布是一摞里的层，
+        // 照常接收事件，只是和背景曲线一样由宿主统一压暗（插件借 IsBackground 决定画哪些，不用自己定"多淡"）。
+        // 画布先画曲线后画，按开启的先后叠（后开的在上）；激活的那条最后画、在最上（见 canvas-stacking.md）。
         var backgroundCanvases = new List<AutomationKey>();
         foreach (var automation in mDependency.VisibleAutomations)
         {
@@ -514,15 +515,15 @@ internal partial class AutomationRenderer : View
             Draw(automation, false);
         }
 
+        foreach (var automation in backgroundCanvases)
+            Draw(automation, false);
+
         context.FillRectangle(Colors.Black.Opacity(0.25).ToBrush(), this.Rect());
 
         // 合成参数回显轨（只读）：在可编辑轨之上、活动轨之下绘制为半透明积分面积。可独立显隐（标题栏管控）。
         DrawSynthesizedParameters(context);
 
         DrawRegionSelection(context);
-
-        foreach (var automation in backgroundCanvases)
-            Draw(automation, false);
 
         if (activeAutomation == null)
             return;

@@ -1351,7 +1351,8 @@ props.Add(("mix", "Mix"), CanvasLaneConfig.Create(host => new MixCanvas(host, va
   interpolating in that unit. Sample per pixel (`XToSecond(x)` for each column, then evaluate in seconds) and it matches synthesis
   exactly. Draw and synthesize in the same unit.
 - **Background**: `host.IsBackground` is true while the canvas is shown but another parameter is active (it still gets events, see
-  "Stacking" below); draw a simplified version then (say, only the outline, no text) to keep the active parameter clear. It is false in the side panel.
+  "Stacking" below). The host dims it together with the background curves, so you only decide what to draw (say, only the outline, no
+  text), not how faint. It is false in the side panel.
 - **The host's mapping wins**: do not draw with the phoneme times your synthesis computed. The host gives the time span shown on
   screen, and the canvas must line up with the phoneme blocks the user sees. The two agree once synthesis results are in; they
   differ only between an edit and the synthesis coming back, and the host re-renders as soon as the display updates.
