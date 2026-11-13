@@ -36,7 +36,11 @@ public class NoteLaneShapeTests
         public void Destroy() { }
         public IVoiceSynthesisSession CreateSession(IVoiceSynthesisContext context) => mEmpty.CreateSession(context);
         public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IVoiceSynthesisPartPropertyContext context)
-            => new OrderedMap<PropertyKey, AutomationConfig> { { "legacy", AutomationConfig.Create(0, 1).WithDefault(0).WithShownByDefault(false) } };
+            => new OrderedMap<PropertyKey, AutomationConfig>
+            {
+                { "legacy", AutomationConfig.Create(0, 1).WithDefault(0).WithVisibility(ControllerVisibility.HiddenByDefault) },
+                { "valueonly", AutomationConfig.Create().WithDefault(0.25) },
+            };
         public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IVoiceSynthesisPartPropertyContext context) => new OrderedMap<PropertyKey, AutomationConfig>();
         public ObjectConfig GetPartPropertyConfig(IVoiceSynthesisPartPropertyContext context) => ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>());
         // 高音 note 的核音素（slot 0）声明一个画布 lane。
@@ -297,7 +301,7 @@ public class NoteLaneShapeTests
 
     // 声明说默认不显示：用户没设过就藏着；用户显式显示 / 隐藏过就按用户的。已在目标态的操作不记成显式（仍跟着声明走）。
     [Fact]
-    public void ShownByDefaultIsOnlyTheDefault_TheUsersChoiceWins()
+    public void HiddenByDefaultIsOnlyTheDefault_TheUsersChoiceWins()
     {
         OnDataThread(() =>
         {
@@ -320,6 +324,25 @@ public class NoteLaneShapeTests
                 ParameterHiding.SetHidden(part, legacy, true);
             }
             Assert.True(ParameterHiding.IsHidden(part, legacy));
+        });
+    }
+
+    // 只传值（Never）：恒隐藏、不能显示（不进勾选列表与动作参数），但仍是已声明的轨——合成照常读到它。
+    [Fact]
+    public void ValueOnlyTrackIsDeclaredButNeverShown()
+    {
+        OnDataThread(() =>
+        {
+            var part = SamplePart();
+            var valueOnly = AutomationKey.Voice("valueonly");
+            Assert.True(part.SoundSource.AutomationConfigs.ContainsKey("valueonly"));   // 合成上下文与快照按这张表遍历
+            Assert.True(ParameterHiding.IsValueOnly(part, valueOnly));
+            Assert.True(ParameterHiding.IsHidden(part, valueOnly));
+            Assert.False(ParameterHiding.IsHideable(part, valueOnly));
+            Assert.False(ParameterHiding.SetHidden(part, valueOnly, false));   // 用户打不开它
+            Assert.True(ParameterHiding.IsHidden(part, valueOnly));
+            Assert.True(part.IsEffectiveAutomation(valueOnly));
+            Assert.Equal(0.25, part.SoundSource.AutomationConfigs["valueonly"].DefaultValue);
         });
     }
 }

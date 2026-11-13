@@ -33,6 +33,10 @@ internal static class ConfigText
             : t.IsMultiline ? (t.MaxVisibleLines > 0 ? string.Format("multi-line text (box shows up to {0} lines)", t.MaxVisibleLines) : "multi-line text")
             : "text",
         PathPickerConfig f => f.Target == PathPickerTarget.Folder ? "folder path" : "file path" + PatternHint(f),
+        // 只传值的轨没有控件（量程对空壳也没有意义）：点明它不在界面上，免得模型让用户去面板里找。
+        AutomationConfig a when a.Visibility == ControllerVisibility.Never => a.IsPiecewise
+            ? "automation track with no controller in the UI (value only: stored and used in synthesis), piecewise (no baseline)"
+            : string.Format("automation track with no controller in the UI (value only: stored and used in synthesis), default {0}", FormatNum(a.DefaultValue)),
         AutomationConfig a => a.IsPiecewise
             ? string.Format("automation track, range [{0}, {1}], piecewise (no baseline)", FormatNum(a.MinValue), FormatNum(a.MaxValue))
             : string.Format("automation track, range [{0}, {1}], default {2}", FormatNum(a.MinValue), FormatNum(a.MaxValue), FormatNum(a.DefaultValue)),
@@ -50,6 +54,9 @@ internal static class ConfigText
             + "read the extension's introduction first (get_extension_introduction); if it doesn't describe this field, infer the shape from its current value (canvases have no default; unset reads as null)",
         CanvasConfig => "custom value edited on a canvas the extension draws; its shape is defined by the extension, not checked by the host — "
             + "read the extension's introduction first (get_extension_introduction); if it doesn't describe this field, infer the shape from its current value (canvases have no default; unset reads as null)",
+        // 只传值：界面上没有它（用户在面板里找不到），值照常存储、传给合成；形状同画布，只有插件知道。
+        ValueOnlyConfig => "value with no controller in the UI (stored and used in synthesis, the user can't see or edit it in a panel); its shape is defined by the extension, not checked by the host — "
+            + "read the extension's introduction first (get_extension_introduction); if it doesn't describe this field, infer the shape from its current value (no default; unset reads as null)",
         _ => "value",
     };
 

@@ -315,7 +315,7 @@ public interface ICanvasTimeAxis
   ```
   `Value` 用普通 getter、不用可通知属性：变化通知必须带区间，`Modified` 不带参数，两个都给就重复（同自动化轨只有求值、没有 `Modified`）。
   合成快照里对应一个只读快照类型，与 `SynthesisAutomationSnapshot` 同级。效果器照旧由宿主按区间相交标脏。
-- **界面**：标签栏按对象分组，跟在所属对象（声源 / 各效果器）的自动化轨后面；支持 `WithShownByDefault`（与自动化轨一致）；
+- **界面**：标签栏按对象分组，跟在所属对象（声源 / 各效果器）的自动化轨后面；支持 `WithVisibility`（与自动化轨一致；只传值另见 `docs/value-only-declaration.md`）；
   part 属性面板里**不**放摘要那一行（自动化轨在那里是默认值滑条，画布内容宿主不知道，没有可摘要的东西）。
 - **agent 读写**：与其他画布类型一样可以读写值：值对宿主不透明，agent 先读插件文档弄清字段怎么拼、表示什么，再自己造数据。
   agent 写入属宿主发起的写入（按整段标脏）；给 agent 的说明里要写明值里的 tick 相对 part。

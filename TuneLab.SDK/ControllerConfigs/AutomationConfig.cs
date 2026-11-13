@@ -37,10 +37,12 @@ public sealed class AutomationConfig : IValueConfig<double>
     // 可随机：UI 默认值面板（滑条）右侧给随机入口，在量程内重新取值。
     public bool Randomizable { get; private set; }
 
-    // 用户没设过时，这条轨在参数面板的标签栏上是否显示（默认 true）。只是默认值：用户在标签栏里显式显示 / 隐藏过，就按用户的
-    //（按声源记，跨工程）。只管标签栏——不影响声明集、合成、求值与存储，隐藏的轨照常参与合成。
-    // 用途：过时参数（为兼容老数据保留声明、不再推荐用）、高级参数（默认收起，界面更清爽、需要时用户自己打开）。
-    public bool ShownByDefault { get; private set; } = true;
+    // 编辑控件出不出现（见 ControllerVisibility）：默认显示 / 默认隐藏（用户可在标签栏里改）/ 从不出现（只传值）。只管控件——
+    // 不影响声明集、合成、求值与存储，三档下这条轨都照常参与合成。
+    public ControllerVisibility Visibility { get; private set; } = ControllerVisibility.ShownByDefault;
+
+    // 由不收界面参数的 Create() 创建（只声明数据）：可见性固定为 Never。宿主只看 Visibility，不需要它。
+    bool IsValueOnlyShell { get; init; }
 
     // 量程由标度定义，沿用 slider 同一换算（约定标度单调递增）。
     public double MinValue => Scale.ToValue(0);
@@ -60,6 +62,12 @@ public sealed class AutomationConfig : IValueConfig<double>
     public static AutomationConfig Create(INormalizedScale scale)
         => new() { Scale = scale };
 
+    // 只传值的空壳：不收界面参数（量程、颜色、格式……），可见性固定为 Never，这条轨只有数据。WithDefault 照常决定连续 / 分段，
+    // 连续轨没有曲线的地方合成取它（它是数据形态，不是显示兜底）。没有量程 = 不量化：合成读到的就是曲线原值；
+    // 旧数据要按离散标度落格，就用 Create(scale).WithVisibility(Never)。
+    public static AutomationConfig Create()
+        => new() { Scale = IdentityScale, Visibility = ControllerVisibility.Never, IsValueOnlyShell = true };
+
     // 设默认基线 → 连续轨（传 NaN 仍为分段）。
     public AutomationConfig WithDefault(double value) { var c = Clone(); c.DefaultValue = value; return c; }
     public AutomationConfig WithColor(string color) { var c = Clone(); c.Color = color; return c; }
@@ -68,7 +76,16 @@ public sealed class AutomationConfig : IValueConfig<double>
     public AutomationConfig WithMinLabel(string label) { var c = Clone(); c.MinLabel = label; return c; }
     public AutomationConfig WithMaxLabel(string label) { var c = Clone(); c.MaxLabel = label; return c; }
     public AutomationConfig WithRandomizable(bool value = true) { var c = Clone(); c.Randomizable = value; return c; }
-    public AutomationConfig WithShownByDefault(bool shown) { var c = Clone(); c.ShownByDefault = shown; return c; }
+    // 空壳（无参 Create）只能是 Never：设成要显示时抛参数异常——没有量程的轨没法画。
+    public AutomationConfig WithVisibility(ControllerVisibility visibility)
+    {
+        if (IsValueOnlyShell && visibility != ControllerVisibility.Never)
+            throw new ArgumentException("An AutomationConfig created by Create() has no controller; its visibility can only be Never. Use Create(minValue, maxValue) or Create(scale) for a track the user can see.", nameof(visibility));
+        var c = Clone(); c.Visibility = visibility; return c;
+    }
+
+    // 空壳的标度：恒等（不量化、不钳位）。量程 0..1 只是这个映射的读数，空壳没有控件，不显示它。
+    static readonly INormalizedScale IdentityScale = NormalizedScale.Custom(value => value, value => value);
 
     // 恒实现 IValueConfig（叶子 config），但分段轨此处返回 NaN 表「无基线」——消费方须先判 IsPiecewise，
     // 不得把 NaN 当真默认值写回（见 IValueConfig 注释）。automation 不流经属性面板 / preset 的 GetDefaultValue 通道，

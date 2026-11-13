@@ -10,6 +10,7 @@ namespace TuneLab.Configs;
 //
 // 分配在宿主物化声明的入口统一做（声源的轨集合、效果器的轨集合），下游直接读 config.Color 的十几处消费点
 // 永远看不到透明色——漏判一处就是一条画不出来的曲线，所以不能交给各消费点自己判断。
+// 只传值（ControllerVisibility.Never）的轨不画、不出按钮：不分配，也不占调色板。
 internal static class TrackColors
 {
     // 插件没指定颜色：alpha 为 0（全透明的轨色画不出来，没有别的意义）。解析不了的颜色串不算——它照旧走显示时的兜底色。
@@ -29,6 +30,8 @@ internal static class TrackColors
         var used = new List<string>(occupied);
         foreach (var kvp in configs)
         {
+            if (kvp.Value.Visibility == ControllerVisibility.Never)
+                continue;
             if (IsUnassigned(kvp.Value.Color))
                 any = true;
             else
@@ -41,7 +44,7 @@ internal static class TrackColors
         foreach (var kvp in configs)
         {
             var config = kvp.Value;
-            if (IsUnassigned(config.Color))
+            if (config.Visibility != ControllerVisibility.Never && IsUnassigned(config.Color))
             {
                 var color = Pick(used);
                 used.Add(color);
@@ -59,6 +62,8 @@ internal static class TrackColors
         var used = new List<string>(occupied);
         foreach (var kvp in configs)
         {
+            if (kvp.Value.Visibility == ControllerVisibility.Never)
+                continue;
             if (IsUnassigned(kvp.Value.Color))
                 any = true;
             else
@@ -71,7 +76,7 @@ internal static class TrackColors
         foreach (var kvp in configs)
         {
             var config = kvp.Value;
-            if (IsUnassigned(config.Color))
+            if (config.Visibility != ControllerVisibility.Never && IsUnassigned(config.Color))
             {
                 var color = Pick(used);
                 used.Add(color);

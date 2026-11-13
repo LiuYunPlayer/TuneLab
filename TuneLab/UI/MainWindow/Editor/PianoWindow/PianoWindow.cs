@@ -321,7 +321,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
             },
         });
 
-        // ── 标签栏上常驻参数（音源 / 效果器的自动化轨、画布 lane）的隐藏 / 显示：与标签栏空白处右键那张勾选列表里
+        // ── 标签栏上常驻参数（音源 / 效果器的自动化轨与时间轴画布、画布 lane）的隐藏 / 显示：与标签栏空白处右键那张勾选列表里
         // 这几类的勾是同一件事（同一个 ParameterHiding.SetHidden）。可钉属性不在这对里——它们走 pin / unpinProperty。
         // AppState 的理由同钉选：写的是界面偏好（Configs/ParameterHidden.json），一眼看得见、自己就能改回来。
         ActionRegistry.Register(new()
@@ -356,13 +356,16 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
 
     const string HideableParameterDescription =
         "Which parameter, written \"source:<id>\" for an automation track of the part's sound source, \"effect<n>:<id>\" for one of the n-th effect in the chain (0-based, the same position as in part.effects()), "
-        + "or \"note:<path>\" / \"phoneme:<path>\" for a canvas lane. Each value says whether it is shown or hidden right now; hiding only takes it off the tab bar, its data still takes part in synthesis. "
+        + "\"source-canvas:<id>\" / \"effect<n>-canvas:<id>\" for a timeline canvas of the sound source / of the n-th effect, "
+        + "or \"note:<path>\" / \"phoneme:<path>\" for a canvas lane. Each value says whether it is shown or hidden right now; hiding takes away its controls (the tab bar button, and the default-value slider in the side panel), its data still takes part in synthesis. "
+        + "Parameters the extension declared with no controller at all (value only) are not in this list and can't be shown. "
         + "Pinnable properties are not in this list: they are added and removed with parameter.pinProperty / unpinProperty. The label works too.";
 
     string? HideableUnavailable()
         => Part == null ? "no part is open in the piano roll, so there is no parameter tab bar" : null;
 
-    // 值域 = 标签栏上能常驻的全集（含已藏的：终态动作幂等），序同标签栏（音源轨、画布 lane、各效果器轨）。
+    // 值域 = 标签栏上能常驻的全集（含已藏的：终态动作幂等），序同标签栏（音源轨与时间轴画布、画布 lane、各效果器轨与时间轴画布）。
+    // 只传值（ControllerVisibility.Never）的没有控件，不在值域里。
     IReadOnlyList<ActionArgument> HideableValues()
     {
         var part = Part;
@@ -371,10 +374,15 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
             return values;
 
         void Add(AutomationKey key, string token, string label)
-            => values.Add(new ActionArgument(token, label, ParameterHiding.IsHidden(part, key) ? "hidden" : "shown"));
+        {
+            if (ParameterHiding.IsHideable(part, key))
+                values.Add(new ActionArgument(token, label, ParameterHiding.IsHidden(part, key) ? "hidden" : "shown"));
+        }
 
         foreach (var kvp in part.SoundSource.AutomationConfigs)
             Add(AutomationKey.Voice(kvp.Key.Id), "source:" + kvp.Key.Id, (kvp.Key.DisplayText ?? kvp.Key.Id) + " (sound source)");
+        foreach (var kvp in part.SoundSource.TimelineCanvasConfigs)
+            Add(AutomationKey.VoiceCanvas(kvp.Key.Id), "source-canvas:" + kvp.Key.Id, (kvp.Key.DisplayText ?? kvp.Key.Id) + " (sound source, timeline canvas)");
         foreach (var kvp in part.NoteLaneConfigs)
         {
             if (kvp.Value.Kind == LaneKind.CanvasLane)
@@ -389,8 +397,11 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         {
             var type = part.Effects[i].Type;
             var source = string.IsNullOrEmpty(type) ? "(empty)" : EffectManager.GetDisplayName(type);
+            var index = i.ToString(System.Globalization.CultureInfo.InvariantCulture);
             foreach (var kvp in part.Effects[i].AutomationConfigs)
-                Add(AutomationKey.Effect(i, kvp.Key.Id), "effect" + i.ToString(System.Globalization.CultureInfo.InvariantCulture) + ":" + kvp.Key.Id, (kvp.Key.DisplayText ?? kvp.Key.Id) + " (" + source + ")");
+                Add(AutomationKey.Effect(i, kvp.Key.Id), "effect" + index + ":" + kvp.Key.Id, (kvp.Key.DisplayText ?? kvp.Key.Id) + " (" + source + ")");
+            foreach (var kvp in part.Effects[i].TimelineCanvasConfigs)
+                Add(AutomationKey.EffectCanvas(i, kvp.Key.Id), "effect" + index + "-canvas:" + kvp.Key.Id, (kvp.Key.DisplayText ?? kvp.Key.Id) + " (" + source + ", timeline canvas)");
         }
         return values;
     }
@@ -405,10 +416,15 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         int colon = token.IndexOf(':');
         var source = token[..colon];
         var id = token[(colon + 1)..];
+        // 时间轴画布：source-canvas / effect<n>-canvas（拼法见 HideableValues）。
+        const string CanvasSuffix = "-canvas";
         var key = source switch
         {
             "note" => AutomationKey.NoteLane(id),
             "phoneme" => AutomationKey.PhonemeLane(id),
+            "source" + CanvasSuffix => AutomationKey.VoiceCanvas(id),
+            _ when source.StartsWith("effect", StringComparison.Ordinal) && source.EndsWith(CanvasSuffix, StringComparison.Ordinal)
+                => AutomationKey.EffectCanvas(int.Parse(source["effect".Length..^CanvasSuffix.Length], System.Globalization.CultureInfo.InvariantCulture), id),
             _ => ParseTrackToken(token),
         };
         ParameterHiding.SetHidden(part, key, hidden);

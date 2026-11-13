@@ -25,14 +25,15 @@ namespace TuneLab.SDK;
 // 构造函数全封，只走静态工厂 + With（与 SliderConfig 同款 ABI 理由：见 SliderConfig）。
 public sealed class TimelineCanvasConfig
 {
-    public Func<ITimelineCanvasHost, ICanvasControl> CreateControl { get; private init; } = null!;
+    // 控件工厂。空壳（无参 Create）没有工厂，为 null——此时 Visibility 恒为 Never，宿主不会调它。
+    public Func<ITimelineCanvasHost, ICanvasControl>? CreateControl { get; private init; }
 
     // 标签栏按钮与焦点圆点的颜色（hex，"#RRGGBB" 或 "#AARRGGBB"）。与 AutomationConfig.Color 同一约定：不设 = 全透明 "#00000000" =
     // 不指定，宿主从调色板分配；alpha 为 0 的颜色一律按"不指定"处理。
     public string Color { get; private set; } = "#00000000";
 
-    // 用户没设过时，这条轨在参数面板的标签栏上是否显示（默认 true）。与 AutomationConfig.ShownByDefault 同义。
-    public bool ShownByDefault { get; private set; } = true;
+    // 编辑控件出不出现，与 AutomationConfig.Visibility 同义（见 ControllerVisibility）。三档下值都照常存储、照常传给合成。
+    public ControllerVisibility Visibility { get; private set; } = ControllerVisibility.ShownByDefault;
 
     private TimelineCanvasConfig() { }
     TimelineCanvasConfig Clone() => (TimelineCanvasConfig)MemberwiseClone();
@@ -43,6 +44,18 @@ public sealed class TimelineCanvasConfig
         return new() { CreateControl = createControl };
     }
 
+    // 只传值的空壳：没有控件工厂，可见性固定为 Never——只声明"这个 id 上有一份整值，存着并传给合成"。
+    // 用途：新版不再编辑、但合成还要读的旧画布值。
+    public static TimelineCanvasConfig Create()
+        => new() { Visibility = ControllerVisibility.Never };
+
     public TimelineCanvasConfig WithColor(string color) { var c = Clone(); c.Color = color; return c; }
-    public TimelineCanvasConfig WithShownByDefault(bool shown) { var c = Clone(); c.ShownByDefault = shown; return c; }
+
+    // 空壳（无参 Create）只能是 Never：设成要显示时抛参数异常——没有工厂就没有界面。
+    public TimelineCanvasConfig WithVisibility(ControllerVisibility visibility)
+    {
+        if (CreateControl == null && visibility != ControllerVisibility.Never)
+            throw new ArgumentException("A TimelineCanvasConfig created by Create() has no control factory; its visibility can only be Never. Use Create(createControl) for a canvas the user can see.", nameof(visibility));
+        var c = Clone(); c.Visibility = visibility; return c;
+    }
 }

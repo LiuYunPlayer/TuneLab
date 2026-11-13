@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using TuneLab.Configs;
 using TuneLab.Data;
 using TuneLab.Extensions.Effect;
 using TuneLab.Foundation;
@@ -332,6 +333,8 @@ internal class EffectsController : StackPanel
                 // 自动化默认值外部（undo/redo/preset）改动 → 刷新所有行（结构不变，无需重建）。
                 foreach (var effect in mSlotEffects)
                     effect.Automations.WhenAny(automation => automation.DefaultValue.Modified).Subscribe(RefreshAutomationRows, s);
+                // 标签栏上显示 / 隐藏了某条轨 → 重建默认值行。
+                ParameterHiding.Changed.Subscribe(RebuildAutomationRows, s);
 
                 mRoot.Children.Add(mController);
                 mRoot.Children.Add(mAutomationContainer);
@@ -366,6 +369,7 @@ internal class EffectsController : StackPanel
         }
 
         // 该槽位的连续自动化轨默认值行（分段轨无默认基线、跳过）；混在参数控件后，按 AutomationKey.Effect 路由。
+        // 标签栏上隐藏的轨（用户藏的、默认隐藏的、只传值的）不列：隐藏 = 藏掉这条轨的所有控件。
         // AutomationDefaultRow 自带多 part 语义（三态合并 + 扇出 + 共享撤销根），只递有实例的 part。
         void RebuildAutomationRows()
         {
@@ -376,7 +380,7 @@ internal class EffectsController : StackPanel
 
             foreach (var kvp in SlotAutomationConfigs())
             {
-                if (kvp.Value.IsPiecewise)
+                if (kvp.Value.IsPiecewise || (mSlotParts.Count > 0 && ParameterHiding.IsHidden(mSlotParts[0], AutomationKey.Effect(mIndex, kvp.Key.Id))))
                     continue;
 
                 var row = new AutomationDefaultRow(mSlotParts, AutomationKey.Effect(mIndex, kvp.Key.Id), kvp.Key.DisplayText ?? kvp.Key.Id, kvp.Value,

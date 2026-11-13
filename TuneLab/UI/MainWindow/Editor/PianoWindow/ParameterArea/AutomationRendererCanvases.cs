@@ -169,7 +169,8 @@ internal partial class AutomationRenderer
     // 画一块时间轴画布：铺满面板（画布坐标 = 面板坐标），原点 = part 原点 + 偏移。还没有实例的推迟一拍再建（同画布 lane）。
     void DrawTimelineCanvas(DrawingContext context, AutomationKey key, bool isActive)
     {
-        if (Part is not { } part || !part.TryGetTimelineCanvas(key, out var config, out var store))
+        // 只传值的空壳没有工厂（它也不会成为可见 / 激活的参数，这里只是兜底）。
+        if (Part is not { } part || !part.TryGetTimelineCanvas(key, out var config, out var store) || config.CreateControl == null)
             return;
 
         var slot = CanvasSlot.ForTimeline(key);
@@ -191,7 +192,7 @@ internal partial class AutomationRenderer
         {
             canvas.Config = config;
             canvas.View.Bind(new TimelineCanvasField(store, key.Id));
-            canvas.View.SetTimelineFactory(config.CreateControl, canvas.Axis, canvas.PitchAxis);
+            canvas.View.SetTimelineFactory(config.CreateControl!, canvas.Axis, canvas.PitchAxis);
         }
 
         canvas.View.SetHostedGeometry(rect.Size, rect);

@@ -76,6 +76,8 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
         // 随之出现 / 消失——用来验证「编辑中途声明变了、正被拖的字段被去掉」时宿主把面板刷新推迟到编辑结束。
         // 注意这**故意违背**声明契约（派生状态只能是用户数据的函数，这里掺了时间），只作测试夹具，别照抄。
         mPartProperties.Add(("blink_test", "Stress: Blink Field"), CheckBoxConfig.Create(false));
+        // 只传值的属性：侧栏不出现，值照常存进工程、整个传给合成、进 preset，脚本 / agent 能读写（参数说明里标着没有控件）。
+        mPartProperties.Add(("legacy_mode", "Legacy Mode"), ValueOnlyConfig.Create());
         // 自定义自动化参数名避开宿主保留名（Volume/VibratoEnvelope 等内置项）。
         // Min/MaxLabel：验证 automation 端点描述文本（参数区上下界 + 侧栏默认值滑条两端，此前无 producer 覆盖）。
         mGrowlConfigs.Add(("Growl", "Growl"), AutomationConfig.Create(0, 100).WithColor("#E5A573").WithDefault(0)
@@ -105,8 +107,10 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
         // 分工——普通用户调偏差轨（Energy），重度用户切到实参轨（Energy (Actual)）在模型输出这条底上直接覆盖。
         map.Add(("energy", "Energy (Actual)"), mEnergyActualConfig);
         map.Add(("energy_offset", "Energy"), mEnergyOffsetConfig);
-        // 默认不在标签栏显示（过时 / 高级参数的用法）：照常声明、照常参与合成，用户在标签栏右键里勾上才出现。
+        // 默认不在标签栏显示（高级参数的用法）：照常声明、照常参与合成，用户在标签栏右键里勾上才出现。
         map.Add(("legacy_curve", "Legacy Curve"), mLegacyCurveConfig);
+        // 只传值（空壳）：标签栏、右键列表、侧栏默认值滑条都没有它，合成照常读到（会话的 Automations 里有）。
+        map.Add(("value_only", "Value Only"), mValueOnlyConfig);
         return map;
     }
 
@@ -246,7 +250,8 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
 
     readonly OrderedMap<string, VoiceSourceInfo> mVoiceInfos = new();
     readonly OrderedMap<PropertyKey, AutomationConfig> mGrowlConfigs = new();
-    static readonly AutomationConfig mLegacyCurveConfig = AutomationConfig.Create(0, 1).WithDefault(0.5).WithShownByDefault(false);
+    static readonly AutomationConfig mLegacyCurveConfig = AutomationConfig.Create(0, 1).WithDefault(0.5).WithVisibility(ControllerVisibility.HiddenByDefault);
+    static readonly AutomationConfig mValueOnlyConfig = AutomationConfig.Create().WithDefault(0.5);
     readonly OrderedMap<PropertyKey, IControllerConfig> mPartProperties = new();
     readonly OrderedMap<PropertyKey, IControllerConfig> mNoteProperties = new();
     readonly OrderedMap<PropertyKey, IControllerConfig> mCorePhonemeProperties = new();

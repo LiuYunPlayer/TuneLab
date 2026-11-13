@@ -13,7 +13,7 @@ namespace TuneLab.Commands;
 // 类型的分支，口径不一、漏写的类型就拒（或不校验），修一处漏一处。这里收成一处，并有覆盖测试逐个 config 类型核对。
 //
 // 口径：能校验就校验。宿主看得懂的控件按它的约束校验（数值范围、下拉候选、tag 候选……），复合控件（对象 / 数组 / 列表 /
-// 变长键控）递归到每个成员；宿主不懂形状的（画布）原样收下，只拒"不是值"的标记。不是值的 config（按钮、自动化轨）一律拒。
+// 变长键控）递归到每个成员；宿主不懂形状的（画布、只传值）原样收下，只拒"不是值"的标记。不是值的 config（按钮、自动化轨）一律拒。
 // 输入一律是中性的 PropertyValue：各入口先把自己的输入（JsValue / JsonElement）转成它，报错措辞、自身政策（如扩展设置的
 // 密钥字段拒写）也归入口。
 //
@@ -26,7 +26,7 @@ internal static class ConfigValues
     internal static readonly IReadOnlyList<Type> Values =
     [
         typeof(CheckBoxConfig), typeof(SliderConfig), typeof(DraggableNumberBoxConfig), typeof(ComboBoxConfig), typeof(TagConfig),
-        typeof(TextBoxConfig), typeof(PathPickerConfig), typeof(CanvasConfig), typeof(CanvasLaneConfig),
+        typeof(TextBoxConfig), typeof(PathPickerConfig), typeof(CanvasConfig), typeof(CanvasLaneConfig), typeof(ValueOnlyConfig),
         typeof(ObjectConfig), typeof(ArrayConfig), typeof(ListConfig), typeof(ExtensibleObjectConfig),
     ];
     internal static readonly IReadOnlyList<Type> NotValues = [typeof(ButtonConfig), typeof(AutomationConfig)];
@@ -35,8 +35,8 @@ internal static class ConfigValues
     // path 用于报错点名（如 "voices[2].path"）。
     public static (PropertyValue Value, string? Error) Check(IControllerConfig config, PropertyValue value, string path)
     {
-        // 画布没有默认值：Null 就是"没设过"，写 Null = 清掉（数组里的画布元素位置上也是 Null）。
-        if (value.IsNull() && config is CanvasConfig or CanvasLaneConfig)
+        // 画布、只传值没有默认值：Null 就是"没设过"，写 Null = 清掉（数组里的这种元素位置上也是 Null）。
+        if (value.IsNull() && config is CanvasConfig or CanvasLaneConfig or ValueOnlyConfig)
             return (value, null);
         if (value.IsNull())
             return (default, string.Format("\"{0}\" needs a value.", path));
@@ -106,9 +106,10 @@ internal static class ConfigValues
                     return (PropertyValue.Create(ConfigText.FormatNum(n)), null);
                 return (default, string.Format("\"{0}\" is text; got {1}.", path, Show(value)));
 
-            // 画布的值形状由插件自定、宿主不解读：任何真实的值都收（插件读值时自己校验），只拒内部含 Multiple 的。
+            // 画布、只传值的值形状由插件自定、宿主不解读：任何真实的值都收（插件读值时自己校验），只拒内部含 Multiple 的。
             case CanvasConfig:
             case CanvasLaneConfig:
+            case ValueOnlyConfig:
                 try
                 {
                     PropertySlot.EnsureStorable(value);

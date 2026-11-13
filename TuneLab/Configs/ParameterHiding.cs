@@ -9,10 +9,13 @@ using TuneLab.SDK;
 namespace TuneLab.Configs;
 
 // 标签栏上常驻参数的隐藏：音源 / 各效果器的自动化轨与画布 lane 默认都在标签栏上，用户只用其中几个时可以把别的收起来。
-// 【与钉选互为两类】原本常驻的记"用户显式设过显示 / 隐藏的"，没设过的按声明：自动化轨看 AutomationConfig.ShownByDefault、
-//   时间轴画布看 TimelineCanvasConfig.ShownByDefault（插件声明的默认值，默认显示——插件新增的参数自然出现），画布 lane 恒默认显示；原本不显示的可钉属性记"钉了哪些"
+// 【与钉选互为两类】原本常驻的记"用户显式设过显示 / 隐藏的"，没设过的按声明：自动化轨、时间轴画布看 config 的 Visibility
+//   （插件声明的初始状态，默认显示——插件新增的参数自然出现），画布 lane 恒默认显示；原本不显示的可钉属性记"钉了哪些"
 //   （ParameterPinning）。标签栏右键的勾选列表把两类合在一起，打勾 = 在标签栏上。有没有数据不参与判定。
-// 【隐藏只管标签栏】数据照常参与合成；面板不画它（激活不了、也不作背景）；命令与 agent 照样读写它。
+// 【只传值】声明为 ControllerVisibility.Never 的条目没有任何控件：恒隐藏、不能显示（IsHideable = false，不进勾选列表与动作参数），
+//   用户以前对它设过的显式状态不生效（记录留着，插件改回能显示的档位后照旧）。
+// 【隐藏 = 藏掉这一条的所有控件】标签栏、侧栏的默认值滑条都不出现；数据照常参与合成；面板不画它（激活不了、也不作背景）；
+//   命令与 agent 照样读写它。
 //   侧栏画布 lane 那一行的编辑按钮跳向一条隐藏的画布，就是要看它——那一下把它显示出来（见 PianoWindow.EditInFocusedPanel）。
 // 【存法】同钉选：界面偏好、跟声源 / 效果器类型走（跨工程生效），自带独立 JSON（Configs/ParameterHidden.json），改后即时存盘。
 //   键 "kind:Type:类别:id" → 是否隐藏（true = 用户显式隐藏，false = 用户显式显示）；没有键 = 用户没设过、按声明的默认值。
@@ -58,15 +61,24 @@ internal static class ParameterHiding
         }
     }
 
-    // 能不能隐藏：自动化轨与画布 lane 能；钉选的 lane 不归这里（不想要就解钉）。
-    public static bool IsHideable(IMidiPart part, AutomationKey key) => HiddenKey(part, key) != null;
+    // 能不能隐藏 / 显示：自动化轨、时间轴画布与画布 lane 能；只传值（Never）的不能——它没有控件可显示；
+    // 钉选的 lane 不归这里（不想要就解钉）。
+    public static bool IsHideable(IMidiPart part, AutomationKey key)
+        => HiddenKey(part, key) != null && DeclaredVisibility(part, key) != ControllerVisibility.Never;
 
-    // 用户显式设过的按用户的，否则按声明的默认值。
+    // 只传值：声明为 ControllerVisibility.Never（没有任何控件，数据照常参与合成）。
+    public static bool IsValueOnly(IMidiPart part, AutomationKey key)
+        => DeclaredVisibility(part, key) == ControllerVisibility.Never;
+
+    // 只传值的恒隐藏；其余用户显式设过的按用户的，否则按声明的初始状态。
     public static bool IsHidden(IMidiPart part, AutomationKey key)
     {
         if (HiddenKey(part, key) is not { } hiddenKey)
             return false;
-        return mExplicit.TryGetValue(hiddenKey, out var hidden) ? hidden : !ShownByDefault(part, key);
+        var declared = DeclaredVisibility(part, key);
+        if (declared == ControllerVisibility.Never)
+            return true;
+        return mExplicit.TryGetValue(hiddenKey, out var hidden) ? hidden : declared == ControllerVisibility.HiddenByDefault;
     }
 
     // 【隐藏 / 显示一次】的收口：标签栏右键勾选列表、命令面的 parameter.hideFromTabBar / showInTabBar、侧栏编辑按钮，
@@ -74,7 +86,7 @@ internal static class ParameterHiding
     // 真改了就记成用户显式的状态。返回是否真的动了。
     public static bool SetHidden(IMidiPart part, AutomationKey key, bool hidden)
     {
-        if (HiddenKey(part, key) is not { } hiddenKey)
+        if (!IsHideable(part, key) || HiddenKey(part, key) is not { } hiddenKey)
             return false;
         if (IsHidden(part, key) == hidden)
             return false;
@@ -85,22 +97,25 @@ internal static class ParameterHiding
         return true;
     }
 
-    // 声明的默认值：自动化轨看 AutomationConfig.ShownByDefault；画布 lane 没有这个标志，恒显示。
-    static bool ShownByDefault(IMidiPart part, AutomationKey key)
+    // 声明的可见性：自动化轨、时间轴画布看 config 的 Visibility；画布 lane 没有这个标志，恒默认显示。
+    // 不认识的枚举值按 ShownByDefault（宁可多显示，不让数据悄悄失去入口）。
+    static ControllerVisibility DeclaredVisibility(IMidiPart part, AutomationKey key)
     {
+        var visibility = ControllerVisibility.ShownByDefault;
         switch (key.Source)
         {
             case AutomationSource.Voice:
-                return !part.SoundSource.AutomationConfigs.TryGetValue(key.Id, out var voiceConfig) || voiceConfig.ShownByDefault;
             case AutomationSource.Effect:
-                return key.EffectIndex < 0 || key.EffectIndex >= part.Effects.Count
-                    || !part.Effects[key.EffectIndex].AutomationConfigs.TryGetValue(key.Id, out var effectConfig) || effectConfig.ShownByDefault;
+                if (part.TryGetAutomationConfig(key, out var automationConfig))
+                    visibility = automationConfig.Visibility;
+                break;
             case AutomationSource.VoiceCanvas:
             case AutomationSource.EffectCanvas:
-                return !part.TryGetTimelineCanvas(key, out var canvasConfig, out _) || canvasConfig.ShownByDefault;
-            default:
-                return true;
+                if (part.TryGetTimelineCanvas(key, out var canvasConfig, out _))
+                    visibility = canvasConfig.Visibility;
+                break;
         }
+        return visibility is ControllerVisibility.HiddenByDefault or ControllerVisibility.Never ? visibility : ControllerVisibility.ShownByDefault;
     }
 
     static string? HiddenKey(IMidiPart part, AutomationKey key)

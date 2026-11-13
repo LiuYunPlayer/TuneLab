@@ -122,9 +122,9 @@ internal static class PartPresets
                 node.SetValue(kvp.Key.Id, valueConfig.DefaultValue);
                 count++;
             }
-            else if (kvp.Value is CanvasConfig or CanvasLaneConfig)
+            else if (kvp.Value is CanvasConfig or CanvasLaneConfig or ValueOnlyConfig)
             {
-                node.RemoveValue(kvp.Key.Id);   // 画布没有默认值：恢复默认 = 删掉存值
+                node.RemoveValue(kvp.Key.Id);   // 画布、只传值没有默认值：恢复默认 = 删掉存值
                 count++;
             }
         }

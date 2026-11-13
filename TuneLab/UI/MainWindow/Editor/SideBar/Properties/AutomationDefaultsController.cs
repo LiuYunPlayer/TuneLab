@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Avalonia.Controls;
 using Avalonia.Layout;
+using TuneLab.Configs;
 using TuneLab.Data;
 using TuneLab.Foundation;
 using TuneLab.GUI;
@@ -35,9 +36,10 @@ internal class AutomationDefaultsController : StackPanel
             return;
 
         // 默认值面板只列连续轨（分段轨无默认基线）。多选同引擎，用首个 part 的 AutomationConfigs 作 schema。
+        // 标签栏上隐藏的轨（用户藏的、插件声明默认隐藏的、只传值的）这里也不列：隐藏 = 藏掉这条轨的所有控件。
         foreach (var kvp in mParts[0].SoundSource.AutomationConfigs)
         {
-            if (kvp.Value.IsPiecewise)
+            if (kvp.Value.IsPiecewise || ParameterHiding.IsHidden(mParts[0], AutomationKey.Voice(kvp.Key.Id)))
                 continue;
 
             var row = new AutomationDefaultRow(mParts, AutomationKey.Voice(kvp.Key.Id), kvp.Key.DisplayText ?? kvp.Key.Id, kvp.Value,
@@ -49,7 +51,8 @@ internal class AutomationDefaultsController : StackPanel
             mRows[^1].IsTrailing = true;   // 末行收起时补底边距（见 FieldFold.IsTrailing）
 
         // 默认值外部（undo/redo/preset）改动 → 刷新所有行；自动化轨增减 → 重建；
-        // 条件自动化轨随参数 commit 显隐 → 重建（仅轨集合实变时触发）。各 part 都订阅。
+        // 条件自动化轨随参数 commit 显隐 → 重建（仅轨集合实变时触发）；标签栏上显示 / 隐藏了某条轨 → 重建。各 part 都订阅。
+        ParameterHiding.Changed.Subscribe(Rebuild, s);
         foreach (var part in mParts)
         {
             part.Automations.WhenAny(automation => automation.DefaultValue.Modified).Subscribe(Refresh, s);

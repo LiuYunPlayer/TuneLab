@@ -43,7 +43,7 @@
 |---|---|---|
 | `1.0` | TuneLab 2.0.0 | V1 SDK 的全部初始面 |
 | `1.1` | TuneLab 2.1.0 | 路径选择控件（`PathPickerConfig` / `FileTypeFilter`）、多行文本框（`TextBoxConfig.WithMultiline`） |
-| `1.2` | 尚未发布 | 标签组（`TagConfig` / `TagItem`）、按钮（`ButtonConfig` / `IButtonClickContext` / `IDialogService` / `IProgressReporter`，见 §9）、声明失效（`InvalidatePart` / `InvalidateNotes` 及配套的 `PartId` / note `Id`，见 §5.2）、`+` 菜单与下拉的分组和分隔线（`AddableElement` / `AddableKey` 分组、`Separator`、`ComboBoxItem.Separator`）、自动化轨默认不在标签栏显示（`AutomationConfig.WithShownByDefault`）；以及**实验中**的画布（`CanvasConfig` / `CanvasLaneConfig` / `ICanvasControl` / `ICanvasHost` / `ICanvasLaneHost` / `ICanvasTimeAxis` / `ICanvasDrawing` / `CanvasImage` 及其事件类型，见 §10） |
+| `1.2` | 尚未发布 | 标签组（`TagConfig` / `TagItem`）、按钮（`ButtonConfig` / `IButtonClickContext` / `IDialogService` / `IProgressReporter`，见 §9）、声明失效（`InvalidatePart` / `InvalidateNotes` 及配套的 `PartId` / note `Id`，见 §5.2）、`+` 菜单与下拉的分组和分隔线（`AddableElement` / `AddableKey` 分组、`Separator`、`ComboBoxItem.Separator`）、自动化轨与时间轴画布的控件可见性（`ControllerVisibility` / `WithVisibility`，含只传值的 `Never` 与空壳 `Create()`）、只传值的属性（`ValueOnlyConfig`）；以及**实验中**的画布（`CanvasConfig` / `CanvasLaneConfig` / `ICanvasControl` / `ICanvasHost` / `ICanvasLaneHost` / `ICanvasTimeAxis` / `ICanvasDrawing` / `CanvasImage` 及其事件类型，见 §10） |
 
 插件级（描述「这个包提供什么」）。**身份内联进 manifest**：一个条目 = 一个具体可注册能力，自带身份（引擎 id / 文件扩展名）+ 实现类全名。宿主读完 manifest 即知插件提供什么、无需加载程序集反射。
 
@@ -377,7 +377,7 @@ readonly ObjectConfig mNoteConfig = ObjectConfig.Create(new OrderedMap<PropertyK
 ```
 
 - **读值**：合成时从 `VoiceSynthesisNoteSnapshot.Properties`（`PropertyObject` 值拷）读，用 `GetDouble(key, default)` / `GetBoolean` / `GetString`（完整规则见下文「属性值的语义」）。**稀疏存储**——只有用户改过的字段才在里面；读不到就用你声明的默认值（`PropertyObject` 的 `Get*` 第二参数就是 fallback，传与声明一致的默认值即可）。
-- **`AutomationConfig`**：`DefaultValue` / `MinValue` / `MaxValue` / `Scale` / `Color`（如 `"#E5A573"`；不设即默认全透明 `"#00000000"`，由宿主从调色板挑一个不与其它轨撞色的颜色，结果确定；alpha 为 0 的颜色一律算不设） / `Randomizable`（默认值面板的滑条右侧加随机入口，宜用于连续轨）/ `MinLabel` / `MaxLabel` / `Format` / `ShownByDefault`（用户没设过时这条轨在参数面板标签栏上显不显示，默认 `true`；只是默认值——用户在标签栏里显式显示 / 隐藏过就按用户的，按声源记。只管标签栏，照常声明、照常参与合成。适合为兼容老数据保留的过时参数、默认收起的高级参数），经 `AutomationConfig.Create(...)` 构造、流式 `WithColor` / `WithDefault` / `WithRandomizable` / `WithMinLabel` / `WithMaxLabel` / `WithFormat` / `WithShownByDefault` 配置。**轨的显示名不在 config 上**——它随 map 的键走（`PropertyKey` 的 `DisplayText`），与属性面板同一套。**`DefaultValue = double.NaN` ⇒ 分段轨**（无默认基线、段间断开，如 pitch 类、bend）；实数 ⇒ 连续轨（处处有值、有基线，如 growl）。回显轨恒为分段形（`DefaultValue = NaN`）。
+- **`AutomationConfig`**：`DefaultValue` / `MinValue` / `MaxValue` / `Scale` / `Color`（如 `"#E5A573"`；不设即默认全透明 `"#00000000"`，由宿主从调色板挑一个不与其它轨撞色的颜色，结果确定；alpha 为 0 的颜色一律算不设） / `Randomizable`（默认值面板的滑条右侧加随机入口，宜用于连续轨）/ `MinLabel` / `MaxLabel` / `Format` / `Visibility`（控件出不出现，见下文「只传值」：`ShownByDefault` 默认显示、`HiddenByDefault` 默认隐藏——都只是初始状态，用户在标签栏里显式显示 / 隐藏过就按用户的，按声源记；`Never` 从不出现。三档下都照常声明、照常参与合成；隐藏 = 这条轨的所有控件都不出现，标签栏和侧栏的默认值滑条都没有），经 `AutomationConfig.Create(...)` 构造、流式 `WithColor` / `WithDefault` / `WithRandomizable` / `WithMinLabel` / `WithMaxLabel` / `WithFormat` / `WithVisibility` 配置。**轨的显示名不在 config 上**——它随 map 的键走（`PropertyKey` 的 `DisplayText`），与属性面板同一套。**`DefaultValue = double.NaN` ⇒ 分段轨**（无默认基线、段间断开，如 pitch 类、bend）；实数 ⇒ 连续轨（处处有值、有基线，如 growl）。回显轨恒为分段形（`DefaultValue = NaN`）。
 - **值轴标度**：`AutomationConfig.Create(minValue, maxValue)` 是线性轴；`Create(INormalizedScale)` 重载可传自定义标度（与 `SliderConfig.Create` 对偶）——如 `NormalizedScale.Integer(min, max)` 让该轨成为整数轨，或自实现对数轴等。**离散标度 ⇒ 信号处处落格**：宿主不止在写入时吸附锚点，还在**求值与渲染**时把 Hermite 连续输出投影回标度（曲线呈阶梯、`Evaluate` 返回的最终值即落格），所以**引擎无需自行取整**、也覆盖 load/preset/回喂等一切编辑路径。连续标度下投影为恒等（仅有浮点往返的 ULP 级扰动，勿依赖值被逐位原样透传）。
   **标度定义的是值轴形状与格点，不是值域保证。**宿主**不**把求值结果钳进 `[MinValue, MaxValue]`——这个保证无法兑现：标度单调递增只是文档约定（`INormalizedScale` 是公共接口、`NormalizedScale.Custom` 收任意两个 lambda），非单调标度的端点不是极值，钳位既不保证落进引擎理解的范围、又会破坏合法值。所以越界值确实会到达 `Evaluate`——现实来源是改过量程后的旧工程、从别处带来的 preset、以及引擎自己回喂的值——请**在引擎侧按算法需要自行校验**（数组下标、查表参数、除数是最容易出事的几处）。宿主的**落笔**本身不越界（拖拽、锚点输入都钳在量程内），但值模型是**加性**的，所以正常使用也会出界：锚点存的是相对 `DefaultValue` 的偏移（用户事后改默认值滑条 ⇒ 整批锚点求值结果平移出界），vibrato 偏移也是加性叠到轨上（曲线贴近上界时让 vibrato 影响该轨 ⇒ 出界）。这两条是加性模型的刻意设计，不是缺陷。参数面板绘制裁剪到面板内，故越界锚点呈现为贴边。
 - **二值区间轨（band / 开关色带）**：要一条"开/关区间"的轨（如气声开关、段落静音），声明**分段轨 + 退化量程**即可——`AutomationConfig.Create(v, v)`（`Create` 默认 `DefaultValue=NaN` ⇒ 分段；`min==max` ⇒ 无值轴）。宿主识别此形态后渲染为**满高开关色带**（有段=开区间高亮、gap=关空白）而非折线，交互变为横拖涂开 / 右键横拖涂关（忽略纵向，无高度概念）。消费侧判定就是段的存在性：`!double.IsNaN(evaluator.Evaluate(t)[i])` 即"开"，段内数值不参与、不必读。区间边界 = 段锚点跨度、由用户精确拖出。
@@ -501,6 +501,13 @@ public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext con
 **依赖 context 的现建，其余照样缓存。** 宿主既不要求 config 共用，也不要求现建。依赖 context 的 config（如上面的按钮）在每次声明时现建——闭包很便宜；不依赖 context 的照样可以缓存共用。
 
 **外部数据变了，让宿主重新声明。** 闭包与它建出的控件实例只活一次声明（画布见 §10.3）。用户改值、选中变化时宿主会自己重新声明；你自己算出的数据变了（如解析出的声调、合成后缓存的分析结果），调用 `InvalidatePart` / `InvalidateNotes`（上一节），宿主重新调用声明函数，闭包随之换成新值。
+
+**只传值：声明一份数据，但不给任何控件。** 数据照常存储、照常传给合成，preset、撤销、脚本 / agent 照常参与，界面上看不到它。用途：参数换了新的表达方式，旧数据在新数据没设过时仍要生效（下面「字段形状演进」的第二种做法常常要它）；只由脚本或导入写入的数据。按数据存在哪分两种写法：
+
+- **属性（控件树里的任何成员，包括侧栏画布、画布 lane）**：原位换成 `ValueOnlyConfig.Create()`。值语义同画布——**没有默认值**（默认值只是给宿主控件显示用的兜底，没有控件就用不着），没设过 = 不存值（读到 Null，你补自己的默认值），恢复默认 = 删掉存值，形状你定、读取时自己校验。侧栏不占行，数组 / 列表里它所在的那一行不出现。属性本来就整个传给合成，不声明也读得到；声明它是为了让它进 preset、出现在给 agent 的参数说明里。
+- **自动化轨、时间轴画布（各有自己的存储，不在控件树里）**：`WithVisibility(ControllerVisibility.Never)`，或者用不收界面参数的空壳 `AutomationConfig.Create()` / `TimelineCanvasConfig.Create()`——量程、颜色、控件工厂都不用填。空壳的自动化轨 `WithDefault` 照常决定连续 / 分段，没有曲线的地方合成取它；没有量程 = 不量化，合成读到曲线原值（要按离散标度落格就用 `Create(scale).WithVisibility(Never)`）。在空壳上设成要显示会当场抛参数异常。
+
+只传值的数据用户在界面上清不掉（同孤儿数据：保留、不显示）；你切到新格式后不再读它，留着不影响声音。
 
 **字段形状演进：用新键。** 新版插件改了某个字段的值形状（比如从对象改成数组，或对象里换了字段），用户工程里仍是旧形状的值。宿主不解读形状，只有你知道旧值是什么意思，兼容由你负责：
 
@@ -1347,7 +1354,7 @@ public IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig> GetTimelineCanvasC
 - **怎么选**：这是某个音符 / 音素的属性 → `CanvasLaneConfig`（每个对象各占自己那一段、跟着对象走）；这是一条贯穿整个 part 的轨 →
   `TimelineCanvasConfig`。用户不必关心是哪一种，标签栏里都是画布。
 - **声明**：与 `GetAutomationConfigs` 同一个 context、同一个询问时机，同为纯函数；有序表的顺序 = 标签栏顺序（排在本声源 / 本效果器的
-  自动化轨后面）。`.WithShownByDefault(false)` 默认不在标签栏显示（同自动化轨）。id 与自动化轨不强制不重名（两族各存各的），
+  自动化轨后面）。`.WithVisibility(...)` 同自动化轨（默认显示 / 默认隐藏 / 只传值）；只传值也可以用不带工厂的 `TimelineCanvasConfig.Create()`（见 §5.2「只传值」）。id 与自动化轨不强制不重名（两族各存各的），
   但起同一个显示名会出现两个同名页签。
 - **值**：一个整值，形状你定（宿主不解读、读取时须自己校验）；**没有默认值**，没设过 = Null（读到时按你自己的默认补）。
   从声明视图的 `TimelineCanvases` 取（`IVoiceSynthesisPartView` / `IInstrumentSynthesisPartView` / `IEffectSynthesisView`），

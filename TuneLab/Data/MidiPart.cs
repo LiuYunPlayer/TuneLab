@@ -586,7 +586,7 @@ internal class MidiPart : Part, IMidiPart
     {
         sb.Append(source).Append('{');
         foreach (var kvp in configs)
-            sb.Append(kvp.Key.Id).Append('|').Append(kvp.Key.DisplayText).Append('|').Append(kvp.Value.Color).Append('|').Append(kvp.Value.ShownByDefault).Append(';');
+            sb.Append(kvp.Key.Id).Append('|').Append(kvp.Key.DisplayText).Append('|').Append(kvp.Value.Color).Append('|').Append(kvp.Value.Visibility).Append(';');
         sb.Append('}');
     }
 

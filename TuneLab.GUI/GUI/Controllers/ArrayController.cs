@@ -693,6 +693,8 @@ sealed class ElementRow : IDisposable
         mRoot.Children.Add(mSelectionStrip);
         if (onDelete != null)
             mDelete = new FloatingDelete(mRoot, mElement, ArrayControlsFactory.DeleteOffset, onDelete);
+        // 只传值的元素没有控件：整行不出现（数据照常在数组里，其余行的序号仍按数据位置）。
+        mRoot.IsVisible = config is not ValueOnlyConfig;
     }
 
     public void SetPosition(int position)
@@ -940,6 +942,7 @@ internal abstract class ElementWidget : IDisposable
         ListConfig c => new NestedListElement(dataObject, token, c, buttonRoot, buttonPath, path ?? FieldPath.Root(null), foldScope),
         ExtensibleObjectConfig c => new NestedExtensibleObjectElement(dataObject, token, c, buttonRoot, buttonPath, path ?? FieldPath.Root(null), foldScope),
         CanvasLaneConfig c => new CanvasLaneElement(dataObject, token, c, path ?? FieldPath.Root(null)),
+        ValueOnlyConfig => new ValueOnlyElement(),
         _ => new UnknownElement(config),
     };
 
@@ -1232,6 +1235,16 @@ internal abstract class ElementWidget : IDisposable
         readonly ExtensibleObjectController mController = new();
     }
 
+    // 只传值（ValueOnlyConfig）：没有控件，所在的行整个藏起来（见 ElementRow）。
+    sealed class ValueOnlyElement : ElementWidget
+    {
+        public override Control View => mView;
+        public override Type ConfigType => typeof(ValueOnlyConfig);
+        public override void Update(IControllerConfig config) { }
+
+        readonly Panel mView = new();
+    }
+
     sealed class UnknownElement : ElementWidget
     {
         public UnknownElement(IControllerConfig config)
@@ -1433,8 +1446,8 @@ internal static class ControllerConfigDefaults
                 var map = new Map<string, PropertyValue>();
                 foreach (var kvp in objectConfig.Properties)
                 {
-                    if (kvp.Value is ButtonConfig or CanvasConfig or CanvasLaneConfig)
-                        continue;   // 按钮没有值、画布没有默认值（没设过 = 不存），都不占键
+                    if (kvp.Value is ButtonConfig or CanvasConfig or CanvasLaneConfig or ValueOnlyConfig)
+                        continue;   // 按钮没有值、画布与只传值没有默认值（没设过 = 不存），都不占键
                     map.Add(kvp.Key.Id, kvp.Value.GetDefaultValue());
                 }
                 return PropertyValue.Create(new PropertyObject(map));
@@ -1445,7 +1458,7 @@ internal static class ControllerConfigDefaults
                 var map = new Map<string, PropertyValue>();
                 foreach (var kvp in addableObjectConfig.Properties)
                 {
-                    if (kvp.Value is ButtonConfig or CanvasConfig or CanvasLaneConfig)
+                    if (kvp.Value is ButtonConfig or CanvasConfig or CanvasLaneConfig or ValueOnlyConfig)
                         continue;   // 同 ObjectConfig
                     map.Add(kvp.Key.Id, kvp.Value.GetDefaultValue());
                 }

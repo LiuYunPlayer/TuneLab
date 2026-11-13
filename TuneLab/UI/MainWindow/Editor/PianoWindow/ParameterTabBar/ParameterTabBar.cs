@@ -179,17 +179,20 @@ internal class ParameterTabBar : Panel
 
         var groups = new List<(string Name, List<MenuItem> Items)>();
 
-        MenuItem HideableItem(AutomationKey key, string name)
+        // 只传值（ControllerVisibility.Never）的没有控件可显示，不列。
+        void AddHideable(List<MenuItem> items, AutomationKey key, string name)
         {
-            return CheckItem(name, () => !ParameterHiding.IsHidden(part, key), () => ParameterHiding.SetHidden(part, key, !ParameterHiding.IsHidden(part, key)),
-                hasData: HasData(part, key));
+            if (!ParameterHiding.IsHideable(part, key))
+                return;
+            items.Add(CheckItem(name, () => !ParameterHiding.IsHidden(part, key), () => ParameterHiding.SetHidden(part, key, !ParameterHiding.IsHidden(part, key)),
+                hasData: HasData(part, key)));
         }
 
         var voice = new List<MenuItem>();
         foreach (var kvp in part.SoundSource.AutomationConfigs)
-            voice.Add(HideableItem(AutomationKey.Voice(kvp.Key.Id), kvp.Key.DisplayText ?? kvp.Key.Id));
+            AddHideable(voice, AutomationKey.Voice(kvp.Key.Id), kvp.Key.DisplayText ?? kvp.Key.Id);
         foreach (var kvp in part.SoundSource.TimelineCanvasConfigs)
-            voice.Add(HideableItem(AutomationKey.VoiceCanvas(kvp.Key.Id), kvp.Key.DisplayText ?? kvp.Key.Id));
+            AddHideable(voice, AutomationKey.VoiceCanvas(kvp.Key.Id), kvp.Key.DisplayText ?? kvp.Key.Id);
         groups.Add((string.IsNullOrEmpty(part.SoundSource.Name) ? part.SoundSource.Type : part.SoundSource.Name, voice));
 
         var note = new List<MenuItem>();
@@ -197,12 +200,12 @@ internal class ParameterTabBar : Panel
         foreach (var kvp in part.NoteLaneConfigs)
         {
             if (kvp.Value.Kind == LaneKind.CanvasLane)
-                note.Add(HideableItem(AutomationKey.NoteLane(kvp.Key.Id), kvp.Key.DisplayText ?? kvp.Key.Id));
+                AddHideable(note, AutomationKey.NoteLane(kvp.Key.Id), kvp.Key.DisplayText ?? kvp.Key.Id);
         }
         foreach (var kvp in part.PhonemeLaneConfigs)
         {
             if (kvp.Value.Kind == LaneKind.CanvasLane)
-                phoneme.Add(HideableItem(AutomationKey.PhonemeLane(kvp.Key.Id), kvp.Key.DisplayText ?? kvp.Key.Id));
+                AddHideable(phoneme, AutomationKey.PhonemeLane(kvp.Key.Id), kvp.Key.DisplayText ?? kvp.Key.Id);
         }
 
         var listed = new HashSet<(ParameterPinKind, string)>();
@@ -227,9 +230,9 @@ internal class ParameterTabBar : Panel
         {
             var effect = new List<MenuItem>();
             foreach (var kvp in part.Effects[i].AutomationConfigs)
-                effect.Add(HideableItem(AutomationKey.Effect(i, kvp.Key.Id), kvp.Key.DisplayText ?? kvp.Key.Id));
+                AddHideable(effect, AutomationKey.Effect(i, kvp.Key.Id), kvp.Key.DisplayText ?? kvp.Key.Id);
             foreach (var kvp in part.Effects[i].TimelineCanvasConfigs)
-                effect.Add(HideableItem(AutomationKey.EffectCanvas(i, kvp.Key.Id), kvp.Key.DisplayText ?? kvp.Key.Id));
+                AddHideable(effect, AutomationKey.EffectCanvas(i, kvp.Key.Id), kvp.Key.DisplayText ?? kvp.Key.Id);
             groups.Add((EffectManager.GetDisplayName(part.Effects[i].Type), effect));
         }
 
