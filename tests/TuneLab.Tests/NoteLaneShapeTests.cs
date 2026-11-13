@@ -61,6 +61,7 @@ public class NoteLaneShapeTests
             {
                 map.Add("adv", SliderConfig.Linear(0, -12, 12));
                 map.Add("timeline", CanvasLaneConfig.Create(_ => new NullControl()));
+                map.Add("hiddenlane", CanvasLaneConfig.Create(_ => new NullControl()).WithShownByDefault(false));
             }
             map.Add("side", CanvasConfig.Create(200, 80, _ => new NullControl()));
             return ObjectConfig.Create(map);
@@ -343,6 +344,29 @@ public class NoteLaneShapeTests
             Assert.True(ParameterHiding.IsHidden(part, valueOnly));
             Assert.True(part.IsEffectiveAutomation(valueOnly));
             Assert.Equal(0.25, part.SoundSource.AutomationConfigs["valueonly"].DefaultValue);
+        });
+    }
+
+    // 画布 lane 声明默认隐藏：照常是 lane、一开始藏着，用户能打开。
+    [Fact]
+    public void CanvasLaneVisibility()
+    {
+        OnDataThread(() =>
+        {
+            var part = SamplePart();
+            var hidden = AutomationKey.NoteLane("hiddenlane");
+            try
+            {
+                Assert.True(part.NoteLaneConfigs.ContainsKey("hiddenlane"));
+                Assert.True(ParameterHiding.IsHideable(part, hidden));
+                Assert.True(ParameterHiding.IsHidden(part, hidden));
+                Assert.True(ParameterHiding.SetHidden(part, hidden, false));
+                Assert.False(ParameterHiding.IsHidden(part, hidden));
+            }
+            finally
+            {
+                ParameterHiding.SetHidden(part, hidden, true);
+            }
         });
     }
 }

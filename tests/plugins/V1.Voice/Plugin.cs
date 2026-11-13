@@ -175,7 +175,8 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
         })).ToList();
         properties = With(properties, ("timeline_layers", "Layers"), ArrayConfig.Create(layers));
         int takeCount = first.Map.TryGetValue("timeline_takes", out var stored) && stored.ToArray(out var takesArray) ? takesArray.Count : 2;
-        var takes = Enumerable.Range(0, takeCount).Select(i => (IControllerConfig)LaneDemoCanvas.Config(Element(first, "timeline_takes", i), "take " + (i + 1))).ToList();
+        // Takes 的各 lane 声明默认隐藏（WithShownByDefault(false)）：标签栏上一开始没有，右键列表里勾上才出现；侧栏那一行照常在。
+        var takes = Enumerable.Range(0, takeCount).Select(i => (IControllerConfig)LaneDemoCanvas.Config(Element(first, "timeline_takes", i), "take " + (i + 1)).WithShownByDefault(false)).ToList();
         properties = With(properties, ("timeline_takes", "Takes"), ListConfig.Create(takes, [new AddableElement(LaneDemoCanvas.Config(LaneDemoCanvas.Default, "take"))]));
         properties = With(properties, ("inspect", "Inspect"), ButtonConfig.Create("Show Tones", click => ShowNoteTones(click, partId, noteIds)));
         if (IsBlinkVisible(partId))

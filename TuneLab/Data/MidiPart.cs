@@ -522,7 +522,7 @@ internal class MidiPart : Part, IMidiPart
         var key = new PropertyKey(leaf.Path, LanePath.FullLabel(leaf.Label));
         if (leaf.Config is CanvasLaneConfig lane)
         {
-            lanes.Add(key, LaneEntry.Canvas(LaneKind.CanvasLane, lane.Color) with { Label = leaf.Label });
+            lanes.Add(key, LaneEntry.Canvas(LaneKind.CanvasLane, lane.Color) with { Label = leaf.Label, ShownByDefault = lane.ShownByDefault });
             return;
         }
         if (!pinned.TryGetValue(leaf.Path, out var color))
@@ -577,7 +577,7 @@ internal class MidiPart : Part, IMidiPart
             sb.Append(kvp.Key.Id).Append('|').Append(kvp.Key.DisplayText).Append('|')
               .Append(e.DefaultValue).Append('|').Append(e.MinValue).Append('|')
               .Append(e.MaxValue).Append('|').Append(e.Color).Append('|')
-              .Append(e.Kind).Append('|').Append(e.Resolved).Append(';');
+              .Append(e.Kind).Append('|').Append(e.Resolved).Append('|').Append(e.ShownByDefault).Append(';');
         }
         sb.Append('}');
     }

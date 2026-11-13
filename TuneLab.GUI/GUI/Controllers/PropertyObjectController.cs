@@ -151,7 +151,7 @@ internal class PropertyObjectController : StackPanel
             var cfg = kvp.Value;
             if (nextByKey.ContainsKey(id))
                 continue; // ObjectConfig 是 map，key 本应唯一；防御重复
-            if (cfg is ValueOnlyConfig)
+            if (ElementWidget.IsValueOnly(cfg))
                 continue; // 只传值：没有控件，不占行（之前若是别的控件，按"被删"处理）
 
             if (mCreatorsByKey.TryGetValue(id, out var existing) && existing.ConfigType == cfg.GetType())

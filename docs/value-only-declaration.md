@@ -36,7 +36,7 @@
 |---|---|---|---|
 | 自动化轨 `AutomationConfig` | 独立的声明表（`GetAutomationConfigs`） | `ControllerVisibility.Never`（§3.1） | 能 |
 | 时间轴画布 `TimelineCanvasConfig` | 独立的声明表（`GetTimelineCanvasConfigs`） | 同上 | 能 |
-| 控件树里的任何成员：滑条、下拉框……、侧栏画布 `CanvasConfig`、画布 lane `CanvasLaneConfig` | part / note / 音素 / 效果器的属性树 | 原位换成 `ValueOnlyConfig.Create()`（§3.2） | 不适用 |
+| 控件树里的任何成员：滑条、下拉框……、侧栏画布 `CanvasConfig`、画布 lane `CanvasLaneConfig` | part / note / 音素 / 效果器的属性树 | 原位换成 `ValueOnlyConfig.Create()`（§3.2） | 只有画布 lane 能（它在标签栏上）：初始状态用 `WithShownByDefault(bool)`；其余不适用 |
 
 分界线是"是不是控件树的成员"，根子在**数据存在哪**：
 
@@ -45,6 +45,8 @@
   同一个类在属性树里表示"存进属性"、在这里表示"存进通道"，一类两义。
 - 控件树里，任何位置都能换成另一种 config，"没有控件"就是一种叶子，不需要别的机制。画布 lane 虽然编辑界面在参数面板，
   在侧栏里仍占一行（字段名 + 摘要 + 编辑按钮），它是树的成员；换成 `ValueOnlyConfig` 后侧栏那一行和标签栏的条目一起消失。
+  它在标签栏上，所以要的只是"一开始显不显示"：`CanvasLaneConfig.WithShownByDefault(bool)`，一个布尔，没有 `Never` 这一档（那就是 `ValueOnlyConfig`）。
+  控件树里只有它用得到这个开关，不为它把三态枚举带进控件树。
 - 独立声明表里的条目没有"换成别的控件"这条路，所以自己带"不显示"这一档。
 
 ## 3. SDK 形状
@@ -143,5 +145,4 @@ public sealed class ValueOnlyConfig : IControllerConfig   // 不实现 IValueCon
 
 - **控件树里的成员按控件加 `WithVisibility(Never)`**：保留控件信息（下拉框候选、滑条量程）给脚本 / agent 写值时校验，界面不出现。
   触发条件：有了按 config 的值校验、且确有"无界面但要校验"的字段。
-- **画布 lane 声明"默认隐藏"**：用户今天已能在标签栏隐藏 lane，只是插件定不了初始状态。
 - **自动化轨挂插件自绘编辑器**（曲线数据 + 画布界面）：数据仍是宿主懂的曲线（拆分、合并、选区、插值、颤音照常），界面由插件画。

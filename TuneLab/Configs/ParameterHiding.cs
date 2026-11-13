@@ -10,7 +10,7 @@ namespace TuneLab.Configs;
 
 // 标签栏上常驻参数的隐藏：音源 / 各效果器的自动化轨与画布 lane 默认都在标签栏上，用户只用其中几个时可以把别的收起来。
 // 【与钉选互为两类】原本常驻的记"用户显式设过显示 / 隐藏的"，没设过的按声明：自动化轨、时间轴画布看 config 的 Visibility
-//   （插件声明的初始状态，默认显示——插件新增的参数自然出现），画布 lane 恒默认显示；原本不显示的可钉属性记"钉了哪些"
+//   （插件声明的初始状态，默认显示——插件新增的参数自然出现），画布 lane 看 CanvasLaneConfig.ShownByDefault；原本不显示的可钉属性记"钉了哪些"
 //   （ParameterPinning）。标签栏右键的勾选列表把两类合在一起，打勾 = 在标签栏上。有没有数据不参与判定。
 // 【只传值】声明为 ControllerVisibility.Never 的条目没有任何控件：恒隐藏、不能显示（IsHideable = false，不进勾选列表与动作参数），
 //   用户以前对它设过的显式状态不生效（记录留着，插件改回能显示的档位后照旧）。
@@ -97,7 +97,7 @@ internal static class ParameterHiding
         return true;
     }
 
-    // 声明的可见性：自动化轨、时间轴画布看 config 的 Visibility；画布 lane 没有这个标志，恒默认显示。
+    // 声明的可见性：自动化轨、时间轴画布看 config 的 Visibility；画布 lane 看物化时记下的 ShownByDefault（没有 Never）。
     // 不认识的枚举值按 ShownByDefault（宁可多显示，不让数据悄悄失去入口）。
     static ControllerVisibility DeclaredVisibility(IMidiPart part, AutomationKey key)
     {
@@ -113,6 +113,11 @@ internal static class ParameterHiding
             case AutomationSource.EffectCanvas:
                 if (part.TryGetTimelineCanvas(key, out var canvasConfig, out _))
                     visibility = canvasConfig.Visibility;
+                break;
+            case AutomationSource.NoteLane:
+            case AutomationSource.PhonemeLane:
+                if ((key.IsNoteLane ? part.NoteLaneConfigs : part.PhonemeLaneConfigs).TryGetValue(key.Id, out var lane) && !lane.ShownByDefault)
+                    visibility = ControllerVisibility.HiddenByDefault;
                 break;
         }
         return visibility is ControllerVisibility.HiddenByDefault or ControllerVisibility.Never ? visibility : ControllerVisibility.ShownByDefault;

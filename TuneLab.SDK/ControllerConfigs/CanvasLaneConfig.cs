@@ -6,6 +6,8 @@ namespace TuneLab.SDK;
 // 画布 lane：一个**只在参数面板里、沿着时间线排布**的插件自绘值字段。每个声明了它的对象（note 级字段 = 每个 note，
 // 音素级字段 = 每个音素）在参数面板里各占自己时间段上的一块：宽 = 这个对象的时间段，高 = 面板高度，都由宿主定。
 // 侧栏里不在那儿编辑（只有一行摘要）；参数面板的标签栏里常驻（哪个 note 的声明里有它，标签栏就有它），不用用户去钉。
+// 标签栏上一开始显不显示见 ShownByDefault：默认隐藏的、用户藏起来的，侧栏那一行仍在，点编辑按钮即把它显示出来。
+// 不要控件（只传值）时原位换成 ValueOnlyConfig。
 //
 // 与 CanvasConfig（侧栏画布）怎么选：界面属于侧栏、与时间无关（或只按对象内的相对位置画）→ CanvasConfig；
 // 必须与时间轴对齐、逐个对象编辑（如音素混合：曲线 + 符号 + 语言）→ 本类。同一个字段只能选一种。
@@ -30,6 +32,10 @@ public sealed class CanvasLaneConfig : IControllerConfig
     // null = 宿主按"默认 / 已修改 / 多值"兜底（看有没有存值）。与 CanvasConfig.Summary 同义。
     public string? Summary { get; private set; }
 
+    // 用户没设过时，这条 lane 在参数面板标签栏上是否显示（默认 true）。只是初始状态：用户在标签栏里显式显示 / 隐藏过就按用户的
+    //（按声源记）。与 ControllerVisibility 的 ShownByDefault / HiddenByDefault 同义；lane 没有 Never 这一档——不要控件就换成 ValueOnlyConfig。
+    public bool ShownByDefault { get; private set; } = true;
+
     private CanvasLaneConfig() { }
     CanvasLaneConfig Clone() => (CanvasLaneConfig)MemberwiseClone();
 
@@ -41,4 +47,5 @@ public sealed class CanvasLaneConfig : IControllerConfig
 
     public CanvasLaneConfig WithColor(string color) { var c = Clone(); c.Color = color; return c; }
     public CanvasLaneConfig WithSummary(string summary) { var c = Clone(); c.Summary = summary; return c; }
+    public CanvasLaneConfig WithShownByDefault(bool shown) { var c = Clone(); c.ShownByDefault = shown; return c; }
 }

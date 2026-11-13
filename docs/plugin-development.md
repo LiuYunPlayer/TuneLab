@@ -1315,6 +1315,9 @@ props.Add(("mix", "Mix"), CanvasLaneConfig.Create(host => new MixCanvas(host, va
   `.WithSummary(text)` (what to show for a multi-selection is up to you); without it the host shows "Default / Modified /
   Multiple". Lists keep their add / remove / reorder in the side panel, and other plain fields in the element objects still show
   and still edit across a multi-selection.
+- **Shown on the tab bar at first or not**: `.WithShownByDefault(false)` hides it by default (as `HiddenByDefault` does for automation
+  tracks). It is only the initial state — once the user has shown or hidden it on the tab bar, their choice wins; its side-panel row
+  stays, and its edit button shows it again. For no controller at all, replace it in place with `ValueOnlyConfig` (§5.2, "Value only").
 - **Coordinates**: the factory receives an `ICanvasLaneHost` — time runs horizontally and pitch vertically, so it has a
   `TimeAxis` and a `PitchAxis`. The host always provides both; ignore what you don't need.
   - **Time, two units**: `SecondToX(seconds)` / `XToSecond(x)` in global seconds (`SecondToX(0)` = project start, the same as the

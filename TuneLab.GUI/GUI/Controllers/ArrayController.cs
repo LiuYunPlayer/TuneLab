@@ -694,7 +694,7 @@ sealed class ElementRow : IDisposable
         if (onDelete != null)
             mDelete = new FloatingDelete(mRoot, mElement, ArrayControlsFactory.DeleteOffset, onDelete);
         // 只传值的元素没有控件：整行不出现（数据照常在数组里，其余行的序号仍按数据位置）。
-        mRoot.IsVisible = config is not ValueOnlyConfig;
+        mRoot.IsVisible = !ElementWidget.IsValueOnly(config);
     }
 
     public void SetPosition(int position)
@@ -929,6 +929,9 @@ internal abstract class ElementWidget : IDisposable
     // ButtonConfig 直接当元素（或可加键模板）不支持——那些位置每一格都是一个值，按钮没有值可占——落到 UnknownElement。
     // path：本元素在声明树里的位置（见 FieldPath），复合元素据此把逐字段钩子传给内层控制器。
     // foldScope：本元素的折叠作用域（见 PropertyObjectController.CollapseScope），复合元素交给内层控制器；null = 里面的字段不可折叠。
+    // 只传值（ValueOnlyConfig）：没有控件，所在的行整个藏起来。
+    public static bool IsValueOnly(IControllerConfig config) => config is ValueOnlyConfig;
+
     public static ElementWidget Create(IDataPropertyObject dataObject, string token, IControllerConfig config,
         ButtonRoot? buttonRoot = null, string buttonPath = "", FieldPath? path = null, string? foldScope = null) => config switch
     {
@@ -1235,7 +1238,7 @@ internal abstract class ElementWidget : IDisposable
         readonly ExtensibleObjectController mController = new();
     }
 
-    // 只传值（ValueOnlyConfig）：没有控件，所在的行整个藏起来（见 ElementRow）。
+    // 只传值（见 IsValueOnly）：没有控件，所在的行整个藏起来（见 ElementRow / KeyedRow）。
     sealed class ValueOnlyElement : ElementWidget
     {
         public override Control View => mView;

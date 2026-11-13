@@ -249,6 +249,8 @@ sealed class KeyedRow : IDisposable
         mRoot.Children.Add(entry);
         // 条目横贯面板全宽、控件自带左右 Gutter 边距：锚在条目上时往回退一个 Gutter，钮才落在控件右沿外侧（与 ElementRow 一致）。
         mDelete = new FloatingDelete(mRoot, mRoot, ArrayControlsFactory.DeleteOffset - ArrayControlsFactory.Gutter, onDelete);
+        // 只传值的条目没有控件：整条不出现（数据照常在容器里）。
+        mRoot.IsVisible = !ElementWidget.IsValueOnly(config);
     }
 
     public void SetFirst(bool first) => mTopLine.IsVisible = first;

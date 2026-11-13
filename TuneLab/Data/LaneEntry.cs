@@ -27,6 +27,9 @@ internal readonly record struct LaneEntry(INormalizedScale Scale, double Default
     // 字段在声明树里的路径各段的标签名（见 LanePath.Leaf）：标签栏的名字按它算（最短不重名）。null = 顶层占位条目（只有 id）。
     public IReadOnlyList<LanePath.LabelPart>? Label { get; init; }
 
+    // 画布 lane 声明的标签栏初始状态（CanvasLaneConfig.ShownByDefault）；钉选的 lane 不看它。
+    public bool ShownByDefault { get; init; } = true;
+
     // 量程由标度定义，沿用 config 家族同一换算（约定标度单调递增）。
     public double MinValue => Scale.ToValue(0);
     public double MaxValue => Scale.ToValue(1);

@@ -147,6 +147,8 @@ TuneLab.SDK.CanvasKeyEvent
 TuneLab.SDK.CanvasKeyEvent.IsRepeat.get -> bool
 TuneLab.SDK.CanvasKeyEvent.Key.get -> TuneLab.SDK.CanvasKey
 TuneLab.SDK.CanvasKeyEvent.Modifiers.get -> TuneLab.SDK.CanvasModifierKeys
+TuneLab.SDK.CanvasLaneConfig.ShownByDefault.get -> bool
+TuneLab.SDK.CanvasLaneConfig.WithShownByDefault(bool shown) -> TuneLab.SDK.CanvasLaneConfig!
 TuneLab.SDK.CanvasLineCap
 TuneLab.SDK.CanvasLineCap.Flat = 0 -> TuneLab.SDK.CanvasLineCap
 TuneLab.SDK.CanvasLineCap.Round = 1 -> TuneLab.SDK.CanvasLineCap

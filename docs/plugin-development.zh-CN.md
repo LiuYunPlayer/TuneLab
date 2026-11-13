@@ -1298,6 +1298,8 @@ props.Add(("mix", "Mix"), CanvasLaneConfig.Create(host => new MixCanvas(host, va
 - **侧栏里那一行**：每个画布 lane 的位置（含数组 / 列表的每个元素里）在侧栏占一行：字段名 + 摘要 + 编辑按钮（跳到参数面板）。
   摘要用 `.WithSummary(text)` 在声明时按当时的值算好（多选写什么你定），不给则宿主显示「默认 / 已修改 / 多值」。
   列表照常在侧栏增删、调序；元素对象里别的普通字段照常显示、可以多选批量改。
+- **标签栏上一开始显不显示**：`.WithShownByDefault(false)` = 默认隐藏（同自动化轨的 `HiddenByDefault`）。只是初始状态，用户在标签栏里
+  显式显示 / 隐藏过就按用户的；侧栏那一行仍在，点编辑按钮即把它显示出来。不要控件就原位换成 `ValueOnlyConfig`（见 §5.2「只传值」）。
 - **坐标**：工厂收到的是 `ICanvasLaneHost`——横向是时间、纵向是音高，有 `TimeAxis` 与 `PitchAxis`。
   两条轴宿主一律给，用不到的不调即可。
   - **时间，两种单位**：`SecondToX(秒)` / `XToSecond(x)` 是全局秒（`SecondToX(0)` = 工程开头，与声明视图
