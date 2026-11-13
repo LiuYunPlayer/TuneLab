@@ -164,6 +164,9 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
         properties = With(properties, ("image_demo", "Canvas Images"), ImageDemoCanvas.Config(ValuesOf(notes, "image_demo", ImageDemoCanvas.Default)));
         // 画布 lane：侧栏不显示，参数面板里每个 note 一块（见 LaneDemoCanvas）。参数面板里 context 只有这一个 note。
         properties = With(properties, ("timeline_demo", "Timeline Demo"), LaneDemoCanvas.Config(ValuesOf(notes, "timeline_demo", LaneDemoCanvas.Default)[0], "note"));
+        // 叠到钢琴窗上用的画布 lane：在音符正下方显示语言（见 NoteLanguageCanvas）。音高在声明时取（这里 context 只有这一个 note）。
+        properties = With(properties, ("language", "Language"),
+            NoteLanguageCanvas.Config(ValuesOf(notes, "language", PropertyValue.Null)[0], context.Notes.Count > 0 ? context.Notes[0].Pitch : 60));
         // 嵌套位置的画布 lane（参数面板里按路径各成一条 lane，侧栏在它的位置只有一行摘要 + 编辑按钮）：
         // · Layers = 定长数组，元素是对象 { Curve: 画布 lane, Gain: 滑条 }——画布是元素里的一个成员，Gain 照常在侧栏批量改；
         // · Takes = 列表，元素本身就是画布 lane，侧栏里增删、调序（没存过时给 2 项）。

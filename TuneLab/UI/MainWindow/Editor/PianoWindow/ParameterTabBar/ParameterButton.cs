@@ -63,6 +63,10 @@ internal class ParameterButton : Panel
         }
     }
 
+    // 单击（松开）时才激活，而不是一按下就激活：标签能拖动排序时，按下可能是开始拖动（见 PianoOverlayStrip）。
+    // 拖动开始时拖动方拿走鼠标捕获，这次按下就不算单击。
+    public bool EditOnClick { get => mButtonBack.EditOnClick; set => mButtonBack.EditOnClick = value; }
+
     public enum ButtonState
     {
         Off,
@@ -164,6 +168,7 @@ internal class ParameterButton : Panel
         public event Action? EditAsked;
         public event Action? VisibleAsked;
         public event Action<bool>? HoverStateChanged;
+        public bool EditOnClick { get; set; }
         public Color Color
         {
             get => mColor;
@@ -181,7 +186,10 @@ internal class ParameterButton : Panel
             switch (p.Properties.PointerUpdateKind.ToMouseButtonType())
             {
                 case MouseButtonType.PrimaryButton:
-                    EditAsked?.Invoke();
+                    if (EditOnClick)
+                        mEditPending = true;
+                    else
+                        EditAsked?.Invoke();
                     break;
                 case MouseButtonType.SecondaryButton:
                     VisibleAsked?.Invoke();
@@ -190,6 +198,23 @@ internal class ParameterButton : Panel
                     break;
             }
         }
+
+        protected override void OnPointerReleased(PointerReleasedEventArgs e)
+        {
+            if (!mEditPending)
+                return;
+            mEditPending = false;
+            var p = e.GetPosition(this);
+            if (p.X >= 0 && p.Y >= 0 && p.X < Bounds.Width && p.Y < Bounds.Height)
+                EditAsked?.Invoke();
+        }
+
+        protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+        {
+            mEditPending = false;   // 别人拿走了捕获（开始拖动了）：这次按下不算单击
+        }
+
+        bool mEditPending;
 
         protected override void OnPointerEntered(PointerEventArgs e)
         {

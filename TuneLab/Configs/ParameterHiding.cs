@@ -64,7 +64,7 @@ internal static class ParameterHiding
     // 能不能隐藏 / 显示：自动化轨、时间轴画布与画布 lane 能；只传值（Never）的不能——它没有控件可显示；
     // 钉选的 lane 不归这里（不想要就解钉）。
     public static bool IsHideable(IMidiPart part, AutomationKey key)
-        => HiddenKey(part, key) != null && DeclaredVisibility(part, key) != ControllerVisibility.Never;
+        => PreferenceKey(part, key) != null && DeclaredVisibility(part, key) != ControllerVisibility.Never;
 
     // 只传值：声明为 ControllerVisibility.Never（没有任何控件，数据照常参与合成）。
     public static bool IsValueOnly(IMidiPart part, AutomationKey key)
@@ -73,7 +73,7 @@ internal static class ParameterHiding
     // 只传值的恒隐藏；其余用户显式设过的按用户的，否则按声明的初始状态。
     public static bool IsHidden(IMidiPart part, AutomationKey key)
     {
-        if (HiddenKey(part, key) is not { } hiddenKey)
+        if (PreferenceKey(part, key) is not { } hiddenKey)
             return false;
         var declared = DeclaredVisibility(part, key);
         if (declared == ControllerVisibility.Never)
@@ -86,7 +86,7 @@ internal static class ParameterHiding
     // 真改了就记成用户显式的状态。返回是否真的动了。
     public static bool SetHidden(IMidiPart part, AutomationKey key, bool hidden)
     {
-        if (!IsHideable(part, key) || HiddenKey(part, key) is not { } hiddenKey)
+        if (!IsHideable(part, key) || PreferenceKey(part, key) is not { } hiddenKey)
             return false;
         if (IsHidden(part, key) == hidden)
             return false;
@@ -123,7 +123,9 @@ internal static class ParameterHiding
         return visibility is ControllerVisibility.HiddenByDefault or ControllerVisibility.Never ? visibility : ControllerVisibility.ShownByDefault;
     }
 
-    static string? HiddenKey(IMidiPart part, AutomationKey key)
+    // 这一条在界面偏好里的键（跟声源 / 效果器类型走、不跟工程走）：标签栏隐藏与叠到钢琴窗上（PianoOverlay）都按它记。
+    // 只有能常驻标签栏的条目有键（自动化轨、时间轴画布、画布 lane）；钉选的 lane 没有（它们按钉选存储记）。
+    public static string? PreferenceKey(IMidiPart part, AutomationKey key)
     {
         switch (key.Source)
         {

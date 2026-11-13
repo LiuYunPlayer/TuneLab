@@ -107,6 +107,9 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
                     }
                     pianoScrollViewPanel.Children.Add(mParameterLayer);
 
+                    // 叠到钢琴窗上的画布的悬浮标签：音符区右上角、时间轴下方（让开纵向滚动条）。
+                    pianoScrollViewPanel.Children.Add(new PianoOverlayStrip(mPartHolder) { Margin = new Thickness(0, 12, 20, 0) });
+
                     // 滚动条置顶层：纵向绑音高轴、贴右边；横向绑时间轴（无界，设 ContentExtentProvider = 内容末尾口径）。
                     // 横向条落在"波形上方"（= note 区下沿）而非窗口最底——由布局 Margin 定位（见 UpdateHorizontalBarMargin）。
                     mVerticalScrollBar = new(mPitchAxis, Orientation.Vertical);

@@ -800,7 +800,7 @@ internal partial class AutomationRenderer : View
     // · 乐器：复音，音符本来就可以重叠——不去重叠，每个音符完整的时间区间都出段，重叠的段叠在一起（和弦里每个音符都编辑得到）。
     static readonly bool[] NoteLaneSelectionPasses = [false, true];
 
-    static IEnumerable<(INote Note, double StartTick, double EndTick)> NoteLaneRanges(IMidiPart part)
+    internal static IEnumerable<(INote Note, double StartTick, double EndTick)> NoteLaneRanges(IMidiPart part)
     {
         bool polyphonic = part.SoundSource.Kind == SourceKind.Instrument;
         for (var note = part.Notes.First; note != null; note = note.Next)

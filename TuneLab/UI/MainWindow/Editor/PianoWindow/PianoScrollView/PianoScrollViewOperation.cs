@@ -736,6 +736,11 @@ internal partial class PianoScrollView
 
         if (e.MouseButtonType == MouseButtonType.MiddleButton)
             mMiddleDragOperation.Down(e.Position);
+
+        // 认领（e.Handled）：本视图是一摞层的最底层（上面可能叠着画布，见 PianoScrollViewOverlay）。按下时开始了操作就认领，
+        // 后续的移动与抬起归这里；不认领的话 Container 只把抬起给上面的层，开始了的操作收不到抬起（中键平移松手后还粘在鼠标上）。
+        if (mState != State.None || mMiddleDragOperation.IsOperating)
+            e.Handled = true;
     }
 
     protected override void OnMouseAbsoluteMove(MouseMoveEventArgs e)

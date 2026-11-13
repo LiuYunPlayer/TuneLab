@@ -86,6 +86,8 @@ internal partial class PianoScrollView : View, IPianoScrollView
 
         mDependency.PartHolder.Modified.Subscribe(Update, s);
         mDependency.PartHolder.Modified.Subscribe(ClearRegionSelection, s);   // 切 part：上一 part 的范围选区作废
+        mDependency.PartHolder.Modified.Subscribe(ClearOverlays, s);          // 切 part：叠上去的画布实例跟着上一 part 的音符走
+        PianoOverlay.Changed.Subscribe(InvalidateVisual, s);
         mDependency.PartHolder.When(p => p.Modified).Subscribe(Update, s);
         // 侧栏属性拖动（Gain→波形振幅、音素时长/权重→音素带，及任意属性）经数据层 merge notify：拖动期只发 canIgnore
         // 中间态，结果态（默认脸 p.Modified，即上一条订 Update 的那个）要松手才发，故上一条拖动中不触发。这里另订全量脸
@@ -667,6 +669,9 @@ internal partial class PianoScrollView : View, IPianoScrollView
         }
         DrawPitch(context, 0, Bounds.Width, Part.GetFinalPitch, pitchColor, mDependency.PianoTool.Value == PianoTool.Note ? 1 : 2);
     FinishDrawPitch:
+
+        // 叠到钢琴窗上的画布：在音符与音高线之上、框选框与波形之下。
+        DrawOverlays(context);
 
         // draw select
         if (mNoteSelectOperation.IsOperating)
@@ -1705,6 +1710,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
         if (mPhonemeInput.IsVisible)
             mPhonemeInput.Arrange(PhonemeInputRect());
 
+        ArrangeOverlays();
         return finalSize;
     }
 

@@ -392,7 +392,7 @@ internal partial class AutomationRenderer
 
     // 时间轴画布字段：读写 part / effect 上画布表里的一条（整值，没设过 = Null）。提交时插件报的改动范围随值交给存储
     //（局部 tick，存储换成 part 局部 tick 随撤销记录存下）。撤销根、提交、通知借画布表的。
-    sealed class TimelineCanvasField(TimelineCanvases store, string id) : IDataProperty<PropertyValue>, IRawValueProperty, IRangedValueProperty
+    internal sealed class TimelineCanvasField(TimelineCanvases store, string id) : IDataProperty<PropertyValue>, IRawValueProperty, IRangedValueProperty
     {
         public PropertyValue RawValue => store.GetValue(id);
         public PropertyValue Value => RawValue;
@@ -432,7 +432,7 @@ internal partial class AutomationRenderer
     // 保几何，同属性 lane 的写回范式），再沿路径写——没存过的数组 / 列表元素按元素默认值补齐。撤销根、提交、通知都借 note 的
     //（钉死与写值同在一个撤销步）。
     // 画布没有默认值：按原值读，没存值 = Null。
-    sealed class LanePathField(INote note, int phonemeIndex, IReadOnlyList<LanePath.Step> steps) : IDataProperty<PropertyValue>, IRawValueProperty
+    internal sealed class LanePathField(INote note, int phonemeIndex, IReadOnlyList<LanePath.Step> steps) : IDataProperty<PropertyValue>, IRawValueProperty
     {
         public PropertyValue RawValue => ReadRoot() is { } root ? LanePath.ReadRaw(root, steps) : PropertyValue.Null;
         public PropertyValue Value => RawValue;

@@ -231,6 +231,11 @@ internal partial class AutomationRenderer
             mMiddleDragOperation.Down(e.Position.X);
             e.Handled = true;
         }
+
+        // 激活的是曲线 / 数值 lane 时，开着的画布照样叠在上面收事件：工具在按下时开始了操作（画线、拖锚点……）就认领，
+        // 否则收不到抬起（Container 只把没人认领的抬起给上面的层）。
+        if (mState != State.None)
+            e.Handled = true;
     }
 
     protected override void OnMouseAbsoluteMove(MouseMoveEventArgs e)
