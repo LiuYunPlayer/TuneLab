@@ -582,96 +582,17 @@ internal partial class PianoScrollView : View, IPianoScrollView
                 }
             }
         
-        // draw note
-        // 圆角随缩放降级：ScaleLevel≥-4 满圆角(4)，缩到 ≤-8 收敛为纯直角——缩小时大量窄 note
-        // 收成齐整方块、读作干净的旋律轮廓，而非糊成一团的圆角药丸。旧常用缩放区(≥-4)观感不变。
-        double round = 4 * MathUtility.LineValue(-8, 0, -4, 1, TickAxis.ScaleLevel).Limit(0, 1);
-        IBrush noteBrush = Style.ITEM.ToBrush();
-        IBrush selectedNoteBrush = Style.HIGH_LIGHT.ToBrush();
-        IBrush lyricBrush = Colors.White.Opacity(0.7).ToBrush();
-        IBrush pronunciationBrush = Style.LIGHT_WHITE.ToBrush();
-        IBrush overlapCoverBrush = Colors.Black.Opacity(0.45).ToBrush();
-        foreach (var note in Part.Notes)
+        // 音符、音高与叠上去的画布（见 PianoOverlay）：按当前视图那一摞自下而上画，固定层画在它的位置——
+        // 音符视图 = 音符（音高线附在它正上方，音符工具下只是参考线），音高视图 = 音高线一组（含遮罩）；音高视图里音符垫在最底。
+        var view = PianoOverlayStrip.ViewOf(mDependency.PianoTool.Value);
+        if (view == OverlayView.Pitch)
+            DrawNotes(context, minVisibleTick, maxVisibleTick);
+        DrawOverlays(context, view, () =>
         {
-            if (note.GlobalEndPos() < minVisibleTick)
-                continue;
-
-            if (note.GlobalStartPos() > maxVisibleTick)
-                break;
-
-            var rect = this.NoteRect(note);
-            //context.FillRectangle(getPartColor(Part.Track,note.IsSelected).ToBrush(), rect, (float)round);
-            context.FillRectangle(note.IsSelected ? selectedNoteBrush : noteBrush, rect, (float)round);
-
-            // 去重叠暗色盖住：被「后盖前」砍掉的尾段 [有效结束, 画出末] 画暗，亮色才是真正发声段——用户即知此段被重叠覆盖。
-            // 仅 voice（单声部去重叠口径）才画；instrument 保留重叠多声部，重叠段真发声、不该提示被盖。
-            if (Part.SoundSource.Kind == SourceKind.Voice)
-            {
-                double coverLeftX = TickAxis.Tick2X(note.GlobalEffectiveEndPos());
-                if (coverLeftX < rect.Right - 0.5)
-                {
-                    double left = Math.Max(coverLeftX, rect.Left);
-                    context.DrawRectangle(overlapCoverBrush, null, new RoundedRect(new Rect(left, rect.Top, rect.Right - left, rect.Height), 0, round, round, 0));
-                }
-            }
-
-            rect = rect.Adjusted(8, -28, -8, 0);
-            if (rect.Width <= 0)
-                continue;
-
-            var clip = context.PushClip(rect);
-            if (Part.SoundSource.Kind == SourceKind.Voice)
-            {
-                // voice：显示歌词 + 最终发音（音素来源）。
-                context.DrawString(note.Lyric.Value, rect, lyricBrush, 12, Alignment.LeftCenter, Alignment.LeftCenter, new(0, 14));
-                var pronunciation = note.FinalPronunciation();
-                if (!string.IsNullOrEmpty(pronunciation))
-                {
-                    context.DrawString(pronunciation, rect, pronunciationBrush, 12, Alignment.LeftTop, Alignment.LeftCenter, new(0, 14));
-                }
-            }
-            else
-            {
-                // instrument：无歌词，显示音名（如 "A4"）。
-                context.DrawString(MusicTheory.PitchName(note.Pitch.Value), rect, lyricBrush, 12, Alignment.LeftCenter, Alignment.LeftCenter, new(0, 14));
-            }
-            clip.Dispose();
-        }
-
-        // draw pitch
-        double pitchOpacity = MathUtility.LineValue(-6.7, 0, -4.3, 1, TickAxis.ScaleLevel).Limit(0, 1);
-
-        // pitch/lock/anchor 工具下的暗遮罩“恒在”（强调可编辑音高），与缩放/pitchOpacity 无关。
-        bool pitchEditTool = mDependency.PianoTool.Value is PianoTool.Pitch or PianoTool.Lock or PianoTool.Anchor;
-
-        if (pitchOpacity == 0)
-        {
-            // 缩放太小：省略 pitch 曲线绘制，但遮罩仍要画（原先被这处跳转连遮罩一起省略了——bug）。
-            if (pitchEditTool)
-                context.FillRectangle(Colors.Black.Opacity(0.25).ToBrush(), this.Rect());
-            goto FinishDrawPitch;
-        }
-
-        Color pitchColor = Colors.White.Opacity(pitchOpacity * (mDependency.PianoTool.Value == PianoTool.Note ? 0.3 : 1));
-
-        DrawSynthesizedPitch(context, pitchColor);
-
-        if (pitchEditTool)
-            context.FillRectangle(Colors.Black.Opacity(0.25).ToBrush(), this.Rect());
-
-        DrawVibratos(context);
-
-        if (mDependency.PianoTool.Value is PianoTool.Note or PianoTool.Pitch or PianoTool.Lock or PianoTool.Vibrato)
-        {
-            // 颤音覆盖区、未绘制 pitch 处：在音符基线上叠加偏差画虚线波——颤音落笔即现波、不依赖合成完成；
-            // 切到 note 工具也能在"画了颤音的位置"看到预期音高。
-            DrawPitch(context, 0, Bounds.Width, Part.GetVibratoFallbackPitch, pitchColor.Opacity(0.7), 1, VibratoPreviewDashStyle);
-        }
-        DrawPitch(context, 0, Bounds.Width, Part.GetFinalPitch, pitchColor, mDependency.PianoTool.Value == PianoTool.Note ? 1 : 2);
-    FinishDrawPitch:
-
-        // 叠到钢琴窗上的画布：在音符与音高线之上、框选框与波形之下。
-        DrawOverlays(context);
+            if (view == OverlayView.Note)
+                DrawNotes(context, minVisibleTick, maxVisibleTick);
+            DrawPitchGroup(context);
+        });
 
         // draw select
         if (mNoteSelectOperation.IsOperating)
@@ -755,6 +676,105 @@ internal partial class PianoScrollView : View, IPianoScrollView
             SynthesisStatusStrip.Draw(context, synthesisStatus, tempoManager, TickAxis, SynthesisStripTop, SynthesisStripHeight, SynthesisStripRadius, shimmerPhase);
             DrawSynthesisStatusOverlay(context, synthesisStatus, tempoManager);
         }
+    }
+
+    // 音符（含歌词 / 音名、去重叠暗色）：叠放顺序里的「音符」那一层。
+    void DrawNotes(DrawingContext context, double minVisibleTick, double maxVisibleTick)
+    {
+        if (Part == null)
+            return;
+
+        // 圆角随缩放降级：ScaleLevel≥-4 满圆角(4)，缩到 ≤-8 收敛为纯直角——缩小时大量窄 note
+        // 收成齐整方块、读作干净的旋律轮廓，而非糊成一团的圆角药丸。旧常用缩放区(≥-4)观感不变。
+        double round = 4 * MathUtility.LineValue(-8, 0, -4, 1, TickAxis.ScaleLevel).Limit(0, 1);
+        IBrush noteBrush = Style.ITEM.ToBrush();
+        IBrush selectedNoteBrush = Style.HIGH_LIGHT.ToBrush();
+        IBrush lyricBrush = Colors.White.Opacity(0.7).ToBrush();
+        IBrush pronunciationBrush = Style.LIGHT_WHITE.ToBrush();
+        IBrush overlapCoverBrush = Colors.Black.Opacity(0.45).ToBrush();
+        foreach (var note in Part.Notes)
+        {
+            if (note.GlobalEndPos() < minVisibleTick)
+                continue;
+
+            if (note.GlobalStartPos() > maxVisibleTick)
+                break;
+
+            var rect = this.NoteRect(note);
+            //context.FillRectangle(getPartColor(Part.Track,note.IsSelected).ToBrush(), rect, (float)round);
+            context.FillRectangle(note.IsSelected ? selectedNoteBrush : noteBrush, rect, (float)round);
+
+            // 去重叠暗色盖住：被「后盖前」砍掉的尾段 [有效结束, 画出末] 画暗，亮色才是真正发声段——用户即知此段被重叠覆盖。
+            // 仅 voice（单声部去重叠口径）才画；instrument 保留重叠多声部，重叠段真发声、不该提示被盖。
+            if (Part.SoundSource.Kind == SourceKind.Voice)
+            {
+                double coverLeftX = TickAxis.Tick2X(note.GlobalEffectiveEndPos());
+                if (coverLeftX < rect.Right - 0.5)
+                {
+                    double left = Math.Max(coverLeftX, rect.Left);
+                    context.DrawRectangle(overlapCoverBrush, null, new RoundedRect(new Rect(left, rect.Top, rect.Right - left, rect.Height), 0, round, round, 0));
+                }
+            }
+
+            rect = rect.Adjusted(8, -28, -8, 0);
+            if (rect.Width <= 0)
+                continue;
+
+            var clip = context.PushClip(rect);
+            if (Part.SoundSource.Kind == SourceKind.Voice)
+            {
+                // voice：显示歌词 + 最终发音（音素来源）。
+                context.DrawString(note.Lyric.Value, rect, lyricBrush, 12, Alignment.LeftCenter, Alignment.LeftCenter, new(0, 14));
+                var pronunciation = note.FinalPronunciation();
+                if (!string.IsNullOrEmpty(pronunciation))
+                {
+                    context.DrawString(pronunciation, rect, pronunciationBrush, 12, Alignment.LeftTop, Alignment.LeftCenter, new(0, 14));
+                }
+            }
+            else
+            {
+                // instrument：无歌词，显示音名（如 "A4"）。
+                context.DrawString(MusicTheory.PitchName(note.Pitch.Value), rect, lyricBrush, 12, Alignment.LeftCenter, Alignment.LeftCenter, new(0, 14));
+            }
+            clip.Dispose();
+        }
+    }
+
+    // 音高线一组（合成音高、遮罩、颤音、最终音高线）：叠放顺序里的「音高」那一层；音符视图里附在音符正上方。
+    void DrawPitchGroup(DrawingContext context)
+    {
+        if (Part == null)
+            return;
+
+        double pitchOpacity = MathUtility.LineValue(-6.7, 0, -4.3, 1, TickAxis.ScaleLevel).Limit(0, 1);
+
+        // pitch/lock/anchor 工具下的暗遮罩“恒在”（强调可编辑音高），与缩放/pitchOpacity 无关。
+        bool pitchEditTool = mDependency.PianoTool.Value is PianoTool.Pitch or PianoTool.Lock or PianoTool.Anchor;
+
+        if (pitchOpacity == 0)
+        {
+            // 缩放太小：省略 pitch 曲线绘制，但遮罩仍要画（原先被这处跳转连遮罩一起省略了——bug）。
+            if (pitchEditTool)
+                context.FillRectangle(Colors.Black.Opacity(0.25).ToBrush(), this.Rect());
+            return;
+        }
+
+        Color pitchColor = Colors.White.Opacity(pitchOpacity * (mDependency.PianoTool.Value == PianoTool.Note ? 0.3 : 1));
+
+        DrawSynthesizedPitch(context, pitchColor);
+
+        if (pitchEditTool)
+            context.FillRectangle(Colors.Black.Opacity(0.25).ToBrush(), this.Rect());
+
+        DrawVibratos(context);
+
+        if (mDependency.PianoTool.Value is PianoTool.Note or PianoTool.Pitch or PianoTool.Lock or PianoTool.Vibrato)
+        {
+            // 颤音覆盖区、未绘制 pitch 处：在音符基线上叠加偏差画虚线波——颤音落笔即现波、不依赖合成完成；
+            // 切到 note 工具也能在"画了颤音的位置"看到预期音高。
+            DrawPitch(context, 0, Bounds.Width, Part.GetVibratoFallbackPitch, pitchColor.Opacity(0.7), 1, VibratoPreviewDashStyle);
+        }
+        DrawPitch(context, 0, Bounds.Width, Part.GetFinalPitch, pitchColor, mDependency.PianoTool.Value == PianoTool.Note ? 1 : 2);
     }
 
     void DrawSynthesizedPitch(DrawingContext context, Color pitchColor)

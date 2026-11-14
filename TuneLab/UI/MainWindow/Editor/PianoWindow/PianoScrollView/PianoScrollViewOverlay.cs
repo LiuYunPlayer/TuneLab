@@ -15,14 +15,15 @@ using Rect = Avalonia.Rect;
 
 namespace TuneLab.UI;
 
-// 叠到钢琴窗上的画布（PianoOverlay，存储见 TuneLab.Configs.PianoOverlay）：铺在音符区上，和当前工具一起操作（不分工具）。
+// 叠到钢琴窗上的画布（PianoOverlay，存储见 TuneLab.Configs.PianoOverlay）：铺在音符区上，和当前工具一起操作。
 // 时间轴 lane 画布一块铺满音符区；时间轴画布每个音符（音素级的每个音素）一块，横向 = 它的时间段（同参数区的口径，NoteLaneRanges），
 // 纵向铺满音符区。纵轴 = 钢琴窗的音高轴（n 号键占 [n, n + 1)，同参数区）。
 //
-// 一摞层（见 docs/canvas-stacking.md）：叠上去的画布按用户排的顺序自下而上，激活的临时在最上，最底下是当前工具（本视图自己的鼠标处理）。
-// 事件由 Container 按叠放顺序逐层问，画布不接的落到工具上。宿主不画分界——音符本身看得见。
+// 一摞层（见 docs/canvas-stacking.md）：当前视图（音符工具 = 音符视图，其余工具 = 音高视图）那一摞按用户排的顺序自下而上画，
+// 激活的临时在最上。固定层（音符视图 = 音符，音高视图 = 音高线一组）画在它的位置，它就是当前工具所在的层：
+// 它之上的画布先被问（Container 按叠放顺序逐层问），不接的落到工具上；它之下的画布只显示、不收事件，作背景（IsBackground）。
 //
-// 画由本视图在自己的绘制里做（RenderInto，画在音符与音高线之上、框选框与波形之下）：插件画布自己画时带一块输入框底色，
+// 画由本视图在自己的绘制里做（RenderInto，画在框选框与波形之下）：插件画布自己画时带一块输入框底色，
 // 叠在音符上要透明。实例、推迟一拍建、按这一帧画到的定显隐与命中顺序，都同参数区（AutomationRendererCanvases）。
 internal partial class PianoScrollView
 {
@@ -72,33 +73,55 @@ internal partial class PianoScrollView
     // 音符区的下沿：波形带显示着就到波形带上沿，否则到参数区上沿。画布只铺音符区。
     double OverlayBottom => Math.Max(0, mDependency.IsWaveformVisible ? WaveformTop : WaveformBottom);
 
-    // 画叠着的画布（自下而上，激活的最后画）。没开小眼睛的不画、不收事件。
-    void DrawOverlays(DrawingContext context)
+    // 按当前视图那一摞自下而上画（激活的最后画）；碰到固定层就调 drawAnchor 画它（音符 / 音高线一组）。
+    // 没开小眼睛的不画、不收事件；固定层之下画的只显示、不收事件。
+    void DrawOverlays(DrawingContext context, OverlayView view, Action drawAnchor)
     {
         mOverlayInRender = true;
         mOverlaysShown.Clear();
+        mOverlaysDisplayOnly.Clear();
         mOverlayOrder = 0;
+        bool anchorDrawn = false;
         try
         {
-            if (Part is not { } part || OverlayBottom < 1)
-                return;
-            foreach (var layer in PianoOverlay.DrawOrder(part))
+            var part = Part;
+            bool canDraw = part != null && OverlayBottom >= 1;
+            foreach (var layer in part == null ? [] : PianoOverlay.DrawOrder(part, view))
             {
-                if (!layer.Shown)
+                if (layer.IsAnchor)
+                {
+                    drawAnchor();
+                    anchorDrawn = true;
                     continue;
+                }
+                if (!canDraw || !layer.Shown)
+                    continue;
+                mOverlayPassDisplayOnly = !anchorDrawn;
                 if (layer.Key.IsTimelineLaneCanvas)
-                    DrawOverlayTimeline(context, part, layer.Key);
+                    DrawOverlayTimeline(context, part!, layer.Key);
                 else
-                    DrawOverlayLane(context, part, layer.Key);
+                    DrawOverlayLane(context, part!, layer.Key);
             }
+            if (!anchorDrawn)
+                drawAnchor();
         }
         finally
         {
             mOverlayInRender = false;
             mOverlaysShownLastFrame.Clear();
             mOverlaysShownLastFrame.UnionWith(mOverlaysShown);
+            mOverlaysDisplayOnlyLastFrame.Clear();
+            mOverlaysDisplayOnlyLastFrame.UnionWith(mOverlaysDisplayOnly);
             ScheduleOverlaySync();
         }
+    }
+
+    // 这一帧画到的一块：记下显示；画在固定层之下的另记为只显示。
+    void MarkOverlayShown(OverlaySlot slot)
+    {
+        mOverlaysShown.Add(slot);
+        if (mOverlayPassDisplayOnly)
+            mOverlaysDisplayOnly.Add(slot);
     }
 
     // 一条时间轴画布：视口内声明了这个字段的对象各一块。叠放同参数区：先按音符顺序放没选中的，再放选中的，后放的在上。
@@ -160,7 +183,7 @@ internal partial class PianoScrollView
         if (right - left < 1)
             return;
 
-        mOverlaysShown.Add(slot);
+        MarkOverlayShown(slot);
         if (!mOverlays.TryGetValue(slot, out var canvas))
         {
             mOverlaysToCreate.Add(slot);
@@ -187,7 +210,7 @@ internal partial class PianoScrollView
             return;
 
         var slot = new OverlaySlot(key, null, -1);
-        mOverlaysShown.Add(slot);
+        MarkOverlayShown(slot);
         if (!mOverlays.TryGetValue(slot, out var canvas))
         {
             mOverlaysToCreate.Add(slot);
@@ -211,6 +234,7 @@ internal partial class PianoScrollView
     void RenderOverlay(DrawingContext context, OverlayCanvas canvas, Rect rect)
     {
         var visible = rect.Intersect(new Rect(0, 0, Bounds.Width, OverlayBottom));
+        canvas.View.IsBackground = mOverlayPassDisplayOnly;   // 垫在固定层之下的作背景（插件借它决定画哪些）
         canvas.View.SetHostedGeometry(rect.Size, visible.Width > 0 && visible.Height > 0 ? visible.Translate(new(-rect.X, -rect.Y)) : default);
         using (context.PushClip(visible))
         using (context.PushTransform(Avalonia.Matrix.CreateTranslation(rect.X, rect.Y)))
@@ -262,7 +286,7 @@ internal partial class PianoScrollView
             bool shown = mOverlaysShownLastFrame.Contains(slot);
             canvas.Shown = shown;
             canvas.View.IsVisible = shown;
-            canvas.View.IsHitTestVisible = shown;
+            canvas.View.IsHitTestVisible = shown && !mOverlaysDisplayOnlyLastFrame.Contains(slot);
             // 叠在歌词 / 音素输入框（ZIndex 0）之下：输入框弹出时总在最上。
             int zIndex = canvas.Order - OverlayZIndexBase;
             if (canvas.View.ZIndex != zIndex)
@@ -298,6 +322,8 @@ internal partial class PianoScrollView
         mOverlaysToCreate.Clear();
         mOverlaysShown.Clear();
         mOverlaysShownLastFrame.Clear();
+        mOverlaysDisplayOnly.Clear();
+        mOverlaysDisplayOnlyLastFrame.Clear();
     }
 
     void OnOverlayRenderRequested()
@@ -316,6 +342,9 @@ internal partial class PianoScrollView
     readonly HashSet<OverlaySlot> mOverlaysToCreate = new();
     readonly HashSet<OverlaySlot> mOverlaysShown = new();
     readonly HashSet<OverlaySlot> mOverlaysShownLastFrame = new();
+    readonly HashSet<OverlaySlot> mOverlaysDisplayOnly = new();
+    readonly HashSet<OverlaySlot> mOverlaysDisplayOnlyLastFrame = new();
+    bool mOverlayPassDisplayOnly;
     int mOverlayOrder;
     bool mOverlaySyncPosted;
     bool mOverlayInRender;

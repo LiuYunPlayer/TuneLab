@@ -108,7 +108,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
                     pianoScrollViewPanel.Children.Add(mParameterLayer);
 
                     // 叠到钢琴窗上的画布的悬浮标签：音符区右上角、时间轴下方（让开纵向滚动条）。
-                    pianoScrollViewPanel.Children.Add(new PianoOverlayStrip(mPartHolder) { Margin = new Thickness(0, 12, 20, 0) });
+                    pianoScrollViewPanel.Children.Add(new PianoOverlayStrip(mPartHolder, PianoTool) { Margin = new Thickness(0, 12, 20, 0) });
 
                     // 滚动条置顶层：纵向绑音高轴、贴右边；横向绑时间轴（无界，设 ContentExtentProvider = 内容末尾口径）。
                     // 横向条落在"波形上方"（= note 区下沿）而非窗口最底——由布局 Margin 定位（见 UpdateHorizontalBarMargin）。
@@ -397,8 +397,9 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
 
     const string OverlayParameterDescription =
         "Which canvas, written \"source-canvas:<id>\" / \"effect<n>-canvas:<id>\" for a timeline lane canvas of the sound source / of the n-th effect in the chain (0-based), "
-        + "or \"note:<path>\" / \"phoneme:<path>\" for a timeline canvas. Placed canvases lie over the note area of the piano roll, on top of the notes, and are operated together with whichever tool is selected; "
-        + "a newly placed one goes on top. Each value says whether it is on the piano roll right now. Side-panel canvases and value-only parameters can't be placed and are not in this list. The label works too.";
+        + "or \"note:<path>\" / \"phoneme:<path>\" for a timeline canvas. Placed canvases lie over the note area of the piano roll and are operated together with the selected tool. "
+        + "The note tool and the other tools (pitch pen, anchor, lock brush, vibrato) each keep their own set: this acts on the set of the tool selected right now. "
+        + "With the note tool a newly placed canvas goes on top of the notes; with the other tools it goes just under the pitch line. Each value says whether it is on the piano roll right now. Side-panel canvases and value-only parameters can't be placed and are not in this list. The label works too.";
 
     string? OverlayUnavailable()
     {
@@ -416,14 +417,14 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
             return values;
         foreach (var candidate in PianoOverlay.Candidates(part))
             values.Add(new ActionArgument(ParameterToken(candidate.Key), candidate.Name + " (" + candidate.Group + ")",
-                PianoOverlay.IsOverlaid(part, candidate.Key) ? "on the piano roll" : "not on the piano roll"));
+                PianoOverlay.IsOverlaid(part, PianoOverlayStrip.ViewOf(PianoTool.Value), candidate.Key) ? "on the piano roll" : "not on the piano roll"));
         return values;
     }
 
     void SetOverlaid(string token, bool overlaid)
     {
         if (Part is { } part)
-            PianoOverlay.SetOverlaid(part, ParseParameterToken(token), overlaid);
+            PianoOverlay.SetOverlaid(part, PianoOverlayStrip.ViewOf(PianoTool.Value), ParseParameterToken(token), overlaid);
     }
 
     // 时间轴 lane 画布与时间轴画布的 token（拼法同 HideableValues，解析见 ParseParameterToken）。

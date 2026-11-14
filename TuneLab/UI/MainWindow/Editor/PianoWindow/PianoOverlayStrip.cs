@@ -20,19 +20,24 @@ using Size = Avalonia.Size;
 
 namespace TuneLab.UI;
 
-// 叠到钢琴窗上的画布的悬浮标签（PianoOverlay）：悬在音符区右上角、时间轴下方，列出叠着的画布（不分工具）。
-// 只要这个 part 有能叠的画布就在。标签与参数区标签栏同一个按钮——
+// 叠到钢琴窗上的画布的悬浮标签（PianoOverlay）：悬在音符区右上角、时间轴下方，列出当前视图（音符工具 = 音符视图，
+// 其余工具 = 音高视图）叠着的画布和那个视图的固定层（「音符」/「音高」）。切工具跨视图时整排换成另一个视图的。
+// 只要这个 part 有能叠的画布就在。固定层只能拖动（决定哪些画布在它之上、哪些垫在下面），单击 / 右键不做事。
+// 画布标签与参数区标签栏同一个按钮——
 // · 单击 = 激活：临时画在最上、总是显示；再点一下撤掉激活。不改顺序，也不碰小眼睛。
-// · 右键 = 小眼睛：不激活时显不显示（关了不画、不收事件，但还叠着）。
+// · 右键 = 小眼睛：不激活时显不显示（关了不画、不收事件，但还叠着）；激活着时右键 = 撤掉激活、开着小眼睛留在原位。
 // · 拖动 = 排序：标签顺序就是叠放顺序，越靠左越在上（新叠上去的出现在最左）。手感同数组控件拖序号条、轨道头拖拽：被拖的跟手，
 //   其余按新排布以指数缓动让位；全程只动 RenderTransform，松手才写顺序。按下不立即激活（EditOnClick），松开时没拖才算单击。
 // 最右的「+」弹勾选列表（PianoOverlayMenu）加上 / 取下；最左的「>」把标签向右收起、只剩「<」，再点展开，收起展开带动画。
 // 描一圈边，和底下的钢琴窗分开。
 internal class PianoOverlayStrip : Border
 {
-    public PianoOverlayStrip(IHolder<IMidiPart> partHolder)
+    public PianoOverlayStrip(IHolder<IMidiPart> partHolder, INotifiableProperty<PianoTool> pianoTool)
     {
         mPartHolder = partHolder;
+        mPianoTool = pianoTool;
+        mAnchorTab = new AnchorTab() { Margin = new(2, 0) };
+        AttachDrag(mAnchorTab);
         mDragAnimation = new TabDragAnimation(this);
 
         Background = Style.INTERFACE.Opacity(0.85).ToBrush();
@@ -59,7 +64,7 @@ internal class PianoOverlayStrip : Border
             .AddContent(new() { Item = new IconItem() { Icon = Assets.Plus }, ColorSet = new() { Color = Colors.White } });
         mAddButton.SetupToolTip("Place on the Piano Roll".Tr(TC.Menu));
         // 列表开着时再点「+」= 收起列表（见 MenuButtonToggle）。
-        MenuButtonToggle.Attach(mAddButton, () => mPartHolder.Value is { } part ? PianoOverlayMenu.Open(mAddButton, part) : null);
+        MenuButtonToggle.Attach(mAddButton, () => mPartHolder.Value is { } part ? PianoOverlayMenu.Open(mAddButton, part, View) : null);
 
         var content = new StackPanel() { Orientation = Orientation.Horizontal, Margin = new(4, 0, 0, 0) };
         content.Children.Add(mTabs);
@@ -79,6 +84,7 @@ internal class PianoOverlayStrip : Border
         mPartHolder.When(p => p.SoundSource.Modified).Subscribe(Rebuild, s);
         mPartHolder.When(p => p.Effects.MembershipModified).Subscribe(Rebuild, s);
         mPartHolder.When(p => p.AutomationConfigsModified).Subscribe(Rebuild, s);
+        mPianoTool.Modified.Subscribe(() => { if (mBuiltView != View) Rebuild(); }, s);
         Rebuild();
     }
 
@@ -86,6 +92,11 @@ internal class PianoOverlayStrip : Border
     {
         s.DisposeAll();
     }
+
+    // 当前视图：音符工具 = 音符视图，其余工具 = 音高视图。
+    OverlayView View => ViewOf(mPianoTool.Value);
+
+    public static OverlayView ViewOf(PianoTool tool) => tool == PianoTool.Note ? OverlayView.Note : OverlayView.Pitch;
 
     void OnOverlayChanged()
     {
@@ -115,8 +126,10 @@ internal class PianoOverlayStrip : Border
     {
         CancelDrag();
         var part = mPartHolder.Value;
-        var layers = part == null ? [] : PianoOverlay.Layers(part);
-        IsVisible = part != null && (layers.Count > 0 || PianoOverlay.Candidates(part).Count > 0);
+        var view = View;
+        mBuiltView = view;
+        var layers = part == null ? [] : PianoOverlay.Layers(part, view);
+        IsVisible = part != null && (layers.Any(layer => !layer.IsAnchor) || PianoOverlay.Candidates(part).Count > 0);
         mOrder.Clear();
         if (part == null || !IsVisible)
         {
@@ -124,12 +137,19 @@ internal class PianoOverlayStrip : Border
             return;
         }
 
-        mAddButton.Margin = new(layers.Count > 0 ? 4 : 0, 0, 0, 0);
-        var buttons = new List<ParameterButton>(layers.Count);
+        mAddButton.Margin = new(4, 0, 0, 0);
+        var buttons = new List<Control>(layers.Count);
         // 自上而下排：最上面的在最左（存储是自下而上，倒过来）。
         layers.Reverse();
         foreach (var layer in layers)
         {
+            if (layer.IsAnchor)
+            {
+                mAnchorTab.SetView(view);
+                buttons.Add(mAnchorTab);
+                mOrder.Add(null);
+                continue;
+            }
             if (!mButtons.TryGetValue(layer.Key, out var button))
             {
                 button = CreateButton(layer);
@@ -170,14 +190,27 @@ internal class PianoOverlayStrip : Border
             if (mPartHolder.Value is not { } part)
                 return;
             if (state == ParameterButton.ButtonState.Edit)
-                PianoOverlay.SetActive(part, key, true);
+                PianoOverlay.SetActive(part, View, key, true);
             else if (button.State == ParameterButton.ButtonState.Edit)
-                PianoOverlay.SetActive(part, key, false);
+                PianoOverlay.SetActive(part, View, key, false);
             else
-                PianoOverlay.SetShown(part, key, state == ParameterButton.ButtonState.Visible);
+                PianoOverlay.SetShown(part, View, key, state == ParameterButton.ButtonState.Visible);
         };
+        // 激活着时右键：撤掉激活，开着小眼睛留在原位。
+        button.ShowInBackgroundAsked += () =>
+        {
+            if (mPartHolder.Value is not { } part)
+                return;
+            PianoOverlay.SetShown(part, View, key, true);
+            PianoOverlay.SetActive(part, View, key, false);
+        };
+        AttachDrag(button);
+        return button;
+    }
 
-        // 拖动排序：按下记位置，移过阈值开始拖（拿走捕获，按钮里那次按下随之不算单击），松手写顺序；捕获丢了就回弹、不写。
+    // 拖动排序：按下记位置，移过阈值开始拖（拿走捕获，按钮里那次按下随之不算单击），松手写顺序；捕获丢了就回弹、不写。
+    void AttachDrag(Control button)
+    {
         button.AddHandler(PointerPressedEvent, (_, e) =>
         {
             if (e.GetCurrentPoint(button).Properties.IsLeftButtonPressed)
@@ -221,12 +254,11 @@ internal class PianoOverlayStrip : Border
             if (ReferenceEquals(e.Source, button) && mDrag != null)
                 CancelDrag();
         };
-        return button;
     }
 
-    bool BeginDrag(ParameterButton button)
+    bool BeginDrag(Control button)
     {
-        var tabs = mTabs.Children.OfType<ParameterButton>().ToList();
+        var tabs = mTabs.Children.ToList();
         int index = tabs.IndexOf(button);
         if (index < 0 || tabs.Count < 2)
             return false;
@@ -242,7 +274,7 @@ internal class PianoOverlayStrip : Border
         var order = drag.FinalOrder().Select(i => mOrder[i]).Reverse().ToList();   // 标签自上而下 → 存储自下而上
         drag.Reset();
         if (drag.Delta != 0 && mPartHolder.Value is { } part)
-            PianoOverlay.Reorder(part, order);   // 改了就发 Changed → Rebuild 按新顺序排布
+            PianoOverlay.Reorder(part, mBuiltView, order);   // 改了就发 Changed → Rebuild 按新顺序排布
     }
 
     void CancelDrag()
@@ -260,7 +292,7 @@ internal class PianoOverlayStrip : Border
     {
         public int Delta { get; private set; }
 
-        public TabDrag(IReadOnlyList<ParameterButton> tabs, int dragged)
+        public TabDrag(IReadOnlyList<Control> tabs, int dragged)
         {
             mTabs = tabs;
             mDragged = dragged;
@@ -347,7 +379,7 @@ internal class PianoOverlayStrip : Border
 
         const double SmoothTau = 45;   // 让位缓动时间常数（ms），同数组控件、轨道头
         const double FrameMs = 16;
-        readonly IReadOnlyList<ParameterButton> mTabs;
+        readonly IReadOnlyList<Control> mTabs;
         readonly int mDragged;
         readonly double[] mLefts;
         readonly double[] mWidths;
@@ -401,13 +433,36 @@ internal class PianoOverlayStrip : Border
     const double CollapseMillisec = 200;
 
 
+    // 固定层的标签（「音符」/「音高」）：当前工具所在的层，只能拖动。不是画布，没有激活、没有小眼睛。
+    sealed class AnchorTab : Border
+    {
+        public AnchorTab()
+        {
+            Height = 24;
+            CornerRadius = new CornerRadius(4);
+            Background = Style.INTERFACE.ToBrush();   // 不透明底，同标签条的底色；靠描边和画布标签区分开
+            BorderBrush = Style.LIGHT_WHITE.Opacity(0.3).ToBrush();   // 同标签条外框
+            BorderThickness = new Thickness(1);
+            Padding = new Thickness(10, 0);
+            Child = mLabel;
+        }
+
+        public void SetView(OverlayView view)
+        {
+            mLabel.Text = PianoOverlay.AnchorName(view);
+        }
+
+        readonly TextBlock mLabel = new() { Foreground = Brushes.White, FontSize = 12, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+    }
+
     TabDrag? mDrag;
-    ParameterButton? mPressed;
+    Control? mPressed;
+    OverlayView mBuiltView;
     double mDownX;
     bool mCollapsed;
     readonly TabDragAnimation mDragAnimation;
     readonly AnimationController mCollapseAnimation = new();
-    readonly List<AutomationKey> mOrder = [];
+    readonly List<AutomationKey?> mOrder = [];   // null = 固定层
     readonly Dictionary<AutomationKey, ParameterButton> mButtons = new();
     readonly StackPanel mTabs = new() { Orientation = Orientation.Horizontal };
     readonly CollapsePanel mBody;
@@ -415,14 +470,16 @@ internal class PianoOverlayStrip : Border
     readonly TuneLab.GUI.Components.Button mCollapseButton;
     readonly TuneLab.GUI.Components.Button mAddButton;
     readonly IHolder<IMidiPart> mPartHolder;
+    readonly INotifiableProperty<PianoTool> mPianoTool;
+    readonly AnchorTab mAnchorTab;
     readonly DisposableManager s = new();
 }
 
-// 悬浮标签的「+」：叠哪些画布的勾选列表（打勾 = 叠在钢琴窗上，点一下切换、菜单不关）。
+// 悬浮标签的「+」：当前视图叠哪些画布的勾选列表（打勾 = 叠在钢琴窗上，点一下切换、菜单不关）。
 // 列表 = 这个 part 此刻能叠的全部画布（时间轴 lane 画布、时间轴画布），按参数属于谁分组，同参数区标签栏的勾选列表。
 internal static class PianoOverlayMenu
 {
-    public static ContextMenu Open(Control anchor, IMidiPart part)
+    public static ContextMenu Open(Control anchor, IMidiPart part, OverlayView view)
     {
         var menu = new ContextMenu();
         string? group = null;
@@ -435,13 +492,13 @@ internal static class PianoOverlayMenu
             }
             var key = candidate.Key;
             MenuItem? item = null;
-            item = new MenuItem() { ToggleType = MenuItemToggleType.CheckBox, IsChecked = PianoOverlay.IsOverlaid(part, key), StaysOpenOnClick = true }
+            item = new MenuItem() { ToggleType = MenuItemToggleType.CheckBox, IsChecked = PianoOverlay.IsOverlaid(part, view, key), StaysOpenOnClick = true }
                 .SetName(candidate.Name)
                 .SetAction(() =>
                 {
-                    PianoOverlay.SetOverlaid(part, key, !PianoOverlay.IsOverlaid(part, key));
+                    PianoOverlay.SetOverlaid(part, view, key, !PianoOverlay.IsOverlaid(part, view, key));
                     // 菜单项点击时自己也翻转勾选态，先后不定：推迟到这次点击处理完再按存储回填（同标签栏的勾选列表）。
-                    Avalonia.Threading.Dispatcher.UIThread.Post(() => item!.IsChecked = PianoOverlay.IsOverlaid(part, key));
+                    Avalonia.Threading.Dispatcher.UIThread.Post(() => item!.IsChecked = PianoOverlay.IsOverlaid(part, view, key));
                 });
             menu.Items.Add(item);
         }

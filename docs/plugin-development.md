@@ -1390,8 +1390,10 @@ props.Add(("mix", "Mix"), TimelineCanvasConfig.Create(host => new MixCanvas(host
   - Each block spans the object's time span as in the parameter panel and the full height of the note area; the vertical axis is the piano roll's
     pitch axis, so `PitchToY(note's Pitch)` is exactly the bottom edge of that note's row. Take the note's `Pitch` at declaration time
     (`IVoiceSynthesisNoteView.Pitch`) and you can draw right next to the note.
-  - The host draws no boundaries (the notes are visible) and `IsBackground` is false. Several placed canvases stack in the order the user arranged
-    on the floating tabs, with the same rules as the parameter panel.
+  - The host draws no boundaries (the notes are visible). Several placed canvases stack in the order the user arranged on the floating tabs,
+    with the same rules as the parameter panel. The note tool and the pitch tools each keep their own stack, and each stack has one host layer
+    (the notes / the pitch line): canvases above it have `IsBackground` false and are asked about presses first; canvases below it lie underneath,
+    have `IsBackground` true and get no input (with the pitch tools they all start below the pitch line).
   - A press your canvas doesn't take falls through to the current piano-roll tool (selecting notes, box selection, drawing pitch…), so here
     it matters even more to **take presses only where you drew** — otherwise the user can't select anything over your blocks.
   - The same canvas may be in the parameter panel and on the piano roll at once: two instances sharing one value; after one commits, the other is
