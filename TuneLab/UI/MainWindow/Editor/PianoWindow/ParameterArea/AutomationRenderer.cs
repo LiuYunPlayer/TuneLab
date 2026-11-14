@@ -237,9 +237,14 @@ internal partial class AutomationRenderer : View
         }
     }
 
+    // 背景参数（开着小眼睛、不是激活的那条）的不透明度。
+    const double BackgroundOpacity = 0.5;
+
     void RenderContent(DrawingContext context)
     {
-        context.FillRectangle(Colors.Black.Opacity(0.25).ToBrush(), this.Rect());
+        // 面板底色：把面板背后的钢琴窗压暗、透出来。只此一层——背景参数的"淡"另用不透明度做（见下），
+        // 不再盖第二层黑，免得压暗背景参数时连带把透视也压黑。0.4375 = 原先两层 25% 叠起来的透视亮度。
+        context.FillRectangle(Colors.Black.Opacity(0.4375).ToBrush(), this.Rect());
         if (Part == null)
             return;
 
@@ -494,31 +499,36 @@ internal partial class AutomationRenderer : View
         }
 
         var activeAutomation = mDependency.ActiveAutomation;
-        // 开着小眼睛的（不是激活的那条）是背景，都画在压暗层下面：曲线 / 数值 lane 不接收事件；画布是一摞里的层，
-        // 照常接收事件，只是和背景曲线一样由宿主统一压暗（插件借 IsBackground 决定画哪些，不用自己定"多淡"）。
+        // 开着小眼睛的（不是激活的那条）是背景，整组按半透明画（一个不透明度层，组内重叠处不会叠深）：曲线 / 数值 lane
+        // 不接收事件；画布是一摞里的层，照常接收事件，只是和背景曲线一样由宿主统一调淡（插件借 IsBackground 决定画哪些，
+        // 不用自己定"多淡"）。用不透明度而不是盖黑：背景参数淡下去，面板背后钢琴窗的透视不受影响。
         // 画布先画曲线后画，按开启的先后叠（后开的在上）；激活的那条最后画、在最上（见 canvas-stacking.md）。
-        var backgroundCanvases = new List<AutomationKey>();
-        foreach (var automation in mDependency.VisibleAutomations)
+        // Avalonia 的 PushOpacity 默认只把透明度乘到每一笔上（不开图层），元素之间原本盖住的地方会透出来；
+        // RequiresFullOpacityHandling 让它开一个图层、整组画完再按透明度合成。
+        using (context.PushRenderOptions(new RenderOptions { RequiresFullOpacityHandling = true }))
+        using (context.PushOpacity(BackgroundOpacity))
         {
-            if (automation == activeAutomation)
-                continue;
-
-            if (!mDependency.IsAutomationVisible(automation))
-                continue;
-
-            if (Part.IsCanvasParameter(automation))
+            var backgroundCanvases = new List<AutomationKey>();
+            foreach (var automation in mDependency.VisibleAutomations)
             {
-                backgroundCanvases.Add(automation);
-                continue;
+                if (automation == activeAutomation)
+                    continue;
+
+                if (!mDependency.IsAutomationVisible(automation))
+                    continue;
+
+                if (Part.IsCanvasParameter(automation))
+                {
+                    backgroundCanvases.Add(automation);
+                    continue;
+                }
+
+                Draw(automation, false);
             }
 
-            Draw(automation, false);
+            foreach (var automation in backgroundCanvases)
+                Draw(automation, false);
         }
-
-        foreach (var automation in backgroundCanvases)
-            Draw(automation, false);
-
-        context.FillRectangle(Colors.Black.Opacity(0.25).ToBrush(), this.Rect());
 
         // 合成参数回显轨（只读）：在可编辑轨之上、活动轨之下绘制为半透明积分面积。可独立显隐（标题栏管控）。
         DrawSynthesizedParameters(context);

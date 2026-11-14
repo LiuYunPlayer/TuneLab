@@ -28,7 +28,8 @@ public interface ICanvasDrawing
 
     // 绘制状态：Push* 之后的绘制都受它影响，直到 Dispose 返回值（用 using）。按栈嵌套、后进先出；
     // 先 Dispose 外层会连同其内层一起撤销。Render 结束时没撤销的宿主一并撤销。
-    // · PushOpacity：不透明度（0..1，与外层相乘）；
+    // · PushOpacity：不透明度（0..1，与外层相乘）。一次 Push 是一个图层：之后到 Dispose 为止画的内容整组画完再按不透明度合成，
+    //   组内重叠处不会互相透出；要几组各自半透明就分几次 Push。只想让单个元素半透明，用带透明度的画笔 / 画刷即可；
     // · PushClip：只画形状围出的区域内的部分（与外层取交集；矩形裁剪见扩展方法 PushClip(rect, cornerRadius)）；
     // · PushTransform：坐标变换（与外层复合）。只影响绘制——鼠标事件的坐标永远是画布坐标，不随变换。
     IDisposable PushOpacity(double opacity);

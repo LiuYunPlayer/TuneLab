@@ -1094,7 +1094,13 @@ internal sealed class PluginCanvas : Component
         public IDisposable PushOpacity(double opacity)
         {
             Verify();
-            return Push(context.PushOpacity(double.IsNaN(opacity) ? 1 : Math.Clamp(opacity, 0, 1)));
+            // 一次 PushOpacity = 一个图层：括号内整组画完再按不透明度合成，组内重叠处不互相透出（SDK 的约定）。
+            // Avalonia 的 PushOpacity 默认只把透明度乘到每一笔上，要 RequiresFullOpacityHandling 才开图层。
+            // 两项一起入栈、共用一个撤销句柄（撤销到渲染选项之下，两项一起撤）。
+            mStack.Add(context.PushRenderOptions(new RenderOptions { RequiresFullOpacityHandling = true }));
+            int depth = mStack.Count;
+            mStack.Add(context.PushOpacity(double.IsNaN(opacity) ? 1 : Math.Clamp(opacity, 0, 1)));
+            return new Pushed(this, depth);
         }
 
         // 矩形（含圆角）走圆角矩形裁剪的快路径，其余按形状围出的区域裁剪。退化的形状裁成空：什么都不留（仍要入栈，Dispose 才配得上）。
