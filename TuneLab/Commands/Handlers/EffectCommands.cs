@@ -135,7 +135,7 @@ internal sealed class EffectListCommand : ICommand
         {
             public PropertyObject Properties => PropertyObject.Empty;
             public IReadOnlyMap<string, IAutomationEvaluator> Automations => Map<string, IAutomationEvaluator>.Empty;
-            public IReadOnlyMap<string, PropertyValue> TimelineCanvases => Map<string, PropertyValue>.Empty;
+            public IReadOnlyMap<string, PropertyValue> TimelineLaneCanvases => Map<string, PropertyValue>.Empty;
         }
     }
 }

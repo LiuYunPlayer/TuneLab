@@ -944,7 +944,7 @@ internal abstract class ElementWidget : IDisposable
         ArrayConfig c => new NestedArrayElement(dataObject, token, c, buttonRoot, buttonPath, path ?? FieldPath.Root(null), foldScope),
         ListConfig c => new NestedListElement(dataObject, token, c, buttonRoot, buttonPath, path ?? FieldPath.Root(null), foldScope),
         ExtensibleObjectConfig c => new NestedExtensibleObjectElement(dataObject, token, c, buttonRoot, buttonPath, path ?? FieldPath.Root(null), foldScope),
-        CanvasLaneConfig c => new CanvasLaneElement(dataObject, token, c, path ?? FieldPath.Root(null)),
+        TimelineCanvasConfig c => new TimelineCanvasElement(dataObject, token, c, path ?? FieldPath.Root(null)),
         ValueOnlyConfig => new ValueOnlyElement(),
         _ => new UnknownElement(config),
     };
@@ -1188,27 +1188,27 @@ internal abstract class ElementWidget : IDisposable
         readonly ListController mController = new();
     }
 
-    // 画布 lane 元素：编辑界面在参数面板里，这里只有一行摘要 + 编辑按钮（同对象字段里的 CanvasLaneCreator，只是没有标题——
+    // 时间轴画布元素：编辑界面在参数面板里，这里只有一行摘要 + 编辑按钮（同对象字段里的 TimelineCanvasCreator，只是没有标题——
     // 元素行左侧的序号就是它的位置）。
-    sealed class CanvasLaneElement : ElementWidget
+    sealed class TimelineCanvasElement : ElementWidget
     {
-        public CanvasLaneElement(IDataPropertyObject dataObject, string token, CanvasLaneConfig config, FieldPath path)
+        public TimelineCanvasElement(IDataPropertyObject dataObject, string token, TimelineCanvasConfig config, FieldPath path)
         {
-            mRow = new CanvasLaneRow(null, () => dataObject.GetRawValue(token), path.Hooks, path.Prefix);
+            mRow = new TimelineCanvasRow(null, () => dataObject.GetRawValue(token), path.Hooks, path.Prefix);
             mRow.Apply(config);
             dataObject.Modified.Subscribe(mRow.RefreshSummary, mSubscriptions);
         }
 
         public override Control View => mRow.View;
-        public override Type ConfigType => typeof(CanvasLaneConfig);
-        public override void Update(IControllerConfig config) => mRow.Apply((CanvasLaneConfig)config);
+        public override Type ConfigType => typeof(TimelineCanvasConfig);
+        public override void Update(IControllerConfig config) => mRow.Apply((TimelineCanvasConfig)config);
         public override void Dispose()
         {
             base.Dispose();
             mSubscriptions.DisposeAll();
         }
 
-        readonly CanvasLaneRow mRow;
+        readonly TimelineCanvasRow mRow;
         readonly DisposableManager mSubscriptions = new();
     }
 
@@ -1449,7 +1449,7 @@ internal static class ControllerConfigDefaults
                 var map = new Map<string, PropertyValue>();
                 foreach (var kvp in objectConfig.Properties)
                 {
-                    if (kvp.Value is ButtonConfig or CanvasConfig or CanvasLaneConfig or ValueOnlyConfig)
+                    if (kvp.Value is ButtonConfig or CanvasConfig or TimelineCanvasConfig or ValueOnlyConfig)
                         continue;   // 按钮没有值、画布与只传值没有默认值（没设过 = 不存），都不占键
                     map.Add(kvp.Key.Id, kvp.Value.GetDefaultValue());
                 }
@@ -1461,7 +1461,7 @@ internal static class ControllerConfigDefaults
                 var map = new Map<string, PropertyValue>();
                 foreach (var kvp in addableObjectConfig.Properties)
                 {
-                    if (kvp.Value is ButtonConfig or CanvasConfig or CanvasLaneConfig or ValueOnlyConfig)
+                    if (kvp.Value is ButtonConfig or CanvasConfig or TimelineCanvasConfig or ValueOnlyConfig)
                         continue;   // 同 ObjectConfig
                     map.Add(kvp.Key.Id, kvp.Value.GetDefaultValue());
                 }

@@ -3,22 +3,22 @@
 插件自绘的编辑界面（画布）能出现在钢琴窗下方的参数面板里：每个 note / 音素在自己的时间段上放一块画布，与别的参数面板
 同时可见。分两种声明，按"这个字段的界面属于哪里"选一种：
 
-| | `CanvasConfig`（侧栏画布，已有） | `CanvasLaneConfig`（画布 lane，新增） |
+| | `CanvasConfig`（侧栏画布，已有） | `TimelineCanvasConfig`（时间轴画布，新增） |
 |---|---|---|
 | 属于哪里 | 侧栏属性面板 | 参数面板 |
 | 出现在参数面板 | 用户在侧栏右键钉选后才出现 | **常驻**：哪个 note 声明了它，标签栏就有它，不用钉 |
 | 在侧栏 | 有 | 没有（侧栏不显示这个字段） |
 | 一块画布对应几个对象 | 侧栏里可能是多选；参数面板里一个 | 永远一个 |
-| 时间换算 | 没有 | 一定有（`ICanvasLaneHost.TimeAxis`，不可空） |
+| 时间换算 | 没有 | 一定有（`ITimelineCanvasHost.TimeAxis`，不可空） |
 | 典型用途 | 与时间无关、或只按对象内相对位置画的编辑（拉伸曲线、XY 面板） | 必须与时间轴对齐的编辑（如音素混合：曲线 + 符号 + 语言） |
 
 **两种"进参数面板"的性质不同**：钉选（属性 lane、侧栏画布）是**用户偏好**——同一个字段有人爱在侧栏调、有人爱在参数面板调，
-宿主替用户记住，插件不参与；画布 lane 常驻参数面板是**插件声明的语义**——这个界面本来就属于时间轴，不该让每个用户各钉一遍。
+宿主替用户记住，插件不参与；时间轴画布常驻参数面板是**插件声明的语义**——这个界面本来就属于时间轴，不该让每个用户各钉一遍。
 
 **为什么分成两种而不是一种画布两处跑**：侧栏可以多选，多个对象没有一个共同的时间段，时间换算在那里怎么给都不对；
-而按时间编辑的界面本来就逐个对象进行，没有理由出现在侧栏。分开以后，画布 lane 拿到的永远是"一个对象 + 一条时间轴"，
+而按时间编辑的界面本来就逐个对象进行，没有理由出现在侧栏。分开以后，时间轴画布拿到的永远是"一个对象 + 一条时间轴"，
 由类型保证，不用判空；侧栏画布保持现有契约不变。代价：同一个字段只能选一种界面——要侧栏里的完整界面就用侧栏画布
-（钉进参数面板后没有精确的时间换算），要与时间严格对齐就用画布 lane（侧栏里没有它，也就没有侧栏的多选批量操作）。
+（钉进参数面板后没有精确的时间换算），要与时间严格对齐就用时间轴画布（侧栏里没有它，也就没有侧栏的多选批量操作）。
 
 前置：参数面板多开（`docs/parameter-panels.md`）；属性 lane 按各 note 自己的声明取形状（`NoteDeclarationCache`）。
 
@@ -26,7 +26,7 @@
 
 | 项 | 规则 |
 |---|---|
-| 标签栏 | 画布 lane：哪个 note 的声明里有它，标签栏就有它（各 note 声明的并集，同属性 lane 的口径），与属性 lane 同列。侧栏画布：钉了才有 |
+| 标签栏 | 时间轴画布：哪个 note 的声明里有它，标签栏就有它（各 note 声明的并集，同属性 lane 的口径），与属性 lane 同列。侧栏画布：钉了才有 |
 | 钉选侧栏画布 | 侧栏里画布字段的右键菜单「在参数栏编辑 / 从参数栏移除」，与属性 lane 同一个入口、同一份钉选存储（`ParameterPinning`）。任何侧栏画布都能钉：宿主不判断它适不适合放在时间轴上，钉了不好用用户解钉即可 |
 | 面板里 | 这个参数激活时，视口内每个声明了该字段的 note（note 级字段）/ 音素（音素级字段）各有一块画布：横向占满它的时间段，纵向占满面板高度。没声明的对象那一段是空的 |
 | 编辑 | 交互、草稿、提交、弹出与侧栏画布相同（`ICanvasHost` 的契约不变）；提交是一个撤销步。每块画布各管各的：一次拖动不跨到相邻对象的画布 |
@@ -47,21 +47,21 @@
 ## 3. SDK 新增（纯加法，画布尚未发布）
 
 ```csharp
-// 画布 lane：只在参数面板里、按对象的时间段摆放的值字段。与 CanvasConfig 同一套值语义（没有默认值、恢复默认 = 删掉存值，
+// 时间轴画布：只在参数面板里、按对象的时间段摆放的值字段。与 CanvasConfig 同一套值语义（没有默认值、恢复默认 = 删掉存值，
 // preset、撤销照常；值的形状由插件定、读取时自行校验），可以在 note / 音素属性声明的任何位置（§9）。侧栏在它的位置显示摘要 + 编辑按钮（§9.4）。
 // 构造函数全封，只走静态工厂 + With（同 CanvasConfig）。
-public sealed class CanvasLaneConfig : IControllerConfig
+public sealed class TimelineCanvasConfig : IControllerConfig
 {
-    public Func<ICanvasLaneHost, ICanvasControl> CreateControl { get; }
+    public Func<ITimelineCanvasHost, ICanvasControl> CreateControl { get; }
     // 标签栏按钮与焦点圆点的颜色（hex）。与 AutomationConfig.Color 同一约定：默认透明（"#00000000"）= 不指定，
     // 宿主从调色板分配（确定性：按声明顺序、避开已占用色）；想定颜色就 WithColor。
     public string Color { get; }
-    public static CanvasLaneConfig Create(Func<ICanvasLaneHost, ICanvasControl> createControl);
-    public CanvasLaneConfig WithColor(string color);
+    public static TimelineCanvasConfig Create(Func<ITimelineCanvasHost, ICanvasControl> createControl);
+    public TimelineCanvasConfig WithColor(string color);
 }
 
-// 画布 lane 的宿主：在 ICanvasHost 之上多一条时间轴（一定有）。
-public interface ICanvasLaneHost : ICanvasHost
+// 时间轴画布的宿主：在 ICanvasHost 之上多一条时间轴（一定有）。
+public interface ITimelineCanvasHost : ICanvasHost
 {
     ICanvasTimeAxis TimeAxis { get; }
 }
@@ -83,10 +83,10 @@ public interface ICanvasTimeAxis
 }
 ```
 
-- 名字：声明叫 `CanvasLaneConfig`——参数面板里一个声明对应一条 lane（lane 身份 = 字段路径，§9），每个对象在这条 lane 上占一块，
-  范围严格限在对象那一段。`TimelineCanvasConfig` 这个名字留给将来定义域是整条时间轴的 part 级画布（§10）。
-  **一种画布一个宿主接口**：`CanvasConfig` ↔ `ICanvasHost`、`CanvasLaneConfig` ↔ `ICanvasLaneHost`（原名 `ITimelineCanvasHost`，与 part 级
-  撞名）、将来 `TimelineCanvasConfig` ↔ `ITimelineCanvasHost`（带它自己的成员，如提交时附带改动范围）。后两者各自声明 `TimeAxis` 与
+- 名字：声明叫 `TimelineCanvasConfig`——参数面板里一个声明对应一条 lane（lane 身份 = 字段路径，§9），每个对象在这条 lane 上占一块，
+  范围严格限在对象那一段。`TimelineLaneCanvasConfig` 这个名字留给将来定义域是整条时间轴的 part 级画布（§10）。
+  **一种画布一个宿主接口**：`CanvasConfig` ↔ `ICanvasHost`、`TimelineCanvasConfig` ↔ `ITimelineCanvasHost`（原名 `ITimelineLaneCanvasHost`，与 part 级
+  撞名）、将来 `TimelineLaneCanvasConfig` ↔ `ITimelineLaneCanvasHost`（带它自己的成员，如提交时附带改动范围）。后两者各自声明 `TimeAxis` 与
   `PitchAxis`，不抽共用基接口——描述"时间 × 音高"坐标系的名字要么带界面色彩（钢琴窗 / piano roll 不进 SDK）要么别扭；
   想让同一段绘制代码给几种画布共用，就只依赖两条轴。time axis = 秒 / tick ↔ 横坐标，pitch axis = 音高 ↔ 纵坐标。
   用户界面上两者都只叫「画布」。
@@ -98,9 +98,9 @@ public interface ICanvasTimeAxis
   都成立；位置枚举每加一个值老插件就得重新适配。窄、矮时画紧凑版（如只画曲线和一行符号、点字才弹 `PopupTextBox`），
   按尺寸响应。
 
-### 3.1 `ICanvasLaneHost`：继承来的成员在参数面板里的含义
+### 3.1 `ITimelineCanvasHost`：继承来的成员在参数面板里的含义
 
-`ICanvasLaneHost` 只比 `ICanvasHost` 多 `TimeAxis` 与 `PitchAxis`（§12）；其余成员照搬侧栏画布的契约，下表只列在参数面板里**含义具体化或不同**的地方。
+`ITimelineCanvasHost` 只比 `ICanvasHost` 多 `TimeAxis` 与 `PitchAxis`（§12）；其余成员照搬侧栏画布的契约，下表只列在参数面板里**含义具体化或不同**的地方。
 钉进参数面板的侧栏画布（host 仍是 `ICanvasHost`）同样按这张表。
 
 | 成员 | 在参数面板里 |
@@ -141,31 +141,31 @@ public interface ICanvasTimeAxis
 ## 6. 存储与路由（宿主内部）
 
 - 值照常存在 note / 音素的 `Properties` 里，按 key 存取（与属性 lane 相同）。
-- 参数面板里的路由沿用属性 lane 的 `NoteLane` / `PhonemeLane` 来源：画布 lane 与钉了的侧栏画布都并入 lane 集合
+- 参数面板里的路由沿用属性 lane 的 `NoteLane` / `PhonemeLane` 来源：时间轴画布与钉了的侧栏画布都并入 lane 集合
   （`NoteLaneConfigs` / `PhonemeLaneConfigs` 按条目区分是数值 lane 还是画布），面板布局持久化（`ParameterRefInfo`）不变。
-- 常驻的画布 lane 没有钉选记录，轨色取 `CanvasLaneConfig.Color`；未指定（alpha 为 0）时宿主分配。分配在宿主物化声明的入口
+- 常驻的时间轴画布没有钉选记录，轨色取 `TimelineCanvasConfig.Color`；未指定（alpha 为 0）时宿主分配。分配在宿主物化声明的入口
   统一做（同自动化参数），下游永远看不到透明色。
 
 ## 7. 插件须知（写进插件文档）
 
 1. 画布要能接受任意宽高：参数面板里宽度是对象的时长、高度是面板高度，可能很窄、很矮、也可能很宽。按尺寸响应排版。
    放大后 `Width` 可能上万像素：逐像素采样、自己生成位图的，只算 `VisibleBounds` 露出来的部分。
-2. 画布 lane 里按秒画的内容用 `TimeAxis` 换算；曲线逐像素采样，别只换算控制点再连直线。数据按"这块画布内的相对位置"
+2. 时间轴画布里按秒画的内容用 `TimeAxis` 换算；曲线逐像素采样，别只换算控制点再连直线。数据按"这块画布内的相对位置"
    定义的，时间段取 `XToSecond(0)` 到 `XToSecond(Width)`。
 3. **画布里以宿主的换算为准**，不要用插件自己合成时算出的音素时间来画：宿主给的是屏幕上显示的时间段（`DisplayPhonemes`），
    画布要与用户看到的音素块对齐。两者在合成结果回填后一致（未钉住的音素显示的就是引擎的结果，钉住的两边用同一个
    `PhonemeLayout`），只在改动后、合成回来前的过渡期不同；显示一更新宿主就重新 `Render`。
 4. 插件自己的默认值（没设过时读值补的那个）宜**中性**（未调即无效果），或只按对象内的相对位置定义：未钉住的音素长度随合成变化，若默认值的作用依赖长度，
    用户没碰过的对象会在别处编辑后听感改变。
-5. 选哪种：界面属于侧栏、与时间无关 → `CanvasConfig`；必须与时间轴对齐、逐个对象编辑 → `CanvasLaneConfig`。
+5. 选哪种：界面属于侧栏、与时间无关 → `CanvasConfig`；必须与时间轴对齐、逐个对象编辑 → `TimelineCanvasConfig`。
    同一个字段只能选一种。
 6. **存储坐标决定对象被拉伸时的行为**，宿主不替插件处理：按比例（0..1）存 → 随对象等比伸缩（形状类：力度、颤音包络）；按距起点的
    偏移存 → 头固定、尾部延长或截断（起音类）；按距终点的偏移存 → 释音类；也可以分段混合。要有意识地选，并配合第 4 条的中性默认值。
 
-**音符级自动化轨（宿主绘制）暂不做**：逐音符的随时间变化内容，画布 lane 已能覆盖（插件按第 6 条自选存储坐标）。宿主绘制版的独有价值是
+**音符级自动化轨（宿主绘制）暂不做**：逐音符的随时间变化内容，时间轴画布已能覆盖（插件按第 6 条自选存储坐标）。宿主绘制版的独有价值是
 宿主与 agent 看得懂这些点；等真有"agent 要编辑逐音符包络"这类需求再做。届时拉伸行为是参数自身的语义、宿主猜不了，由声明**必填**
 （如 `Proportional` / `FromStart` / `FromEnd`，混合以后再加），另需定：音符拆分 / 合并时曲线怎么切接、与 part 级同名参数谁覆盖谁、
-参数面板复用钉选音符属性的逐音符分段显示。这不是"note 层缺一类"的不对称：note 只有属性一列（画布 lane 即属性），part 多出的是
+参数面板复用钉选音符属性的逐音符分段显示。这不是"note 层缺一类"的不对称：note 只有属性一列（时间轴画布即属性），part 多出的是
 "轨"一列（自动化轨 / 将来的画布轨），音符本就不承载轨。
 
 ## 8. 待定
@@ -174,13 +174,13 @@ public interface ICanvasTimeAxis
 |---|---|
 | 音素级常驻画布在合成回来前不在标签栏 | **已定：第一次出现前不占位、不猜**。音素声明依赖显示音素，打开工程后要等合成回填、拿到声明标签才出现；宿主不凭跨工程的记忆预先显示。面板布局里记着它的，沿用"参数暂不存在就回落、回来后自动恢复" |
 | 出现过之后 | **已定：声明暂时问不到时保留，问到没有就去掉**（按 part 记，音源一换清空记录）。音素声明要等引擎对音素表态：还有 note 没表态（全部标脏、合成回来前）时，出现过的音素级画布标签留在原位、颜色不变，面板里只是空的——标签栏跟着声明一会儿有一会儿没有观感很差。note 声明随时同步问得到，没有"暂时不知道"：没人声明就去掉。曾定为"出现过就一直在"，数组 / 列表进来后推翻：列表长度是用户在增删，删掉的元素标签会越积越多。重新出现时颜色沿用上次的 |
-| 标签栏要对全部 note 求并集 | 标签栏不看视口（滚动不会让标签出现 / 消失），但常驻画布没有钉选可短路：每次数据提交后都要把所有 note 问一遍（实测 300 note 约 3ms，几千 note 几十 ms）。先接受；成问题时再让插件在 part 级声明里预告会声明哪些画布 lane，没预告就不扫 |
+| 标签栏要对全部 note 求并集 | 标签栏不看视口（滚动不会让标签出现 / 消失），但常驻画布没有钉选可短路：每次数据提交后都要把所有 note 问一遍（实测 300 note 约 3ms，几千 note 几十 ms）。先接受；成问题时再让插件在 part 级声明里预告会声明哪些时间轴画布，没预告就不扫 |
 | 跨对象连续 | 不做：每个对象一块独立画布，跨音符的曲线画不出连续感 |
 | 禁止钉选侧栏画布 | 不做；真有需求再给 `CanvasConfig` 加一个 With（纯加法） |
 
 ## 9. 嵌套位置：按路径的 lane（已实现）
 
-画布 lane 是属性树的一员，只是编辑界面在参数面板里；它可以出现在声明树的任何位置——对象（`ObjectConfig`）的成员、
+时间轴画布是属性树的一员，只是编辑界面在参数面板里；它可以出现在声明树的任何位置——对象（`ObjectConfig`）的成员、
 定长数组（`ArrayConfig`）与列表（`ListConfig`）的元素、键控容器（`ExtensibleObjectConfig`）的条目里，任意嵌套。
 用户钉选的字段（有界数值、侧栏画布）同样可以钉任意位置的节点。
 
@@ -209,33 +209,33 @@ public interface ICanvasTimeAxis
 
 ### 9.4 侧栏：摘要 + 编辑按钮
 
-每个画布 lane 所在的位置（含顶层、各数组 / 列表元素里）在侧栏占一行：字段名、摘要、最右一个编辑按钮——点了在焦点面板里
+每个时间轴画布所在的位置（含顶层、各数组 / 列表元素里）在侧栏占一行：字段名、摘要、最右一个编辑按钮——点了在焦点面板里
 激活这条 lane（参数区藏着就先显示出来）。列表照常增删、调序；元素里的其它普通字段照常显示、照常多选批量编辑。
 摘要由插件在声明时按当时的值算好（多选写什么也由插件定），没给时宿主兜底「默认 / 已修改 / 多值」。
 
-**SDK 新增**（纯加法，画布未发布）：`CanvasLaneConfig.WithSummary(string)` 与 `Summary`，与 `CanvasConfig` 同名同义。
+**SDK 新增**（纯加法，画布未发布）：`TimelineCanvasConfig.WithSummary(string)` 与 `Summary`，与 `CanvasConfig` 同名同义。
 
 ### 9.5 推翻的旧口径
 
 - 「只认顶层键」（§2、属性 lane、插件文档 §10.6 里「多层数据只能拆成多个顶层键」那句）——实现时一并改掉。
-- 「侧栏不显示画布 lane」——改为显示摘要行（不在侧栏里编辑）。
+- 「侧栏不显示时间轴画布」——改为显示摘要行（不在侧栏里编辑）。
 
-## 10. part 级时间轴画布 `TimelineCanvasConfig`（第一版已实现，见 §10.3）
+## 10. part 级时间轴 lane 画布 `TimelineLaneCanvasConfig`（第一版已实现，见 §10.3）
 
-**现状（已实现）**：画布 lane 只在 note / 音素属性声明里有效。放在别处——part 属性、效果器属性、扩展设置窗、输入表单
+**现状（已实现）**：时间轴画布只在 note / 音素属性声明里有效。放在别处——part 属性、效果器属性、扩展设置窗、输入表单
 （脚本工具与插件按钮弹出的那种）——侧栏那一行显示「此处不支持该画布」，不显示摘要也不给按钮，并记一条警告点名字段路径
-（同一路径只记一次）。判据是这块面板有没有接「去参数面板编辑」的钩子（`FieldHooks.EditCanvasLane`）：没接 = 这里没有时间轴。
+（同一路径只记一次）。判据是这块面板有没有接「去参数面板编辑」的钩子（`FieldHooks.EditTimelineCanvas`）：没接 = 这里没有时间轴。
 扩展设置窗与输入表单永远不支持。
 
-将来做了 part 级的新声明族（`TimelineCanvasConfig`）后，part / 效果器上用新类型，不把 `CanvasLaneConfig` 放进去——所以上面这几处
+将来做了 part 级的新声明族（`TimelineLaneCanvasConfig`）后，part / 效果器上用新类型，不把 `TimelineCanvasConfig` 放进去——所以上面这几处
 会一直是「此处不支持」。
 
 ### 10.1 定论：part 级与 note / 音素级本质不同，将来另起一个声明族
 
-现在没有真插件要 part 级，做了也没法真实测试，所以不做；但定下了它将来的形态。讨论中先试过把 `CanvasLaneConfig` 放进 part 属性，
+现在没有真插件要 part 级，做了也没法真实测试，所以不做；但定下了它将来的形态。讨论中先试过把 `TimelineCanvasConfig` 放进 part 属性，
 标脏、通知身份、存储样样别扭——根子在于硬把一条轨塞进属性树。两者按本质分开，宿主本来就按这条线分了两类：
 
-| | note / 音素级画布 lane `CanvasLaneConfig`（现在这套） | part 级时间轴画布 `TimelineCanvasConfig`（将来） |
+| | note / 音素级时间轴画布 `TimelineCanvasConfig`（现在这套） | part 级时间轴 lane 画布 `TimelineLaneCanvasConfig`（将来） |
 |---|---|---|
 | 是什么 | 对象的一个属性 | 一条贯穿时间的轨 |
 | 宿主里的同类 | note / 音素属性 | 自动化轨 |
@@ -248,10 +248,10 @@ public interface ICanvasTimeAxis
 - **part 级：将来另起一个与 `AutomationConfig` 平级的声明族**（同一个声明入口里，声源与效果器都有），不是 `IValueConfig`、
   塞不进 `ObjectConfig`：id 平铺、有自己的存储（整块存、撤销只换引用，见 §11）、会话拿到 id → 代理对象的表（值 + 带区间的变化通知），
   "订阅了谁就知道是谁"，通知身份的问题自然消失。
-- **命名（已定）**：part 级叫 **`TimelineCanvasConfig`**——它的定义域就是整条时间轴，名字字面即事实。不用 `Automation`
+- **命名（已定）**：part 级叫 **`TimelineLaneCanvasConfig`**——它的定义域就是整条时间轴，名字字面即事实。不用 `Automation`
   （会把它收窄成参数曲线，实际可放任何时间轴相关的东西：区段、视频帧、歌词块……）。现在的 note / 音素级在画布发布前已改名为
-  `CanvasLaneConfig`（原名 `TimelineCanvasConfig` 只说对了"画在时间轴上"一半，"依附对象、严格限在对象那一段"没体现）。
-  插件文档讲清怎么选：这是某个音符 / 音素的属性 → `CanvasLaneConfig`；这是一条贯穿整个 part 的轨 → `TimelineCanvasConfig`。
+  `TimelineCanvasConfig`（原名 `TimelineLaneCanvasConfig` 只说对了"画在时间轴上"一半，"依附对象、严格限在对象那一段"没体现）。
+  插件文档讲清怎么选：这是某个音符 / 音素的属性 → `TimelineCanvasConfig`；这是一条贯穿整个 part 的轨 → `TimelineLaneCanvasConfig`。
 - **`Width` 对 part 级没有意义**（实数轴给不出宽度）：填钢琴窗可滚动总宽、仅供参考；绘制以 `VisibleBounds` 与时间轴换算为准。
   part 裁剪外**可以编辑**，与自动化轨一致；出不出声画布不用操心——part 本来只有裁剪范围内会在音频引擎里出声，合成取下一分片也按
   裁剪范围取。
@@ -297,16 +297,16 @@ public interface ICanvasTimeAxis
   写进工程、不显示、不参与合成；换到声明了它的声源时重新出现，位置因偏移随值存而正确。
 - **声明入口**：照 `GetAutomationConfigs` 平行开一个，声源 / 乐器 / 效果器三类引擎都有（效果器有自动化轨，声源怎么接它就怎么接）：
   ```csharp
-  IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig> GetTimelineCanvasConfigs(<与 GetAutomationConfigs 同一个 context>) => 空表;
+  IReadOnlyOrderedMap<PropertyKey, TimelineLaneCanvasConfig> GetTimelineLaneCanvasConfigs(<与 GetAutomationConfigs 同一个 context>) => 空表;
   ```
   引擎是插件实现面 ⇒ 带默认体。context 与询问时机都与 `GetAutomationConfigs` 相同；有序表的顺序 = 标签栏顺序。
 - **id**：与自动化轨**不强制不重名**——两族存储本来是分开的表（part 上、合成上下文、工程格式各一张）。实现要求是宿主里按 id 定位的地方
   一律按「类别 + id」：标签栏隐藏记录、lane、各面板可见开关走 `AutomationKey`，它已有 source / effect / note / phoneme 的来源维度
   （同 `NoteLane(id)` 与声源自动化轨分开），画布轨再加一种来源；agent / 命令的取值写法加前缀（如 `sourceCanvas:id`，届时定）。
   插件给两族起同一个显示名会出现两个同名页签，属插件自己的选择。
-- **会话代理**：与 `ISynthesisAutomation` 同级，合成上下文上与 `Automations` 并列一张 `TimelineCanvases` 表（声源、乐器、效果器的上下文都有）：
+- **会话代理**：与 `ISynthesisAutomation` 同级，合成上下文上与 `Automations` 并列一张 `TimelineLaneCanvases` 表（声源、乐器、效果器的上下文都有）：
   ```csharp
-  public interface ISynthesisTimelineCanvas            // 宿主实现
+  public interface ISynthesisTimelineLaneCanvas            // 宿主实现
   {
       PropertyValue Value { get; }
       ITimeConverter TimeConverter { get; }                      // 局部 tick ↔ 全局秒；会话内不变（速度改动走会话重建）
@@ -323,7 +323,7 @@ public interface ICanvasTimeAxis
 - **part 预设**：带「偏移 + 值」；tick 相对 part，套到别处不会错位。
 - **存储**：按 §11 整块存（基准已测，现存法在大值上不可用）。
 - **还没定**：钢琴窗选区删除时画布怎么处理（第一版跳过，有了 `GetRange` / `SetRange` 按上面的"删除一段"处理）。
-- **钉进钢琴窗**（不另起"钢琴窗级画布"，就是 part 级时间轴画布换个显示位置）：横向同音符区，纵向由用户在钉的时候选——
+- **钉进钢琴窗**（不另起"钢琴窗级画布"，就是 part 级时间轴 lane 画布换个显示位置）：横向同音符区，纵向由用户在钉的时候选——
   **铺满**（整个音符区，底部半透明的波形 / 参数面板叠在上面）或 **不被遮挡**（只占露出来的部分，上沿以下到当前底部最上一层的
   顶边：波形显示时到波形顶、隐藏时到参数面板顶，随显隐与高度变化）。画布没有首选尺寸，选中的范围就是宿主给的画布区域，插件只按它画、
   不关心宿主布局（频谱类贴底边画，立绘类按高度铺）。音高轴在两种范围下都与琴键对齐（顶边都在音符区顶边）。作背景时画在网格之后、
@@ -336,7 +336,7 @@ public interface ICanvasTimeAxis
 
 按 §10.2 落地，与原稿不同或原稿没定的几处：
 
-- **改动范围随提交一起报**：`ITimelineCanvasHost.CommitValue(IReadOnlyList<Range> modifiedTickRanges)`（`Range` = Foundation 的通用数值区间，
+- **改动范围随提交一起报**：`ITimelineLaneCanvasHost.CommitValue(IReadOnlyList<Range> modifiedTickRanges)`（`Range` = Foundation 的通用数值区间，
   术语表里早留了位置，这是它的第一个用处）。对宿主来说插件改数据是一瞬间的事、UI 操作归插件：什么时候提交就什么时候报脏段，值与范围一次交出，
   宿主不攒状态（先试过"提交前另调 `ReportModifiedRange`、随下一次提交记下"，要多出"丢弃 / 作废时清掉""报了没提交悬着"这些规矩，已改掉）。
   **宿主不合并**：原样记录、原样通知，重叠 / 重复由插件去掉（合并到相接处会把中间没改的地方也通知成改了）。不带参数的 `CommitValue()`
@@ -344,19 +344,19 @@ public interface ICanvasTimeAxis
   同签名；声源 / 乐器一次写入后补 `Committed`，重活留到那里）。范围随撤销记录存下（part 局部 tick），撤销 / 重做原样重发。
 - **画布区域**：铺满整个参数面板（`Width` / `Height` = 面板尺寸，画布坐标 = 面板坐标）。原稿写的"Width 填钢琴窗可滚动总宽"不成立：
   时间轴可滚动的范围实际是无界的，给不出一个有意义的总宽。
-- **存储**：part / 效果器上各一张表（`TimelineCanvases`，id → 偏移 + 整值），一次写入 = 换一个条目的引用。宿主内部的偏移 = 值的原点在 part 里的
-  位置（拆分在 S 处，右半的偏移 = −S）；工程里存成 `{ id: { offset, value } }`，DTO 是 `TimelineCanvasInfo`。
+- **存储**：part / 效果器上各一张表（`TimelineLaneCanvases`，id → 偏移 + 整值），一次写入 = 换一个条目的引用。宿主内部的偏移 = 值的原点在 part 里的
+  位置（拆分在 S 处，右半的偏移 = −S）；工程里存成 `{ id: { offset, value } }`，DTO 是 `TimelineLaneCanvasInfo`。
 - **效果器的声明缓存**：效果器的自动化轨声明是每次读都现问插件，画布却要靠"还是不是同一份声明"决定换不换实例，所以效果器的画布声明
   缓存一份，随 part 重新询问声明时作废。
 - **标签色**：没指定的由宿主在物化声明时分配（避开同一组自动化轨的颜色），同 `TrackColors`。
-- **脚本 / agent**：`part.timelineCanvasIds()` / `getTimelineCanvas(id)` / `setTimelineCanvas(id, value|null)` / `timelineCanvasOrigin(id)`，
+- **脚本 / agent**：`part.timelineLaneCanvasIds()` / `getTimelineLaneCanvas(id)` / `setTimelineLaneCanvas(id, value|null)` / `timelineLaneCanvasOrigin(id)`，
   effect 句柄同名四个；写入按整条通知。
 - **part 预设带画布值（偏移 + 整值）**，是预设"不含时间轴内容"的例外（2026-11-03 定）：用户调好一块画布、想长期留着下次直接用，
   它对这条预设就是默认值；宿主分不出值里哪些算默认、哪些是这一段的内容，所以整值收进来，由用户自己管理——要干净的预设，就在一个干净的
   新 part 上保存，别在正编辑的草稿上存。应用 = 声明了的每条换成预设里的值，预设里没有的删掉存值；「None」= 全部删掉存值（同属性的
   "先重置再写"）。孤儿 id 不碰。效果器的画布不在内（预设本就不含效果链）。
 - **"值从声明视图取"不是改动**：画布的值一律在声明时由插件从声明 context 取（§3 / CanvasConfig 的契约），part 级照此——三类声明视图
-  各加一张 `TimelineCanvases` 是这条约定的落地，原稿 §10.2 只是没把这个成员写出来。
+  各加一张 `TimelineLaneCanvases` 是这条约定的落地，原稿 §10.2 只是没把这个成员写出来。
 - 拆分 / 合并 / 选区粘贴按第一版规则（§10.2）；钉进钢琴窗、`GetRange` / `SetRange` 都还没做。
 
 ### 10.4 定了方向、后续做（2026-11-03 讨论）
@@ -385,9 +385,9 @@ public interface ICanvasTimeAxis
   事件自顶向下问，谁置 `Handled` 归谁，都不要落到宿主工具（移动 / 拉长音符……）——插件只在自己画了东西的地方接，其余照常编辑音符。
   要定：按键归最近一次接住点击的那层、不处理再给钢琴窗快捷键；悬停 / 指针形状只由接住这次移动的那层定；插件抢了宿主把手（如音符边缘）
   归插件作者负责，用户嫌碍事就解钉；**能钉进去的不只 part 级画布**——"给音符周围画属性"要的是音符的属性，part 级画布只能写自己那份值，
-  所以画布 lane 也要能钉（每个音符一块，按音符位置画在钢琴窗里，纵向范围待定）。与"画布不叠画布"不矛盾：参数面板里的画布是整片界面，
+  所以时间轴画布也要能钉（每个音符一块，按音符位置画在钢琴窗里，纵向范围待定）。与"画布不叠画布"不矛盾：参数面板里的画布是整片界面，
   工具层里的画布按约定只在需要处画、大部分透明，插件文档写明。
-- **标签按钮按种类区分外观**：画布类（画布 lane、时间轴画布、钉进来的侧栏画布）与曲线 / 数值类长得不一样，用户一眼看出点开是什么；
+- **标签按钮按种类区分外观**：画布类（时间轴画布、时间轴 lane 画布、钉进来的侧栏画布）与曲线 / 数值类长得不一样，用户一眼看出点开是什么；
   重名时也天然有区分，不必靠补前缀。候选：按钮现在是「小眼睛（可见开关，染轨色）+ 名字」，眼睛有功能不能换；在名字后加一个小的画布图标，或画布类的名字用另一种字形 / 底纹；轨色照旧。属界面优化、排在后面。
 
 ## 11. 存储：画布的值整块存（已实现）
@@ -412,7 +412,7 @@ public interface ICanvasTimeAxis
 - 一万点曲线每次松手提交卡一百多毫秒；节点树是值本身的约 17 倍，撤销历史每多一步就多一棵——编辑一百次就是近 2 GB。
 - 读取 7 ms 看着不大，但声明在 part 里任何提交后都会重问、每次都要读一遍，多块画布叠起来就明显。
 - 整块存把三样都降到可忽略；值本身的常驻量还能因插件复用没改的部分（新旧版本共享）进一步下降。
-- 这是宿主内部改动、SDK 不变，画布 lane 现在就受益，不必等 part 级。
+- 这是宿主内部改动、SDK 不变，时间轴画布现在就受益，不必等 part 级。
 
 **实现**：`PropertySlot.Whole`（整块槽：复合值原样存，Multiple 照样拒）+ `IDataPropertyObject.SetWholeValue`（默认退回 `SetValue`，没实现的
 外观功能一样、只是慢；`DataPropertyObject` / `DataPropertyArray` / 懒视图 / 多选扇出都实现了）。写入方：侧栏画布字段
@@ -490,8 +490,8 @@ public interface ICanvasTimeAxis
 - **暂不给**：拍号（按小节对齐网格等，以后纯加法补）；声明上下文里的映射（声明时按拍子算摘要等，等真实需求）。
 - **命名**：秒 `Time`、tick `Pos`（术语表），方法统一 `AToB`，与现有 `SecondToX` 同风格。
 
-**音高轴**（已实现）：`ICanvasLaneHost` 与 `TimeAxis` 平行加一条 `ICanvasPitchAxis PitchAxis`（`PitchToY` / `YToPitch`，单位半音，
-同音符 `Pitch` 与合成音高）。宿主**一律提供**，画布 lane 也有，不在声明里开关——用不到纵轴的插件不调就是了。
+**音高轴**（已实现）：`ITimelineCanvasHost` 与 `TimeAxis` 平行加一条 `ICanvasPitchAxis PitchAxis`（`PitchToY` / `YToPitch`，单位半音，
+同音符 `Pitch` 与合成音高）。宿主**一律提供**，时间轴画布也有，不在声明里开关——用不到纵轴的插件不调就是了。
 - **参数面板里的纵轴 = 面板背后那块音符区的音高**（参数面板盖在音符区底部，同一屏幕高度上钢琴窗的音高）：参数面板是一扇看向
   下方音符区的窗口，与钉进钢琴窗用同一套映射，只是露出的范围不同；纵向滚动、缩放跟着变。
 - **n 号键占 [n, n + 1)：`PitchToY(n)` = n 号键的下沿**（同宿主内部 `PitchAxis.Pitch2Y`）。画整格（琴键、音符块）在 n 与 n + 1 之间、
@@ -499,7 +499,7 @@ public interface ICanvasTimeAxis
   曾考虑定在中线（画值直接用、画整格要 `n ± 0.5`），用户定为下沿；文档与注释里把画值 / 读值的 ±0.5 写明，尤其读值漏减会把数据写偏 50 音分。
 
 **前景 / 背景**（已实现）：`ICanvasHost.IsBackground`（放在基接口上：钉进参数面板的侧栏画布同样会作背景）（普通 getter，变化时宿主重调 `Render`，同 `Width` / `VisibleBounds`），
-作背景显示时插件可简化绘制（如只画轮廓、不画文字），给前景参数让出视野。画布 lane 现在就有背景状态（宿主压暗、不收输入）。
+作背景显示时插件可简化绘制（如只画轮廓、不画文字），给前景参数让出视野。时间轴画布现在就有背景状态（宿主压暗、不收输入）。
 
 **落地拆分**：画布侧（`ICanvasTimeAxis` 加 tick 换算与 `TimeConverter`）改的是未发布 API，宜在画布合入 master 发布前做；合成侧（合成上下文
 加 `TimeConverter`）是已发布接口上的纯加法（宿主实现面），已实现。
@@ -508,7 +508,7 @@ public interface ICanvasTimeAxis
 
 宿主持有默认值，是为了在控件上显示"当前值"——没存值时拿它顶上；插件读到的照样是"没有值"，读值时传自己的默认值、自己对齐口径。
 画布的值由插件自己画，宿主从不显示它，所以画布**没有默认值**：`CanvasConfig.Create(preferredWidth, preferredHeight, createControl)` /
-`CanvasLaneConfig.Create(createControl)`，两者都不实现 `IValueConfig`（推翻 2026-10-27 的"画布默认值不能是 Null"）。默认值是插件自己定的，
+`TimelineCanvasConfig.Create(createControl)`，两者都不实现 `IValueConfig`（推翻 2026-10-27 的"画布默认值不能是 Null"）。默认值是插件自己定的，
 宿主存起来再交回去等于绕一圈。
 
 - **没设过 = 不存值**：宿主按原值读（`RawValueField(key, Null)` / `LanePath.ReadRaw`，不走按默认值类型过滤的 `GetValue`——拿 Null 作
@@ -516,7 +516,7 @@ public interface ICanvasTimeAxis
 - **恢复默认 = 删掉存值**（侧栏右键、part 预设重置）；侧栏兜底摘要"默认 / 已修改"= 没存值 / 存了值；预设抓取时没存值的画布保持没存值。
 - **容器默认值**：对象 / 键控容器的默认值里不占画布的键（同按钮）；数组 / 列表里画布元素的位置上是 Null（位置必须有值）。
 - **agent / 命令**：画布字段接受 null（= 清掉）；字段说明不再写 default，提示照当前值推断形状。
-- 顺带修好：标签栏"有数据"圆点对画布 lane 原先用 `LanePath.Read(…, Null)`，被类型门读成 Null、永远不亮，改为按原值读。
+- 顺带修好：标签栏"有数据"圆点对时间轴画布原先用 `LanePath.Read(…, Null)`，被类型门读成 Null、永远不亮，改为按原值读。
 
 ## 14. 弹出框随滚动、自绘界面里输入文字（定方向，待做）
 

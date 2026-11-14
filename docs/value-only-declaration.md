@@ -5,7 +5,7 @@
 ## 1. 要解决的问题
 
 一个参数换了新的表达方式，旧数据还得继续生效。典型场景：某声源插件的"说话人混合"原先是一个 part 属性加每人一条连续轨，
-新版改成一块 part 级时间轴画布。兼容做法（插件开发文档 §5.2「字段形状演进」）是"画布没设过值时，把旧数据换算成新形状显示；
+新版改成一块 part 级时间轴 lane 画布。兼容做法（插件开发文档 §5.2「字段形状演进」）是"画布没设过值时，把旧数据换算成新形状显示；
 用户一编辑就写成新格式"。
 
 卡在合成侧：
@@ -25,7 +25,7 @@
 - **插件在显示名后标"已过时"**：只能标记，入口还在。
 - **画布首次绘制时自动提交换算结果**：一打开旧工程就多一条撤销记录、工程被标脏。
 - **按数据类型各开一个纯值 config 类**（数、字符串……）：字段类型本来就不靠 config 说（见 §3.2），拆开只多了分派分支。
-- **独立声明表的值类型改成标记接口、只传值另开类**：时间轴画布本来就需要"默认显示 / 默认隐藏"，再为"不显示"换类型，
+- **独立声明表的值类型改成标记接口、只传值另开类**：时间轴 lane 画布本来就需要"默认显示 / 默认隐藏"，再为"不显示"换类型，
   同一张表里就有两套机制；也想不出这张表里还要放第二种东西。
 - **接口参数改成 `object`、文档里写类型**：约定还在，只是编译器和 PublicAPI 门禁不再检查，破坏改到运行时才暴露；
   加性演进靠工厂 + `With` 与带默认体的接口成员已经够用。
@@ -35,23 +35,23 @@
 | | 在哪 | 只传值的写法 | 用户能在标签栏显示 / 隐藏吗 |
 |---|---|---|---|
 | 自动化轨 `AutomationConfig` | 独立的声明表（`GetAutomationConfigs`） | `ControllerVisibility.Never`（§3.1） | 能 |
-| 时间轴画布 `TimelineCanvasConfig` | 独立的声明表（`GetTimelineCanvasConfigs`） | 同上 | 能 |
-| 控件树里的任何成员：滑条、下拉框……、侧栏画布 `CanvasConfig`、画布 lane `CanvasLaneConfig` | part / note / 音素 / 效果器的属性树 | 原位换成 `ValueOnlyConfig.Create()`（§3.2） | 只有画布 lane 能（它在标签栏上）：初始状态用 `WithShownByDefault(bool)`；其余不适用 |
+| 时间轴 lane 画布 `TimelineLaneCanvasConfig` | 独立的声明表（`GetTimelineLaneCanvasConfigs`） | 同上 | 能 |
+| 控件树里的任何成员：滑条、下拉框……、侧栏画布 `CanvasConfig`、时间轴画布 `TimelineCanvasConfig` | part / note / 音素 / 效果器的属性树 | 原位换成 `ValueOnlyConfig.Create()`（§3.2） | 只有时间轴画布能（它在标签栏上）：初始状态用 `WithShownByDefault(bool)`；其余不适用 |
 
 分界线是"是不是控件树的成员"，根子在**数据存在哪**：
 
-- 自动化轨与时间轴画布各有自己的存储（`Automations` / `PiecewiseAutomations` 的曲线；`TimelineCanvases` 的"偏移 + 整值"，
+- 自动化轨与时间轴 lane 画布各有自己的存储（`Automations` / `PiecewiseAutomations` 的曲线；`TimelineLaneCanvases` 的"偏移 + 整值"，
   拆分时宿主平移偏移、合成侧按区间标脏），它们的 config 就是这条独立通道的声明。把 `ValueOnlyConfig` 放进这两张表，
   同一个类在属性树里表示"存进属性"、在这里表示"存进通道"，一类两义。
-- 控件树里，任何位置都能换成另一种 config，"没有控件"就是一种叶子，不需要别的机制。画布 lane 虽然编辑界面在参数面板，
+- 控件树里，任何位置都能换成另一种 config，"没有控件"就是一种叶子，不需要别的机制。时间轴画布虽然编辑界面在参数面板，
   在侧栏里仍占一行（字段名 + 摘要 + 编辑按钮），它是树的成员；换成 `ValueOnlyConfig` 后侧栏那一行和标签栏的条目一起消失。
-  它在标签栏上，所以要的只是"一开始显不显示"：`CanvasLaneConfig.WithShownByDefault(bool)`，一个布尔，没有 `Never` 这一档（那就是 `ValueOnlyConfig`）。
+  它在标签栏上，所以要的只是"一开始显不显示"：`TimelineCanvasConfig.WithShownByDefault(bool)`，一个布尔，没有 `Never` 这一档（那就是 `ValueOnlyConfig`）。
   控件树里只有它用得到这个开关，不为它把三态枚举带进控件树。
 - 独立声明表里的条目没有"换成别的控件"这条路，所以自己带"不显示"这一档。
 
 ## 3. SDK 形状
 
-### 3.1 `ControllerVisibility`：自动化轨与时间轴画布
+### 3.1 `ControllerVisibility`：自动化轨与时间轴 lane 画布
 
 ```csharp
 public enum ControllerVisibility
@@ -62,10 +62,10 @@ public enum ControllerVisibility
 }
 
 AutomationConfig.WithVisibility(ControllerVisibility visibility)       // 取代 WithShownByDefault（未发布，直接替换）
-TimelineCanvasConfig.WithVisibility(ControllerVisibility visibility)   // 同上
+TimelineLaneCanvasConfig.WithVisibility(ControllerVisibility visibility)   // 同上
 
 AutomationConfig.Create()       // 不收界面参数：没有量程（不量化），WithDefault 照常决定连续 / 分段；可见性固定为 Never
-TimelineCanvasConfig.Create()   // 不收控件工厂；可见性固定为 Never
+TimelineLaneCanvasConfig.Create()   // 不收控件工厂；可见性固定为 Never
 ```
 
 - **成员名**：前两档是初始状态、用户随时能改，所以成对带 `ByDefault`；`Never` 由插件定死，不带。`Shown = 0`：没调 `WithVisibility`
@@ -112,7 +112,7 @@ public sealed class ValueOnlyConfig : IControllerConfig   // 不实现 IValueCon
 | 范围选区的复制 / 剪切 / 删除 | 照常作用：选区操作针对"这段时间的全部数据"，今天对隐藏轨、孤儿轨也是如此 |
 | 脚本 / agent | 可读可写（脚本是合法的写入方，比如迁移脚本）；参数说明里标明"没有控件"，`ValueOnlyConfig` 字段接受 null（= 清掉） |
 
-自动化轨 / 时间轴画布这边，实现上收成一个判定，与 `ParameterHiding.IsHidden` 并列，界面各处先过它，不在每个消费点各写一遍。
+自动化轨 / 时间轴 lane 画布这边，实现上收成一个判定，与 `ParameterHiding.IsHidden` 并列，界面各处先过它，不在每个消费点各写一遍。
 
 **只传值的数据用户清不掉**：与孤儿数据同等对待（保留、不显示）。插件切到新格式后就不再读它，留着不影响声音。不给只读 / 灰显入口——
 要的话以后再加，是纯新增。
@@ -138,7 +138,7 @@ public sealed class ValueOnlyConfig : IControllerConfig   // 不实现 IValueCon
   （都在 `PublicAPI.Unshipped.txt`，未发布）；`ValueOnlyConfig`。SDK 版本这一轮已升过，不再升。
 - 宿主：§4 各界面消费点；`ConfigValues`（agent / 脚本写值校验）、`CommandFormat`（参数说明）、`PartPresets` 认 `ValueOnlyConfig`；§6。
 - 现有用法迁移：`tests/plugins/V1.Voice` 的旧曲线、`NoteLaneShapeTests` 的一个测试；外部开发中插件的默认隐藏写法改一行。
-- 文档：插件开发文档三份（自动化轨、时间轴画布、属性值语义各补一段）、`naming-glossary.md`（`ControllerVisibility` 一行，
+- 文档：插件开发文档三份（自动化轨、时间轴 lane 画布、属性值语义各补一段）、`naming-glossary.md`（`ControllerVisibility` 一行，
   与小眼睛的 Visible 区分）。
 
 ## 8. 以后可能加的（纯新增，等真实需求）

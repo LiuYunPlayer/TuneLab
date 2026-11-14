@@ -174,7 +174,7 @@ internal static class ShotPlan
         pianoWindow.CloseFocusedParameterPanel();
         await Camera.Settle(8);
 
-        // ==== 07 参数面板里的插件画布：示例声源的画布 lane「呼吸」，每个音符一块 ====
+        // ==== 07 参数面板里的插件画布：示例声源的时间轴画布「呼吸」，每个音符一块 ====
         // 画布实例在第一次画到时才建（推迟一拍），多等几帧再拍。
         pianoWindow.ActiveAutomation = AutomationKey.NoteLane("breath");
         await Camera.Settle(20);

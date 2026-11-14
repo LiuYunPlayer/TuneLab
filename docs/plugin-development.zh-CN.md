@@ -43,7 +43,7 @@
 |---|---|---|
 | `1.0` | TuneLab 2.0.0 | V1 SDK 的全部初始面 |
 | `1.1` | TuneLab 2.1.0 | 路径选择控件（`PathPickerConfig` / `FileTypeFilter`）、多行文本框（`TextBoxConfig.WithMultiline`） |
-| `1.2` | 尚未发布 | 标签组（`TagConfig` / `TagItem`）、按钮（`ButtonConfig` / `IButtonClickContext` / `IDialogService` / `IProgressReporter`，见 §9）、声明失效（`InvalidatePart` / `InvalidateNotes` 及配套的 `PartId` / note `Id`，见 §5.2）、`+` 菜单与下拉的分组和分隔线（`AddableElement` / `AddableKey` 分组、`Separator`、`ComboBoxItem.Separator`）、自动化轨与时间轴画布的控件可见性（`ControllerVisibility` / `WithVisibility`，含只传值的 `Never` 与空壳 `Create()`）、只传值的属性（`ValueOnlyConfig`）；以及**实验中**的画布（`CanvasConfig` / `CanvasLaneConfig` / `ICanvasControl` / `ICanvasHost` / `ICanvasLaneHost` / `ICanvasTimeAxis` / `ICanvasDrawing` / `CanvasImage` 及其事件类型，见 §10） |
+| `1.2` | 尚未发布 | 标签组（`TagConfig` / `TagItem`）、按钮（`ButtonConfig` / `IButtonClickContext` / `IDialogService` / `IProgressReporter`，见 §9）、声明失效（`InvalidatePart` / `InvalidateNotes` 及配套的 `PartId` / note `Id`，见 §5.2）、`+` 菜单与下拉的分组和分隔线（`AddableElement` / `AddableKey` 分组、`Separator`、`ComboBoxItem.Separator`）、自动化轨与时间轴 lane 画布的控件可见性（`ControllerVisibility` / `WithVisibility`，含只传值的 `Never` 与空壳 `Create()`）、只传值的属性（`ValueOnlyConfig`）；以及**实验中**的画布（`CanvasConfig` / `TimelineCanvasConfig` / `ICanvasControl` / `ICanvasHost` / `ITimelineCanvasHost` / `ICanvasTimeAxis` / `ICanvasDrawing` / `CanvasImage` 及其事件类型，见 §10） |
 
 插件级（描述「这个包提供什么」）。**身份内联进 manifest**：一个条目 = 一个具体可注册能力，自带身份（引擎 id / 文件扩展名）+ 实现类全名。宿主读完 manifest 即知插件提供什么、无需加载程序集反射。
 
@@ -265,7 +265,7 @@ voice 是**歌声合成引擎**（如 SVS 模型）。本章按「先建立心�
 
 - **会话托管厚模型**：你实现 `IVoiceSynthesisEngine`（每种引擎类型一个，需无参构造函数；引擎 id 写在 `manifest.json` 的 `engine`，实现类写在 `class`，宿主校验它实现 `IVoiceSynthesisEngine`）。宿主为工程里**每条 MidiPart** 调一次 `CreateSession` 建一个 `IVoiceSynthesisSession`。**合成的全部状态由会话自己托管**——分块、调度状态、音频缓冲、合成进度、失效（dirty）判定全在你这边。理由：失效依赖图（如「音素时长 → 音高 → 音频」的分级管线，改自动化只需重渲音频而不必重算音素）只有引擎自己懂，宿主无从复制。宿主只做三件事：把工程数据的变更流推给你、驱动调度、读你的产物来展示。
 - **声明 vs 执行分层**：会话对外有两类职责——*声明*（这个声源暴露哪些自动化轨/回显轨/属性面板、默认歌词）与*执行*（合成）。声明全部是「当前 part/note 参数值的纯函数」，宿主在参数 commit 时重算并 diff 到 UI（详见 §5.2）。
-- **插件侧时间量一律全局秒**：note 边界、曲线查询点、开窗区间、状态段范围、音频段对齐——**全部是秒**（`double`）。tick 只经速度映射给出：按拍子定义的数据（如画布 lane 里按 tick 存的内容）用 `context.TimeConverter`（`ITimeConverter`，局部 tick ↔ 全局秒，原点 = part 原点；音符级数据的原点用 `TimeConverter.ToTick(note.StartTime)` 换出）换成秒，它不可变、任何线程可用；合成快照里带同一份（`snapshot.TimeConverter`），worker 里用那份即可。全局 0 秒 = 采样点 0。tempo 变化（及 part 平移）不需要你显式处理，也**没有增量通知**：宿主直接整体重建会话（旧会话 `Dispose`、新 context 新会话），新会话读到的就是新秒值——正确实现 `Dispose` 即天然正确（§5.9）。
+- **插件侧时间量一律全局秒**：note 边界、曲线查询点、开窗区间、状态段范围、音频段对齐——**全部是秒**（`double`）。tick 只经速度映射给出：按拍子定义的数据（如时间轴画布里按 tick 存的内容）用 `context.TimeConverter`（`ITimeConverter`，局部 tick ↔ 全局秒，原点 = part 原点；音符级数据的原点用 `TimeConverter.ToTick(note.StartTime)` 换出）换成秒，它不可变、任何线程可用；合成快照里带同一份（`snapshot.TimeConverter`），worker 里用那份即可。全局 0 秒 = 采样点 0。tempo 变化（及 part 平移）不需要你显式处理，也**没有增量通知**：宿主直接整体重建会话（旧会话 `Dispose`、新 context 新会话），新会话读到的就是新秒值——正确实现 `Dispose` 即天然正确（§5.9）。
 - **两视图 + 线程纪律（最重要的坑）**：
   - **活视图**（`IVoiceSynthesisContext` 及其 `IVoiceSynthesisNote` / `ISynthesisAutomation`）：可订阅、**只能在数据线程访问**。用于「收变更通知 → 标脏」「`GetNextPendingSynthesisRange` 分片决策」「`SynthesizeNext` 同步前缀拉快照」。
   - **冻结快照**（`VoiceSynthesisSnapshot` 及 `*Snapshot` 家族、`IAutomationEvaluator`）：不可变、无事件、**可跨线程**。后台 worker **只读快照**，永不回碰任何活视图对象。
@@ -504,8 +504,8 @@ public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext con
 
 **只传值：声明一份数据，但不给任何控件。** 数据照常存储、照常传给合成，preset、撤销、脚本 / agent 照常参与，界面上看不到它。用途：参数换了新的表达方式，旧数据在新数据没设过时仍要生效（下面「字段形状演进」的第二种做法常常要它）；只由脚本或导入写入的数据。按数据存在哪分两种写法：
 
-- **属性（控件树里的任何成员，包括侧栏画布、画布 lane）**：原位换成 `ValueOnlyConfig.Create()`。值语义同画布——**没有默认值**（默认值只是给宿主控件显示用的兜底，没有控件就用不着），没设过 = 不存值（读到 Null，你补自己的默认值），恢复默认 = 删掉存值，形状你定、读取时自己校验。侧栏不占行，数组 / 列表里它所在的那一行不出现。属性本来就整个传给合成，不声明也读得到；声明它是为了让它进 preset、出现在给 agent 的参数说明里。
-- **自动化轨、时间轴画布（各有自己的存储，不在控件树里）**：`WithVisibility(ControllerVisibility.Never)`，或者用不收界面参数的空壳 `AutomationConfig.Create()` / `TimelineCanvasConfig.Create()`——量程、颜色、控件工厂都不用填。空壳的自动化轨 `WithDefault` 照常决定连续 / 分段，没有曲线的地方合成取它；没有量程 = 不量化，合成读到曲线原值（要按离散标度落格就用 `Create(scale).WithVisibility(Never)`）。在空壳上设成要显示会当场抛参数异常。
+- **属性（控件树里的任何成员，包括侧栏画布、时间轴画布）**：原位换成 `ValueOnlyConfig.Create()`。值语义同画布——**没有默认值**（默认值只是给宿主控件显示用的兜底，没有控件就用不着），没设过 = 不存值（读到 Null，你补自己的默认值），恢复默认 = 删掉存值，形状你定、读取时自己校验。侧栏不占行，数组 / 列表里它所在的那一行不出现。属性本来就整个传给合成，不声明也读得到；声明它是为了让它进 preset、出现在给 agent 的参数说明里。
+- **自动化轨、时间轴 lane 画布（各有自己的存储，不在控件树里）**：`WithVisibility(ControllerVisibility.Never)`，或者用不收界面参数的空壳 `AutomationConfig.Create()` / `TimelineLaneCanvasConfig.Create()`——量程、颜色、控件工厂都不用填。空壳的自动化轨 `WithDefault` 照常决定连续 / 分段，没有曲线的地方合成取它；没有量程 = 不量化，合成读到曲线原值（要按离散标度落格就用 `Create(scale).WithVisibility(Never)`）。在空壳上设成要显示会当场抛参数异常。
 
 只传值的数据用户在界面上清不掉（同孤儿数据：保留、不显示）；你切到新格式后不再读它，留着不影响声音。
 
@@ -969,7 +969,7 @@ class MyEffectProcessor : IEffectSynthesisSession
 
 Instrument 是**多声部音源**（合成器 / 采样器 / 和弦音源）。它与 voice **机制同构**（引擎生命周期、调度 peek/commit、隔离快照、音频段交付、effect 链、扩展设置全部一样），接口族用 `IInstrument*` 前缀平行成套，与 voice 族无继承。**只在三处与 voice 实质不同**：
 
-- **note 满末、不去重叠**：`IInstrumentSynthesisNote.EndTime` / `InstrumentSynthesisNoteSnapshot.EndTime` 是 note 满末（`Pos+Dur`），宿主**不**钳到下一 note 起点。`Notes` 直传原始可重叠 note（和弦 / 多声部），引擎自行叠加发声（参考实现按每个 note 的 pitch 各加一段波形、混音求和）。界面上也一样：参数面板里 note 级的 lane（数值 lane、画布 lane）按每个 note 的完整区间出段，重叠的叠在一起——**声明画布 lane 时要考虑音符重叠**（见 §10.6）。
+- **note 满末、不去重叠**：`IInstrumentSynthesisNote.EndTime` / `InstrumentSynthesisNoteSnapshot.EndTime` 是 note 满末（`Pos+Dur`），宿主**不**钳到下一 note 起点。`Notes` 直传原始可重叠 note（和弦 / 多声部），引擎自行叠加发声（参考实现按每个 note 的 pitch 各加一段波形、混音求和）。界面上也一样：参数面板里 note 级的 lane（数值 lane、时间轴画布）按每个 note 的完整区间出段，重叠的叠在一起——**声明时间轴画布时要考虑音符重叠**（见 §10.6）。
 - **无歌词 / 无音素**：`IInstrumentSynthesisNote` 没有 `Lyric`，也完全没有音素面（`LeadingPhonemes` / `BodyPhonemes` / `BodyOffset` 都没有）；会话没有 `DefaultLyric`、不产 `SynthesizedPhonemes`。
 - **无 pitch 曲线、产物仅音频**：`IInstrumentSynthesisContext` 没有 `Pitch` / `PitchDeviation`（v1 纯按 note 整数 `Pitch` 发声）；会话不产 `SynthesizedPitch`。仍可声明 automation 轨与 `SynthesizedParameters` 回显（引擎不声明即无）。
 
@@ -1284,31 +1284,31 @@ if (picked is { } v && v.ToString(out var command) && command == "set")
 
 参考实现：`tests/plugins/V1.Voice/StretchCurveCanvas.cs`（note 面板与核音素面板上的拉伸曲线：按下即写草稿、拖动、双击复位、点上滚轮微调并推迟提交 / 空白处照常滚面板、多选合并值；画布有焦点时 ↑ / ↓ 微调指针所在的点、按住连调、松开提交，拖动中按 Esc 取消；右键菜单——在数值标签处弹文本框改值、多行备注、确认后全部复位）与 `tests/plugins/V1.Voice/ImageDemoCanvas.cs`（note 面板上的"Canvas Images"：编码位图与 SVG 的插件级缓存、按设备像素比自生成像素、圆角裁剪、透明度、旋转变换，← / → 旋转）。
 
-### 10.6 画布 lane（CanvasLaneConfig）
+### 10.6 时间轴画布（TimelineCanvasConfig）
 
-必须与时间轴对齐、逐个对象编辑的界面（如音素混合：一条随时间变化的曲线，加上符号与语言），声明成**画布 lane**：
+必须与时间轴对齐、逐个对象编辑的界面（如音素混合：一条随时间变化的曲线，加上符号与语言），声明成**时间轴画布**：
 编辑界面不在侧栏里（侧栏只有一行摘要，见下），而是常驻钢琴窗下方的参数面板——每个声明了它的对象（note 级字段 = 每个 note，音素级字段 = 每个音素）
 在自己的时间段上占一块，宽 = 这个对象的时间段，高 = 面板高度。标签栏里哪个 note 的声明有它就有它，不用用户去钉。
 
 ```csharp
-props.Add(("mix", "Mix"), CanvasLaneConfig.Create(host => new MixCanvas(host, value))
+props.Add(("mix", "Mix"), TimelineCanvasConfig.Create(host => new MixCanvas(host, value))
     .WithColor("#E58AC9"));   // 不设颜色 = 宿主从调色板分配（同 AutomationConfig）
 ```
 
-- **怎么选**：界面属于侧栏、与时间无关（或只按对象内的相对位置画）→ `CanvasConfig`；必须与时间轴对齐 → `CanvasLaneConfig`。
-  同一个字段只能选一种。侧栏可以多选，多个对象没有一个共同的时间段，所以时间换算只有画布 lane 有。
+- **怎么选**：界面属于侧栏、与时间无关（或只按对象内的相对位置画）→ `CanvasConfig`；必须与时间轴对齐 → `TimelineCanvasConfig`。
+  同一个字段只能选一种。侧栏可以多选，多个对象没有一个共同的时间段，所以时间换算只有时间轴画布有。
 - **其余与侧栏画布完全相同**：同一个 `ICanvasControl`、同一套绘制 / 事件 / 草稿 / 提交 / 弹出 / 弹窗（§10.1–10.5），值语义、实例寿命也一样。
   没有首选尺寸：宽由对象的时长定，高是用户调的面板高度。
 - **放在哪都行**：可以是 note / 音素属性声明的顶层成员，也可以在对象、定长数组、列表、键控容器的里面，任意嵌套
-  （如每层一块画布：`mixes: [{ curve: 画布 lane, … }]`）。参数面板里按路径各成一条 lane，标签名取末段的显示名 + 路径上的序号
+  （如每层一块画布：`mixes: [{ curve: 时间轴画布, … }]`）。参数面板里按路径各成一条 lane，标签名取末段的显示名 + 路径上的序号
   （「曲线 2」），与别的标签重名时才往前补祖先名（「音素混合 2 · 曲线」，序号跟着它所属的那一段），悬停显示完整路径——**叶子字段的显示名尽量别重名**，
   标签就一直最短。列表的下标随用户增删、调序而变，lane 按下标排。
-- **侧栏里那一行**：每个画布 lane 的位置（含数组 / 列表的每个元素里）在侧栏占一行：字段名 + 摘要 + 编辑按钮（跳到参数面板）。
+- **侧栏里那一行**：每个时间轴画布的位置（含数组 / 列表的每个元素里）在侧栏占一行：字段名 + 摘要 + 编辑按钮（跳到参数面板）。
   摘要用 `.WithSummary(text)` 在声明时按当时的值算好（多选写什么你定），不给则宿主显示「默认 / 已修改 / 多值」。
   列表照常在侧栏增删、调序；元素对象里别的普通字段照常显示、可以多选批量改。
 - **标签栏上一开始显不显示**：`.WithShownByDefault(false)` = 默认隐藏（同自动化轨的 `HiddenByDefault`）。只是初始状态，用户在标签栏里
   显式显示 / 隐藏过就按用户的；侧栏那一行仍在，点编辑按钮即把它显示出来。不要控件就原位换成 `ValueOnlyConfig`（见 §5.2「只传值」）。
-- **坐标**：工厂收到的是 `ICanvasLaneHost`——横向是时间、纵向是音高，有 `TimeAxis` 与 `PitchAxis`。
+- **坐标**：工厂收到的是 `ITimelineCanvasHost`——横向是时间、纵向是音高，有 `TimeAxis` 与 `PitchAxis`。
   两条轴宿主一律给，用不到的不调即可。
   - **时间，两种单位**：`SecondToX(秒)` / `XToSecond(x)` 是全局秒（`SecondToX(0)` = 工程开头，与声明视图
     `IVoiceSynthesisNoteView.StartTime` 同一口径）；`TickToX(tick)` / `XToTick(x)` 是**局部 tick**，相对这块数据的原点——所属音符的
@@ -1339,13 +1339,13 @@ props.Add(("mix", "Mix"), CanvasLaneConfig.Create(host => new MixCanvas(host, va
     后放的在上（音符顺序 = 起点升序、同起点时长的在前，所以每块都至少露出一截）；重叠处只有最上面那块收事件。设计画布内容时要考虑到这一点：
     别把整块铺满、别在整块上接按下——只在需要的地方画、只在画了东西的地方接，否则上面那块会把下面那块完全挡住；要编辑被挡住的音符，
     用户得先在钢琴窗选中它。
-  - **叠在一起**：一块参数面板里用户可以同时开几块画布（小眼睛），它们都画出来，时间轴画布垫在画布 lane 下面（越局部越在上：part 级 → note 级 → 音素级），同一级按开启的先后叠（后开的在上），
+  - **叠在一起**：一块参数面板里用户可以同时开几块画布（小眼睛），它们都画出来，时间轴 lane 画布垫在时间轴画布下面（越局部越在上：part 级 → note 级 → 音素级），同一级按开启的先后叠（后开的在上），
     激活的那块在最上；宿主自己的编辑在最底。激活的是曲线 / 数值 lane 时，它的编辑在最上层，开着的画布只作显示、不接收事件。事件自上而下逐层问，谁置 `Handled` 归谁（规则见"鼠标"一节）。所以**任何画布都可能
     和别的画布叠在一起**：大部分透明、只在需要的地方画、只在画了东西的地方接按下。开着、但不是激活的那块，`IsBackground` 为 true。
   - 写入音素级字段时，宿主先把这个音符的音素固定下来再写值，同一个撤销步骤。
   - 用户也可以把**侧栏画布**（`CanvasConfig`）钉进参数面板：那时同样每个对象一块，宽是对象的时长、高是面板高度，host 仍是
     `ICanvasHost`（没有时间轴）——侧栏画布本就要能接受任意宽高。
-- **叠到钢琴窗上**：用户还可以把画布 lane 叠到钢琴窗的音符区上（音符区右上角悬浮标签的「+」），和钢琴窗当前的工具一起操作。
+- **叠到钢琴窗上**：用户还可以把时间轴画布叠到钢琴窗的音符区上（音符区右上角悬浮标签的「+」），和钢琴窗当前的工具一起操作。
   - 每块横向同参数区（对象的时间段），纵向铺满音符区；纵轴就是钢琴窗的音高轴，所以 `PitchToY(音符的 Pitch)` 正好是音符那一行的下沿。
     在声明时取到音符的 `Pitch`（声明视图 `IVoiceSynthesisNoteView.Pitch`），就能把内容贴着音符画。
   - 宿主不画分界（音符看得见），`IsBackground` 为 false。几块画布叠在一起时按用户在悬浮标签里排的顺序叠，规则同参数区。
@@ -1358,32 +1358,32 @@ props.Add(("mix", "Mix"), CanvasLaneConfig.Create(host => new MixCanvas(host, va
 窄矮时只画曲线）、`tests/plugins/V1.Voice/NoteLanguageCanvas.cs`（叠到钢琴窗上用：按声明时的音高在音符正下方画语言标签，
 只在标签上接按下）与 `tools/ScreenshotBot/demo-plugins/DemoVoice/BreathCanvas.cs`（只展示的最小写法）。
 
-### 10.7 时间轴画布（TimelineCanvasConfig）
+### 10.7 时间轴 lane 画布（TimelineLaneCanvasConfig）
 
 一条**贯穿整个 part** 的插件自绘轨（区段、标记、视频帧、歌词块、你自己的曲线……宿主不解读），与自动化轨平级：不是某个属性的字段，
-而是引擎在 `GetTimelineCanvasConfigs` 里声明的一条轨（声源、乐器、效果器三类引擎都有，带默认实现 = 没有）。
+而是引擎在 `GetTimelineLaneCanvasConfigs` 里声明的一条轨（声源、乐器、效果器三类引擎都有，带默认实现 = 没有）。
 
 ```csharp
-public IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig> GetTimelineCanvasConfigs(IVoiceSynthesisPartPropertyContext context)
+public IReadOnlyOrderedMap<PropertyKey, TimelineLaneCanvasConfig> GetTimelineLaneCanvasConfigs(IVoiceSynthesisPartPropertyContext context)
 {
     // 值从声明视图取（没设过的 id 不在表里 = Null），由工厂捕获交给控件——同其他画布。
-    var value = context.Parts[0].TimelineCanvases.TryGetValue("mix", out var v) ? v : PropertyValue.Null;
-    return new OrderedMap<PropertyKey, TimelineCanvasConfig>
+    var value = context.Parts[0].TimelineLaneCanvases.TryGetValue("mix", out var v) ? v : PropertyValue.Null;
+    return new OrderedMap<PropertyKey, TimelineLaneCanvasConfig>
     {
-        { ("mix", "Speaker Mix"), TimelineCanvasConfig.Create(host => new MixTrack(host, value)).WithColor("#7FD1AE") },
+        { ("mix", "Speaker Mix"), TimelineLaneCanvasConfig.Create(host => new MixTrack(host, value)).WithColor("#7FD1AE") },
     };
 }
 ```
 
-- **怎么选**：这是某个音符 / 音素的属性 → `CanvasLaneConfig`（每个对象各占自己那一段、跟着对象走）；这是一条贯穿整个 part 的轨 →
-  `TimelineCanvasConfig`。用户不必关心是哪一种，标签栏里都是画布。
+- **怎么选**：这是某个音符 / 音素的属性 → `TimelineCanvasConfig`（每个对象各占自己那一段、跟着对象走）；这是一条贯穿整个 part 的轨 →
+  `TimelineLaneCanvasConfig`。用户不必关心是哪一种，标签栏里都是画布。
 - **声明**：与 `GetAutomationConfigs` 同一个 context、同一个询问时机，同为纯函数；有序表的顺序 = 标签栏顺序（排在本声源 / 本效果器的
-  自动化轨后面）。`.WithVisibility(...)` 同自动化轨（默认显示 / 默认隐藏 / 只传值）；只传值也可以用不带工厂的 `TimelineCanvasConfig.Create()`（见 §5.2「只传值」）。id 与自动化轨不强制不重名（两族各存各的），
+  自动化轨后面）。`.WithVisibility(...)` 同自动化轨（默认显示 / 默认隐藏 / 只传值）；只传值也可以用不带工厂的 `TimelineLaneCanvasConfig.Create()`（见 §5.2「只传值」）。id 与自动化轨不强制不重名（两族各存各的），
   但起同一个显示名会出现两个同名页签。
 - **值**：一个整值，形状你定（宿主不解读、读取时须自己校验）；**没有默认值**，没设过 = Null（读到时按你自己的默认补）。
-  从声明视图的 `TimelineCanvases` 取（`IVoiceSynthesisPartView` / `IInstrumentSynthesisPartView` / `IEffectSynthesisView`），
+  从声明视图的 `TimelineLaneCanvases` 取（`IVoiceSynthesisPartView` / `IInstrumentSynthesisPartView` / `IEffectSynthesisView`），
   实例寿命 = 一次声明，与 `CanvasConfig` 同一套契约。
-- **宿主**：工厂收到 `ITimelineCanvasHost`——与画布 lane 一样有 `TimeAxis`（秒 / 局部 tick）与 `PitchAxis`（同 §10.6），另多一个
+- **宿主**：工厂收到 `ITimelineLaneCanvasHost`——与时间轴画布一样有 `TimeAxis`（秒 / 局部 tick）与 `PitchAxis`（同 §10.6），另多一个
   带改动范围的提交 `CommitValue(modifiedTickRanges)`（见下）。画布铺满整个参数面板：`Width` / `Height` 是面板的尺寸，画布坐标就是面板坐标，内容按两条轴的换算摆。叠到钢琴窗上时（见 §10.6）铺满音符区，同理。
 - **时间**：定义域是**整条时间轴**。局部 tick 相对 part 原点（`TickToX(0)`），可以为负、可以超出 part——part 裁剪外照样画、照样能编辑
   （与自动化轨一致；出不出声你不用管，合成按裁剪范围取）。值里存 tick 就存局部 tick：挪动 part 什么都不用改；拆分、合并后宿主自己维护
@@ -1395,10 +1395,10 @@ public IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig> GetTimelineCanvasC
   - **宿主不合并**：报什么就原样记录、原样通知——重叠、重复的段你自己去掉；中间没改的地方别连进去。
   - 按这次提交的最终结果报：拖动途中经过、最终没变的地方不算。
   - **不带参数的 `CommitValue()` = 整条都改了**：整条替换（清空、导入、重置成你的默认）时用它；空列表同样按整条（正确，只是重算得多）。
-- **合成侧**：上下文的 `TimelineCanvases`（`IVoiceSynthesisContext` / `IInstrumentSynthesisContext` / `IEffectSynthesisContext`，按 id，
-  只有当前声明了的）给出 `ISynthesisTimelineCanvas`：`Value`、`TimeConverter`（局部 tick ↔ 全局秒，原点同画布上的 `TickToX(0)`）、
+- **合成侧**：上下文的 `TimelineLaneCanvases`（`IVoiceSynthesisContext` / `IInstrumentSynthesisContext` / `IEffectSynthesisContext`，按 id，
+  只有当前声明了的）给出 `ISynthesisTimelineLaneCanvas`：`Value`、`TimeConverter`（局部 tick ↔ 全局秒，原点同画布上的 `TickToX(0)`）、
   `RangeModified`（全局秒，报了几段触发几次；没报范围的写入与宿主发起的写入——脚本 / agent 写值等——按整条：(-∞, +∞)）。
-  worker 里用快照的 `TimelineCanvases`（`SynthesisTimelineCanvasSnapshot`：`Value` + `TimeConverter`）。效果器的标脏由宿主按区间相交做，
+  worker 里用快照的 `TimelineLaneCanvases`（`SynthesisTimelineLaneCanvasSnapshot`：`Value` + `TimeConverter`）。效果器的标脏由宿主按区间相交做，
   `RangeModified` 对效果器只是缓存提示。
 - **part 上的操作（这一版）**：移动 part 不改任何东西；**拆分** = 左右各拿一份完整的值，各显示自己那段（数据冗余，再拉长 part 会露出原先
   看不见的部分）；**合并** = 每个 id 保留按时间顺序第一个有它的 part 的值，后面各段的丢掉；**选区复制粘贴不带画布值**；part 预设整值带上它（应用时声明了的每条换成预设里的值，预设里没有的删掉存值，「None」全删）。
@@ -1406,9 +1406,9 @@ public IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig> GetTimelineCanvasC
   没提供的插件行为不变。
 - **孤儿数据**：id 从声明里消失（换了声源、条件声明），值照样存着、写进工程，只是不显示、不参与合成；重新声明即原样恢复。
   换到别的声源时它读到的可能是别家写的值——读取一律校验。
-- **工程文件**：值随 part / 效果器存进工程（`MidiPartInfo` / `EffectInfo` 的 `TimelineCanvases`：偏移 + 值）。导出到别的工程格式时这张表
+- **工程文件**：值随 part / 效果器存进工程（`MidiPartInfo` / `EffectInfo` 的 `TimelineLaneCanvases`：偏移 + 值）。导出到别的工程格式时这张表
   会被丢掉（格式插件不认识它）。
-- **作背景时**：同画布 lane（`IsBackground`，简化绘制）；同样可能和别的画布叠在一起，收不收事件同画布 lane。
+- **作背景时**：同时间轴画布（`IsBackground`，简化绘制）；同样可能和别的画布叠在一起，收不收事件同时间轴画布。
 
 参考实现：`tests/plugins/V1.Voice/TimelineDemoCanvas.cs`（「Markers」：落在 tick × 音高上的标记格，与琴键对齐；画原点线；加 / 拖 / 删都在提交前
 报受影响的半拍；会话订阅 `RangeModified` 只标脏相交的块）。

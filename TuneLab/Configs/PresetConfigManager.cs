@@ -174,7 +174,7 @@ internal static class PresetConfigManager
             ["soundSource"] = DataInfoJsonUtils.ToJson(preset.Source),
             ["properties"] = PropertyJsonUtils.ToJson(preset.Properties),
             ["automations"] = DataInfoJsonUtils.ToJson(preset.Automations),
-            ["timelineCanvases"] = PropertyJsonUtils.ToJson(TimelineCanvasCodec.ToPropertyObject(preset.TimelineCanvases)),
+            ["timelineLaneCanvases"] = PropertyJsonUtils.ToJson(TimelineLaneCanvasCodec.ToPropertyObject(preset.TimelineLaneCanvases)),
         };
     }
 
@@ -188,21 +188,21 @@ internal static class PresetConfigManager
 
         if (json["automations"] is JObject automations)
             DataInfoJsonUtils.ReadAutomations(automations, preset.Automations);
-        if (json["timelineCanvases"] is JObject canvases)
-            TimelineCanvasCodec.Read(PropertyJsonUtils.ToPropertyObject(canvases), preset.TimelineCanvases);
+        if (json["timelineLaneCanvases"] is JObject canvases)
+            TimelineLaneCanvasCodec.Read(PropertyJsonUtils.ToPropertyObject(canvases), preset.TimelineLaneCanvases);
 
         return preset;
     }
 
 }
 
-// part preset = 声源参数域的快照：音源身份 + part 属性 + automation 默认值 + 时间轴画布的值。Name 即文件名（不入文件内容）。
+// part preset = 声源参数域的快照：音源身份 + part 属性 + automation 默认值 + 时间轴 lane 画布的值。Name 即文件名（不入文件内容）。
 // 字段直接用 DataInfo 本体，抓取/应用整对象传递（GetInfo/SetInfo），叶子加字段自动流过、不逐字段抄写。
 // 快照是物化的（dense）：Properties 与 Automations 都在抓取时把声明默认值落成显式值——默认值也是声音
 // 的一部分，引擎日后改默认值不改变既存 preset 的声音。
 // 口径（刻意不入 preset 的部分）：时间轴内容（notes / automation 曲线点 / 分段轨 / effect 链）与 part 状态
 // （Gain / Name / Pos）——Automations 里的 Points 恒空，应用端也只消费 DefaultValue。
-// 时间轴画布是例外：用户调好一块画布、想长期留着下次直接用，它对这条预设来说就是默认值；宿主分不出值里哪些算"默认"、哪些是
+// 时间轴 lane 画布是例外：用户调好一块画布、想长期留着下次直接用，它对这条预设来说就是默认值；宿主分不出值里哪些算"默认"、哪些是
 // 这一段的内容，所以整值收进来（偏移 + 值，tick 相对 part，套到别处不错位），由用户自己管理——要干净的预设就在干净的 part 上保存。
 // 只收声源声明了的、存着值的（没设过的不收）。
 internal class PartPreset
@@ -211,5 +211,5 @@ internal class PartPreset
     public SoundSourceInfo Source { get; set; } = new();
     public PropertyObject Properties { get; set; } = PropertyObject.Empty;
     public Map<string, AutomationInfo> Automations { get; set; } = new();
-    public Map<string, TimelineCanvasInfo> TimelineCanvases { get; set; } = new();
+    public Map<string, TimelineLaneCanvasInfo> TimelineLaneCanvases { get; set; } = new();
 }

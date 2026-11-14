@@ -17,6 +17,6 @@ public interface IInstrumentSynthesisPartView
     // 当前**存在用户内容**的自动化轨求值器（按 key；查询轴全局秒；口径与理由同 IVoiceSynthesisPartView.Automations：
     // 外生输入、非「已声明」——未绘制且无 vibrato 投影的已声明轨不在 map，其值恒为引擎自知的默认）。
     IReadOnlyMap<string, IAutomationEvaluator> Automations { get; }
-    // 时间轴画布的当前值，按 id（同 IVoiceSynthesisPartView.TimelineCanvases）。
-    IReadOnlyMap<string, PropertyValue> TimelineCanvases { get; }
+    // 时间轴 lane 画布的当前值，按 id（同 IVoiceSynthesisPartView.TimelineLaneCanvases）。
+    IReadOnlyMap<string, PropertyValue> TimelineLaneCanvases { get; }
 }

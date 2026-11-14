@@ -32,10 +32,10 @@ public interface IEffectSynthesisEngine
     // 曲线数据另经 IEffectSynthesisSession.SynthesizedParameters 按同一批 key 承载。
     IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IEffectSynthesisPropertyContext context);
 
-    // 时间轴画布声明（与 GetAutomationConfigs 同一个 context、同为纯函数）：贯穿 part 的插件自绘轨，按声明序排在标签栏里
-    // 本效果器的自动化轨后面。值经 context.Effects[i].TimelineCanvases 取，合成侧经 IEffectSynthesisContext.TimelineCanvases 取；
+    // 时间轴 lane 画布声明（与 GetAutomationConfigs 同一个 context、同为纯函数）：贯穿 part 的插件自绘轨，按声明序排在标签栏里
+    // 本效果器的自动化轨后面。值经 context.Effects[i].TimelineLaneCanvases 取，合成侧经 IEffectSynthesisContext.TimelineLaneCanvases 取；
     // 提交时报的改动范围由宿主换成秒、按区间相交标脏。孤儿数据同自动化轨。默认 = 没有。
-    IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig> GetTimelineCanvasConfigs(IEffectSynthesisPropertyContext context) => new OrderedMap<PropertyKey, TimelineCanvasConfig>();
+    IReadOnlyOrderedMap<PropertyKey, TimelineLaneCanvasConfig> GetTimelineLaneCanvasConfigs(IEffectSynthesisPropertyContext context) => new OrderedMap<PropertyKey, TimelineLaneCanvasConfig>();
 
     // 初始化引擎（加载模型等）。无参、失败抛异常：宿主在调用边界 catch，责任归属靠捕获点判定。
     // 不传安装路径——插件 DLL 经 Assembly.Location 即可自定位包目录。

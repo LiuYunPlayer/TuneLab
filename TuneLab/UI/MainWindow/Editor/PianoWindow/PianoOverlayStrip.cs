@@ -419,7 +419,7 @@ internal class PianoOverlayStrip : Border
 }
 
 // 悬浮标签的「+」：叠哪些画布的勾选列表（打勾 = 叠在钢琴窗上，点一下切换、菜单不关）。
-// 列表 = 这个 part 此刻能叠的全部画布（时间轴画布、画布 lane），按参数属于谁分组，同参数区标签栏的勾选列表。
+// 列表 = 这个 part 此刻能叠的全部画布（时间轴 lane 画布、时间轴画布），按参数属于谁分组，同参数区标签栏的勾选列表。
 internal static class PianoOverlayMenu
 {
     public static ContextMenu Open(Control anchor, IMidiPart part)

@@ -49,8 +49,8 @@ internal static class ConfigText
         // 按钮没有值：点明它不是可设的字段，免得模型去 set 它。
         ButtonConfig b => string.Format("button \"{0}\" (an action in the panel, holds no value; can't be set)", b.Text),
         // 画布的值形状只有插件知道（宿主不解读、也不校验）：指给模型去读插件的说明；说明里没写就只能照当前值推断（画布没有默认值）。
-        // 画布 lane 同理，只是编辑界面在参数面板里（按对象的时间段摆放），侧栏里没有它。
-        CanvasLaneConfig => "custom value edited on a canvas the extension draws along the timeline in the parameter panel (the side panel only shows a summary row for it); its shape is defined by the extension, not checked by the host — "
+        // 时间轴画布同理，只是编辑界面在参数面板里（按对象的时间段摆放），侧栏里没有它。
+        TimelineCanvasConfig => "custom value edited on a canvas the extension draws along the timeline in the parameter panel (the side panel only shows a summary row for it); its shape is defined by the extension, not checked by the host — "
             + "read the extension's introduction first (get_extension_introduction); if it doesn't describe this field, infer the shape from its current value (canvases have no default; unset reads as null)",
         CanvasConfig => "custom value edited on a canvas the extension draws; its shape is defined by the extension, not checked by the host — "
             + "read the extension's introduction first (get_extension_introduction); if it doesn't describe this field, infer the shape from its current value (canvases have no default; unset reads as null)",

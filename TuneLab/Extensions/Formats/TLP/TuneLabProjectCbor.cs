@@ -448,9 +448,9 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat, INativeProject
                         else
                             reader.SkipValue();
                         break;
-                    case "timelineCanvases":
+                    case "timelineLaneCanvases":
                         if (midiPartInfo != null)
-                            TimelineCanvasCodec.Read(ReadPropertyObject(reader), midiPartInfo.TimelineCanvases);
+                            TimelineLaneCanvasCodec.Read(ReadPropertyObject(reader), midiPartInfo.TimelineLaneCanvases);
                         else
                             reader.SkipValue();
                         break;
@@ -853,8 +853,8 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat, INativeProject
                     case "piecewiseAutomations":
                         ReadPiecewiseAutomations(reader, effectInfo.PiecewiseAutomations);
                         break;
-                    case "timelineCanvases":
-                        TimelineCanvasCodec.Read(ReadPropertyObject(reader), effectInfo.TimelineCanvases);
+                    case "timelineLaneCanvases":
+                        TimelineLaneCanvasCodec.Read(ReadPropertyObject(reader), effectInfo.TimelineLaneCanvases);
                         break;
                     default:
                         reader.SkipValue();
@@ -1198,10 +1198,10 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat, INativeProject
             WritePiecewiseAutomations(writer, midiPart.PiecewiseAutomations);
         }
 
-        if (midiPart.TimelineCanvases.Count > 0)
+        if (midiPart.TimelineLaneCanvases.Count > 0)
         {
-            writer.WriteTextString("timelineCanvases");
-            WritePropertyObject(writer, TimelineCanvasCodec.ToPropertyObject(midiPart.TimelineCanvases));
+            writer.WriteTextString("timelineLaneCanvases");
+            WritePropertyObject(writer, TimelineLaneCanvasCodec.ToPropertyObject(midiPart.TimelineLaneCanvases));
         }
 
         if (midiPart.Effects.Count > 0)
@@ -1252,10 +1252,10 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat, INativeProject
                 WritePiecewiseAutomations(writer, effect.PiecewiseAutomations);
             }
 
-            if (effect.TimelineCanvases.Count > 0)
+            if (effect.TimelineLaneCanvases.Count > 0)
             {
-                writer.WriteTextString("timelineCanvases");
-                WritePropertyObject(writer, TimelineCanvasCodec.ToPropertyObject(effect.TimelineCanvases));
+                writer.WriteTextString("timelineLaneCanvases");
+                WritePropertyObject(writer, TimelineLaneCanvasCodec.ToPropertyObject(effect.TimelineLaneCanvases));
             }
 
             writer.WriteEndMap();

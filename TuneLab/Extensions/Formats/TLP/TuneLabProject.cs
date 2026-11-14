@@ -226,8 +226,8 @@ internal class TuneLabProject : IImportFormat, IExportFormat, INativeProjectForm
                         if (part.TryGetValue("piecewiseAutomations", out var piecewiseAutomations))
                             ReadJsonPiecewiseAutomations(piecewiseAutomations, midiPartInfo.PiecewiseAutomations);
 
-                        if (part.TryGetValue("timelineCanvases", out var timelineCanvases))
-                            TimelineCanvasCodec.Read(FromJson(timelineCanvases), midiPartInfo.TimelineCanvases);
+                        if (part.TryGetValue("timelineLaneCanvases", out var timelineLaneCanvases))
+                            TimelineLaneCanvasCodec.Read(FromJson(timelineLaneCanvases), midiPartInfo.TimelineLaneCanvases);
 
                         if (part.TryGetValue("effects", out var effects))
                         {
@@ -245,8 +245,8 @@ internal class TuneLabProject : IImportFormat, IExportFormat, INativeProjectForm
                                     DataInfoJsonUtils.ReadAutomations(effectAutomations, effectInfo.Automations);
                                 if (effect.TryGetValue("piecewiseAutomations", out var effectPiecewise))
                                     ReadJsonPiecewiseAutomations(effectPiecewise, effectInfo.PiecewiseAutomations);
-                                if (effect.TryGetValue("timelineCanvases", out var effectCanvases))
-                                    TimelineCanvasCodec.Read(FromJson(effectCanvases), effectInfo.TimelineCanvases);
+                                if (effect.TryGetValue("timelineLaneCanvases", out var effectCanvases))
+                                    TimelineLaneCanvasCodec.Read(FromJson(effectCanvases), effectInfo.TimelineLaneCanvases);
                                 midiPartInfo.Effects.Add(effectInfo);
                             }
                         }
@@ -458,8 +458,8 @@ internal class TuneLabProject : IImportFormat, IExportFormat, INativeProjectForm
                     if (midiPartInfo.PiecewiseAutomations.Count > 0)
                         part.Add("piecewiseAutomations", PiecewiseAutomationsToJson(midiPartInfo.PiecewiseAutomations));
 
-                    if (midiPartInfo.TimelineCanvases.Count > 0)
-                        part.Add("timelineCanvases", ToJson(TimelineCanvasCodec.ToPropertyObject(midiPartInfo.TimelineCanvases)));
+                    if (midiPartInfo.TimelineLaneCanvases.Count > 0)
+                        part.Add("timelineLaneCanvases", ToJson(TimelineLaneCanvasCodec.ToPropertyObject(midiPartInfo.TimelineLaneCanvases)));
 
                     if (midiPartInfo.Effects.Count > 0)
                     {
@@ -474,8 +474,8 @@ internal class TuneLabProject : IImportFormat, IExportFormat, INativeProjectForm
                             effect.Add("automations", DataInfoJsonUtils.ToJson(effectInfo.Automations));
                             if (effectInfo.PiecewiseAutomations.Count > 0)
                                 effect.Add("piecewiseAutomations", PiecewiseAutomationsToJson(effectInfo.PiecewiseAutomations));
-                            if (effectInfo.TimelineCanvases.Count > 0)
-                                effect.Add("timelineCanvases", ToJson(TimelineCanvasCodec.ToPropertyObject(effectInfo.TimelineCanvases)));
+                            if (effectInfo.TimelineLaneCanvases.Count > 0)
+                                effect.Add("timelineLaneCanvases", ToJson(TimelineLaneCanvasCodec.ToPropertyObject(effectInfo.TimelineLaneCanvases)));
                             effects.Add(effect);
                         }
                         part.Add("effects", effects);

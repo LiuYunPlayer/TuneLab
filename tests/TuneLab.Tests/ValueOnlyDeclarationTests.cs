@@ -6,7 +6,7 @@ using Xunit;
 
 namespace TuneLab.Tests;
 
-// 只传值的声明：独立通道的空壳（AutomationConfig / TimelineCanvasConfig 的无参 Create）与控件树里的 ValueOnlyConfig。
+// 只传值的声明：独立通道的空壳（AutomationConfig / TimelineLaneCanvasConfig 的无参 Create）与控件树里的 ValueOnlyConfig。
 public class ValueOnlyDeclarationTests
 {
     sealed class NullControl : ICanvasControl { }
@@ -45,14 +45,14 @@ public class ValueOnlyDeclarationTests
     }
 
     [Fact]
-    public void TimelineCanvasShell_HasNoFactoryAndCannotBeShown()
+    public void TimelineLaneCanvasShell_HasNoFactoryAndCannotBeShown()
     {
-        var shell = TimelineCanvasConfig.Create();
+        var shell = TimelineLaneCanvasConfig.Create();
         Assert.Null(shell.CreateControl);
         Assert.Equal(ControllerVisibility.Never, shell.Visibility);
         Assert.Throws<ArgumentException>(() => shell.WithVisibility(ControllerVisibility.HiddenByDefault));
 
-        var full = TimelineCanvasConfig.Create(_ => new NullControl());
+        var full = TimelineLaneCanvasConfig.Create(_ => new NullControl());
         Assert.Equal(ControllerVisibility.ShownByDefault, full.Visibility);
         Assert.Equal(ControllerVisibility.Never, full.WithVisibility(ControllerVisibility.Never).Visibility);
     }

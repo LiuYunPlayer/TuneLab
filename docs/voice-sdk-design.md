@@ -160,7 +160,7 @@ public interface IVoiceSynthesisNote
 
 **插件侧全秒轴原则：插件面对的所有时间量统一为全局秒，tick 只是宿主乐谱内部表示、不外露。**合成是声学域作业（音频按秒/采样点），插件需要的永远是"第 X 秒"；note 边界、曲线查询点、开窗区间、`RangeModified` 区间一律秒。秒由 tempo 表换算而来——精度上 double 秒在工程规模下远超采样点（比 48kHz 采样间隔精确约 7 个数量级），对合成无损；tick 的整数精确性价值在编辑域（网格对齐、定点比较），合成域用不到。插件因此**不碰任何 tick↔秒换算**：宿主在 note 边界派生、求值器边界、快照物化处完成换算，`IVoiceSynthesisContext` 与 `VoiceSynthesisSnapshot` 都**不暴露** `ITiming`。
 
-> 修订（2026-11-03）：时间量仍一律全局秒，但按拍子定义的数据（画布 lane 里按 tick 存的内容，挪到别的速度区段也不该错位）需要 tick 的知情权，故合成上下文加了 `ITimeConverter TimeConverter`（局部 tick ↔ 全局秒、原点 = part 原点、不可变）——只给换算、不把任何既有时间量改成 tick。设计见 canvas-in-parameter-panel.md §12。
+> 修订（2026-11-03）：时间量仍一律全局秒，但按拍子定义的数据（时间轴画布里按 tick 存的内容，挪到别的速度区段也不该错位）需要 tick 的知情权，故合成上下文加了 `ITimeConverter TimeConverter`（局部 tick ↔ 全局秒、原点 = part 原点、不可变）——只给换算、不把任何既有时间量改成 tick。设计见 canvas-in-parameter-panel.md §12。
 
 tick↔秒换算仍由宿主内部的 `ITiming`（`LiveTiming` 活实现 / `TempoSnapshot` 冻结实现）承担——`ITiming` 接口与其实现家族同居宿主 `TuneLab.Data.Timing`，**不在插件 SDK 面**（既不进 context/snapshot，类型本身也已从 `TuneLab.SDK` 移除）。
 

@@ -276,7 +276,7 @@ internal class Component : Control
     };
 
     // 点击、双击的判定都按窗口坐标（globalPosition）比，不按本组件坐标：同一次按下可能先后交给几个组件（插件画布不要的按下转给外层，
-    // 见 Container），按下、抬起、上一下点击各自落在哪个组件的坐标系里不一定，原点不同（画布 lane 摆在音符处）时局部坐标永远对不上。
+    // 见 Container），按下、抬起、上一下点击各自落在哪个组件的坐标系里不一定，原点不同（时间轴画布摆在音符处）时局部坐标永远对不上。
     void CallMouseDown(MouseDownEventArgs e, Avalonia.Point globalPosition)
     {
         mLastMousePosition = e.Position;

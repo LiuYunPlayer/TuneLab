@@ -1,39 +1,40 @@
 using System;
+using TuneLab.Foundation;
 
 namespace TuneLab.SDK;
 
-// 时间轴画布：一条**贯穿整个 part 的插件自绘轨**（区段、帧、歌词块、插件自己的曲线……宿主不解读），与自动化轨平级。
-// 由引擎的 GetTimelineCanvasConfigs 声明（声源 / 乐器 / 效果器都有），id 平铺；参数面板的标签栏里跟在所属对象的自动化轨后面，
-// 激活时整个参数面板都是这块画布。
+// 时间轴画布：一个**只在参数面板里、沿着时间线排布**的插件自绘值字段。每个声明了它的对象（note 级字段 = 每个 note，
+// 音素级字段 = 每个音素）在参数面板里各占自己时间段上的一块：宽 = 这个对象的时间段，高 = 面板高度，都由宿主定。
+// 侧栏里不在那儿编辑（只有一行摘要）；参数面板的标签栏里常驻（哪个 note 的声明里有它，标签栏就有它），不用用户去钉。
+// 标签栏上一开始显不显示见 ShownByDefault：默认隐藏的、用户藏起来的，侧栏那一行仍在，点编辑按钮即把它显示出来。
+// 不要控件（只传值）时原位换成 ValueOnlyConfig。
 //
-// 与 CanvasLaneConfig 怎么选：这是某个音符 / 音素的属性 → CanvasLaneConfig（每个对象各占自己那一段、跟着对象走）；
-// 这是一条贯穿整个 part 的轨 → 本类。
+// 与 CanvasConfig（侧栏画布）怎么选：界面属于侧栏、与时间无关（或只按对象内的相对位置画）→ CanvasConfig；
+// 必须与时间轴对齐、逐个对象编辑（如音素混合：曲线 + 符号 + 语言）→ 本类。同一个字段只能选一种。
+// 侧栏可以多选，多个对象没有一个共同的时间段，时间换算在那里给不出来；本类永远只对应一个对象，所以 ITimelineCanvasHost.TimeAxis 一定有。
 //
-// 时间：定义域是整条时间轴——局部 tick（相对 part）可以为负、可以超出 part，part 裁剪外照样能画能编辑（同自动化轨）。
-// 画布铺满整个参数面板（Width / Height = 面板尺寸，画布坐标 = 面板坐标），内容按 TimeAxis / PitchAxis 的换算摆。值里存 tick 就存局部 tick
-//（TimeAxis.TickToX(0) 是原点），宿主在拆分、合并时自己维护原点，插件无感。
-//
-// 值：一个 PropertyValue 整值，形状由插件自定（宿主不解读，读取时须自行校验）；**没有默认值**，没设过 = 不存值（读到 Null）。
-// 值从声明上下文取（各声明视图的 TimelineCanvases，按 id），由工厂捕获交给控件；实例寿命 = 一次声明，与 CanvasConfig 同一套契约。
-// 提交时说明改了哪几段：ITimelineCanvasHost.CommitValue(modifiedTickRanges)；整条替换时用不带参数的 CommitValue()。
-// 合成侧经上下文的 TimelineCanvases 拿到同一份值（ISynthesisTimelineCanvas）。
-//
-// 孤儿数据：从声明里消失的 id，值照样存着、写进工程，只是不显示、不给合成；重新声明（如换回原来的声源）即原样恢复。
-// 与自动化轨不强制不重名（两族各存各的）。
-// part 上的操作（第一版）：移动 part 什么都不用改；拆分 = 左右各拿一份完整的值（各显示自己那段）；合并 = 保留按时间顺序第一个有该 id 的 part 的值；
-// 选区复制粘贴不带画布值；part 预设整值带上它（偏移 + 值，用户自己管理预设里存的是什么）。
+// 值语义与 CanvasConfig 相同：没有默认值（没设过 = 不存值，插件读值时自己补）、恢复默认 = 删掉存值，preset、撤销照常参与；
+// 值的形状由插件自定（宿主不解读），读取时须自行校验；
+// 值在声明时由插件取出、被工厂捕获，宿主不把值读回给控件；实例的寿命 = 一次声明（契约见 CanvasConfig）。
+// 可以在 note / 音素属性声明（GetNotePropertyConfig / GetPhonemePropertyConfigs）的任何位置：对象成员、定长数组 / 列表的元素、
+// 键控容器的条目里，任意嵌套——参数面板里按路径各成一条 lane。侧栏在它的位置显示一行：字段名 + 摘要 + 编辑按钮（跳到参数面板）。
+// 只有这两处有时间轴：放进 part / 效果器属性、扩展设置、输入表单（PromptInputs）里，宿主显示「此处不支持」、改不了它，并记一条警告。
 // 构造函数全封，只走静态工厂 + With（与 SliderConfig 同款 ABI 理由：见 SliderConfig）。
-public sealed class TimelineCanvasConfig
+public sealed class TimelineCanvasConfig : IControllerConfig
 {
-    // 控件工厂。空壳（无参 Create）没有工厂，为 null——此时 Visibility 恒为 Never，宿主不会调它。
-    public Func<ITimelineCanvasHost, ICanvasControl>? CreateControl { get; private init; }
+    public Func<ITimelineCanvasHost, ICanvasControl> CreateControl { get; private init; } = null!;
 
     // 标签栏按钮与焦点圆点的颜色（hex，"#RRGGBB" 或 "#AARRGGBB"）。与 AutomationConfig.Color 同一约定：不设 = 全透明 "#00000000" =
-    // 不指定，宿主从调色板分配；alpha 为 0 的颜色一律按"不指定"处理。
+    // 不指定，宿主从调色板分配（确定性：按声明序、避开同一面板上已占用的颜色）；alpha 为 0 的颜色一律按"不指定"处理。
     public string Color { get; private set; } = "#00000000";
 
-    // 编辑控件出不出现，与 AutomationConfig.Visibility 同义（见 ControllerVisibility）。三档下值都照常存储、照常传给合成。
-    public ControllerVisibility Visibility { get; private set; } = ControllerVisibility.ShownByDefault;
+    // 侧栏那一行的摘要（插件自译），在声明时按当时的值算好——值一变就会重新声明，摘要随之更新；多选时显示什么也由插件定。
+    // null = 宿主按"默认 / 已修改 / 多值"兜底（看有没有存值）。与 CanvasConfig.Summary 同义。
+    public string? Summary { get; private set; }
+
+    // 用户没设过时，这条 lane 在参数面板标签栏上是否显示（默认 true）。只是初始状态：用户在标签栏里显式显示 / 隐藏过就按用户的
+    //（按声源记）。与 ControllerVisibility 的 ShownByDefault / HiddenByDefault 同义；lane 没有 Never 这一档——不要控件就换成 ValueOnlyConfig。
+    public bool ShownByDefault { get; private set; } = true;
 
     private TimelineCanvasConfig() { }
     TimelineCanvasConfig Clone() => (TimelineCanvasConfig)MemberwiseClone();
@@ -44,18 +45,7 @@ public sealed class TimelineCanvasConfig
         return new() { CreateControl = createControl };
     }
 
-    // 只传值的空壳：没有控件工厂，可见性固定为 Never——只声明"这个 id 上有一份整值，存着并传给合成"。
-    // 用途：新版不再编辑、但合成还要读的旧画布值。
-    public static TimelineCanvasConfig Create()
-        => new() { Visibility = ControllerVisibility.Never };
-
     public TimelineCanvasConfig WithColor(string color) { var c = Clone(); c.Color = color; return c; }
-
-    // 空壳（无参 Create）只能是 Never：设成要显示时抛参数异常——没有工厂就没有界面。
-    public TimelineCanvasConfig WithVisibility(ControllerVisibility visibility)
-    {
-        if (CreateControl == null && visibility != ControllerVisibility.Never)
-            throw new ArgumentException("A TimelineCanvasConfig created by Create() has no control factory; its visibility can only be Never. Use Create(createControl) for a canvas the user can see.", nameof(visibility));
-        var c = Clone(); c.Visibility = visibility; return c;
-    }
+    public TimelineCanvasConfig WithSummary(string summary) { var c = Clone(); c.Summary = summary; return c; }
+    public TimelineCanvasConfig WithShownByDefault(bool shown) { var c = Clone(); c.ShownByDefault = shown; return c; }
 }

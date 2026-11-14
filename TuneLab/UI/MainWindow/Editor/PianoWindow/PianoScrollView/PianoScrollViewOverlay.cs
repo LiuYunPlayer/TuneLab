@@ -16,7 +16,7 @@ using Rect = Avalonia.Rect;
 namespace TuneLab.UI;
 
 // 叠到钢琴窗上的画布（PianoOverlay，存储见 TuneLab.Configs.PianoOverlay）：铺在音符区上，和当前工具一起操作（不分工具）。
-// 时间轴画布一块铺满音符区；画布 lane 每个音符（音素级的每个音素）一块，横向 = 它的时间段（同参数区的口径，NoteLaneRanges），
+// 时间轴 lane 画布一块铺满音符区；时间轴画布每个音符（音素级的每个音素）一块，横向 = 它的时间段（同参数区的口径，NoteLaneRanges），
 // 纵向铺满音符区。纵轴 = 钢琴窗的音高轴（n 号键占 [n, n + 1)，同参数区）。
 //
 // 一摞层（见 docs/canvas-stacking.md）：叠上去的画布按用户排的顺序自下而上，激活的临时在最上，最底下是当前工具（本视图自己的鼠标处理）。
@@ -39,7 +39,7 @@ internal partial class PianoScrollView
         public int Order;
     }
 
-    // 画布的时间换算：同参数区的画布 lane / 时间轴画布。Left = 画布左缘在本视图里的 x；Origin = 局部 tick 的原点（工程 tick）。
+    // 画布的时间换算：同参数区的时间轴画布 / 时间轴 lane 画布。Left = 画布左缘在本视图里的 x；Origin = 局部 tick 的原点（工程 tick）。
     sealed class OverlayTimeAxis(PianoScrollView view) : ICanvasTimeAxis
     {
         public double Left;
@@ -86,7 +86,7 @@ internal partial class PianoScrollView
             {
                 if (!layer.Shown)
                     continue;
-                if (layer.Key.IsTimelineCanvas)
+                if (layer.Key.IsTimelineLaneCanvas)
                     DrawOverlayTimeline(context, part, layer.Key);
                 else
                     DrawOverlayLane(context, part, layer.Key);
@@ -101,7 +101,7 @@ internal partial class PianoScrollView
         }
     }
 
-    // 一条画布 lane：视口内声明了这个字段的对象各一块。叠放同参数区：先按音符顺序放没选中的，再放选中的，后放的在上。
+    // 一条时间轴画布：视口内声明了这个字段的对象各一块。叠放同参数区：先按音符顺序放没选中的，再放选中的，后放的在上。
     void DrawOverlayLane(DrawingContext context, IMidiPart part, AutomationKey key)
     {
         double minVisibleTick = TickAxis.MinVisibleTick;
@@ -153,7 +153,7 @@ internal partial class PianoScrollView
 
     void DrawOverlayBlock(DrawingContext context, OverlaySlot slot, LanePath.Resolved resolved, double startTick, double endTick)
     {
-        if (resolved.Leaf is not CanvasLaneConfig config)
+        if (resolved.Leaf is not TimelineCanvasConfig config)
             return;
         double left = TickAxis.Tick2X(startTick);
         double right = TickAxis.Tick2X(endTick);
@@ -183,7 +183,7 @@ internal partial class PianoScrollView
 
     void DrawOverlayTimeline(DrawingContext context, IMidiPart part, AutomationKey key)
     {
-        if (!part.TryGetTimelineCanvas(key, out var config, out var store) || config.CreateControl == null)
+        if (!part.TryGetTimelineLaneCanvas(key, out var config, out var store) || config.CreateControl == null)
             return;
 
         var slot = new OverlaySlot(key, null, -1);
@@ -202,7 +202,7 @@ internal partial class PianoScrollView
         if (!ReferenceEquals(canvas.Config, config) && !canvas.View.IsInUse)
         {
             canvas.Config = config;
-            canvas.View.Bind(new AutomationRenderer.TimelineCanvasField(store, key.Id));
+            canvas.View.Bind(new AutomationRenderer.TimelineLaneCanvasField(store, key.Id));
             canvas.View.SetTimelineFactory(config.CreateControl, canvas.Axis, canvas.PitchAxis);
         }
         RenderOverlay(context, canvas, rect);
@@ -250,8 +250,8 @@ internal partial class PianoScrollView
         var notes = part == null ? null : new HashSet<INote>(part.Notes);
         foreach (var (slot, canvas) in mOverlays)
         {
-            bool gone = slot.Key.IsTimelineCanvas
-                ? part == null || !part.IsEffectiveTimelineCanvas(slot.Key)
+            bool gone = slot.Key.IsTimelineLaneCanvas
+                ? part == null || !part.IsEffectiveTimelineLaneCanvas(slot.Key)
                 : notes == null || !notes.Contains(slot.Note!)
                     || !(slot.Key.IsNoteLane ? part!.NoteLaneConfigs : part!.PhonemeLaneConfigs).ContainsKey(slot.Key.Id);
             if (gone && !canvas.View.IsInUse)

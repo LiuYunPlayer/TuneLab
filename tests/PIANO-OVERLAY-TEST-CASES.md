@@ -1,12 +1,12 @@
 # 叠到钢琴窗上（PianoOverlay）—— 测试用例
 
-画布（时间轴画布、画布 lane）可以叠到钢琴窗的音符区上，和当前工具一起操作；音符区右上角的悬浮页签管理叠了哪些、顺序、激活与可见。
-只测这一块受影响的范围；画布在参数区的叠放见 CANVAS-LANE-TEST-CASES.md，标签栏隐藏见 PARAMETER-TAB-HIDING-TEST-CASES.md。
+画布（时间轴 lane 画布、时间轴画布）可以叠到钢琴窗的音符区上，和当前工具一起操作；音符区右上角的悬浮页签管理叠了哪些、顺序、激活与可见。
+只测这一块受影响的范围；画布在参数区的叠放见 TIMELINE-CANVAS-TEST-CASES.md，标签栏隐藏见 PARAMETER-TAB-HIDING-TEST-CASES.md。
 设计见 docs/canvas-stacking.md §3。
 
 ## 前置
 
-用测试声源「V1 Test Voice」的测试工程（有时间轴画布 Timeline Demo / Markers、画布 lane Timeline Demo / Language、音素级 Phoneme Timeline），
+用测试声源「V1 Test Voice」的测试工程（有时间轴 lane 画布 Timeline Demo / Markers、时间轴画布 Timeline Demo / Language、音素级 Phoneme Timeline），
 part 上有若干音符（含相邻、和弦更好）。删掉 `%APPDATA%\TuneLab\Configs\PianoOverlay.json` 从空状态开始。
 
 ## A. 悬浮页签与「+」
@@ -56,7 +56,7 @@ part 上有若干音符（含相邻、和弦更好）。删掉 `%APPDATA%\TuneLa
 
 ### C1. 位置与层次
 
-叠上 Timeline Demo（时间轴画布）与 Language（画布 lane）。**期望**：时间轴画布铺满音符区；Language 在每个音符正下方贴一个语言标签。
+叠上 Timeline Demo（时间轴 lane 画布）与 Language（时间轴画布）。**期望**：时间轴 lane 画布铺满音符区；Language 在每个音符正下方贴一个语言标签。
 都画在音符与音高线之上，框选框、波形带、顶部合成状态条在它们之上。波形带打开时画布只到波形带上沿，关了到参数区上沿。
 
 ### C2. 不分工具

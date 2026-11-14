@@ -47,10 +47,10 @@ public interface IVoiceSynthesisEngine
     // 曲线数据另经 IVoiceSynthesisSession.SynthesizedParameters 按同一批 key 承载。
     IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IVoiceSynthesisPartPropertyContext context);
 
-    // 时间轴画布声明（part 级，与 GetAutomationConfigs 同一个 context、同一个询问时机、同为纯函数）：贯穿 part 的插件自绘轨，
-    // 按声明序排在标签栏里该声源的自动化轨后面。轨名随键。值经 context.Parts[i].TimelineCanvases 取，合成侧经
-    // IVoiceSynthesisContext.TimelineCanvases 取。孤儿数据同自动化轨：从声明消失的 id 值照样存着，复现即恢复。默认 = 没有。
-    IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig> GetTimelineCanvasConfigs(IVoiceSynthesisPartPropertyContext context) => new OrderedMap<PropertyKey, TimelineCanvasConfig>();
+    // 时间轴 lane 画布声明（part 级，与 GetAutomationConfigs 同一个 context、同一个询问时机、同为纯函数）：贯穿 part 的插件自绘轨，
+    // 按声明序排在标签栏里该声源的自动化轨后面。轨名随键。值经 context.Parts[i].TimelineLaneCanvases 取，合成侧经
+    // IVoiceSynthesisContext.TimelineLaneCanvases 取。孤儿数据同自动化轨：从声明消失的 id 值照样存着，复现即恢复。默认 = 没有。
+    IReadOnlyOrderedMap<PropertyKey, TimelineLaneCanvasConfig> GetTimelineLaneCanvasConfigs(IVoiceSynthesisPartPropertyContext context) => new OrderedMap<PropertyKey, TimelineLaneCanvasConfig>();
 
     // 条件属性面板：part（会话主体）级只依赖 part 自身值；note 级依赖 part + 选中 note 三态合并值。
     // 宿主在每次值 commit 时调用并 keyed-diff 到控件树。

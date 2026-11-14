@@ -11,11 +11,11 @@ using Xunit;
 
 namespace TuneLab.Tests;
 
-// part 级时间轴画布的存储：整值 + 偏移，写入 / 撤销 / 重做都通知改动范围（part 局部 tick），工程文件两种格式往返，拆分 / 合并换算偏移。
+// part 级时间轴 lane 画布的存储：整值 + 偏移，写入 / 撤销 / 重做都通知改动范围（part 局部 tick），工程文件两种格式往返，拆分 / 合并换算偏移。
 [Collection("DataThreadProject")]   // 拆分用例要建真 part（见 FinalPronunciationTests 的 CollectionDefinition）
-public class TimelineCanvasStorageTests
+public class TimelineLaneCanvasStorageTests
 {
-    static TimelineCanvasStorageTests()
+    static TimelineLaneCanvasStorageTests()
     {
         TestVoices.EnsureBuiltIn();
     }
@@ -31,10 +31,10 @@ public class TimelineCanvasStorageTests
 
     sealed class Owner(DataDocument doc) : DataObject(doc) { }
 
-    static (DataDocument Doc, TimelineCanvases Canvases, List<(string Id, IReadOnlyList<TickRange>? Ranges)> Events) Setup()
+    static (DataDocument Doc, TimelineLaneCanvases Canvases, List<(string Id, IReadOnlyList<TickRange>? Ranges)> Events) Setup()
     {
         var doc = new DataDocument();
-        var canvases = new TimelineCanvases(new Owner(doc));
+        var canvases = new TimelineLaneCanvases(new Owner(doc));
         var events = new List<(string, IReadOnlyList<TickRange>?)>();
         canvases.CanvasModified.Subscribe((id, ranges) => events.Add((id, ranges)));
         return (doc, canvases, events);
@@ -85,7 +85,7 @@ public class TimelineCanvasStorageTests
     public void Ranges_AreShiftedByTheOffset()
     {
         var (doc, canvases, events) = Setup();
-        canvases.SetEntry("mix", new TimelineCanvasEntry(-960, Value("a")));
+        canvases.SetEntry("mix", new TimelineLaneCanvasEntry(-960, Value("a")));
         events.Clear();
         canvases.SetValue("mix", Value("b"), [new TickRange(1000, 1200)]);
 
@@ -101,10 +101,10 @@ public class TimelineCanvasStorageTests
         canvases.SetValue("b", Value("2"));
         events.Clear();
 
-        var info = new Map<string, TimelineCanvasInfo>
+        var info = new Map<string, TimelineLaneCanvasInfo>
         {
-            { "a", new TimelineCanvasInfo { Value = Value("1") } },
-            { "c", new TimelineCanvasInfo { Offset = 5, Value = Value("3") } },
+            { "a", new TimelineLaneCanvasInfo { Value = Value("1") } },
+            { "c", new TimelineLaneCanvasInfo { Offset = 5, Value = Value("3") } },
         };
         canvases.SetInfo(info);
 
@@ -116,7 +116,7 @@ public class TimelineCanvasStorageTests
     static ProjectInfo SampleProject()
     {
         var part = new MidiPartInfo { Name = "p", EndOffset = 1920 };
-        part.TimelineCanvases.Add("mix", new TimelineCanvasInfo
+        part.TimelineLaneCanvases.Add("mix", new TimelineLaneCanvasInfo
         {
             Offset = -480,
             Value = new PropertyObject(new Map<string, PropertyValue>
@@ -126,9 +126,9 @@ public class TimelineCanvasStorageTests
                 { "on", true },
             }),
         });
-        part.TimelineCanvases.Add("marks", new TimelineCanvasInfo { Value = new PropertyArray(["x", "y"]) });
+        part.TimelineLaneCanvases.Add("marks", new TimelineLaneCanvasInfo { Value = new PropertyArray(["x", "y"]) });
         var effect = new EffectInfo { Type = "TLTestGain" };
-        effect.TimelineCanvases.Add("env", new TimelineCanvasInfo { Offset = 3, Value = 0.25 });
+        effect.TimelineLaneCanvases.Add("env", new TimelineLaneCanvasInfo { Offset = 3, Value = 0.25 });
         part.Effects.Add(effect);
 
         var track = new TrackInfo { Name = "t" };
@@ -151,11 +151,11 @@ public class TimelineCanvasStorageTests
             stream.Position = 0;
             var part = Assert.IsType<MidiPartInfo>(((IImportFormat)format).Deserialize(stream).Tracks[0].Parts[0]);
 
-            Assert.Equal(["mix", "marks"], part.TimelineCanvases.Keys.OrderByDescending(k => k));
-            Assert.Equal(-480, part.TimelineCanvases["mix"].Offset);
-            Assert.Equal(expected.TimelineCanvases["mix"].Value, part.TimelineCanvases["mix"].Value);
-            Assert.Equal(expected.TimelineCanvases["marks"].Value, part.TimelineCanvases["marks"].Value);
-            var env = part.Effects[0].TimelineCanvases["env"];
+            Assert.Equal(["mix", "marks"], part.TimelineLaneCanvases.Keys.OrderByDescending(k => k));
+            Assert.Equal(-480, part.TimelineLaneCanvases["mix"].Offset);
+            Assert.Equal(expected.TimelineLaneCanvases["mix"].Value, part.TimelineLaneCanvases["mix"].Value);
+            Assert.Equal(expected.TimelineLaneCanvases["marks"].Value, part.TimelineLaneCanvases["marks"].Value);
+            var env = part.Effects[0].TimelineLaneCanvases["env"];
             Assert.Equal(3, env.Offset);
             Assert.Equal(PropertyValue.Create(0.25), env.Value);
         }
@@ -166,12 +166,12 @@ public class TimelineCanvasStorageTests
     {
         var project = SampleProject();
         var part = (MidiPartInfo)project.Tracks[0].Parts[0];
-        part.TimelineCanvases.Clear();
+        part.TimelineLaneCanvases.Clear();
         part.Effects.Clear();
         var format = new TuneLabProject();
         using var stream = new MemoryStream();
         format.Serialize(stream, project);
-        Assert.DoesNotContain("timelineCanvases", System.Text.Encoding.UTF8.GetString(stream.ToArray()));
+        Assert.DoesNotContain("timelineLaneCanvases", System.Text.Encoding.UTF8.GetString(stream.ToArray()));
     }
 
     // 拆分（RangeInfo）：每半各拿一份完整的值；锚点挪到子段起点，偏移随之减去，值的绝对原点不动。
@@ -187,7 +187,7 @@ public class TimelineCanvasStorageTests
     static void SplitCore()
     {
         var info = new MidiPartInfo { Name = "p", Pos = 480, EndOffset = 1920 };
-        info.TimelineCanvases.Add("mix", new TimelineCanvasInfo { Offset = 100, Value = Value("a") });
+        info.TimelineLaneCanvases.Add("mix", new TimelineLaneCanvasInfo { Offset = 100, Value = Value("a") });
         var track = new NativeTrackInfo { Name = "t1" };
         track.Parts.Add(info);
         var document = new ProjectDocument();
@@ -197,11 +197,11 @@ public class TimelineCanvasStorageTests
         var left = part.RangeInfo(0, 960);
         var right = part.RangeInfo(960, 1920);
 
-        Assert.Equal(Value("a"), left.TimelineCanvases["mix"].Value);
-        Assert.Equal(Value("a"), right.TimelineCanvases["mix"].Value);
-        Assert.Equal(480 + 100, left.Pos + left.TimelineCanvases["mix"].Offset);
-        Assert.Equal(480 + 100, right.Pos + right.TimelineCanvases["mix"].Offset);
-        Assert.Equal(100 - 960, right.TimelineCanvases["mix"].Offset);
+        Assert.Equal(Value("a"), left.TimelineLaneCanvases["mix"].Value);
+        Assert.Equal(Value("a"), right.TimelineLaneCanvases["mix"].Value);
+        Assert.Equal(480 + 100, left.Pos + left.TimelineLaneCanvases["mix"].Offset);
+        Assert.Equal(480 + 100, right.Pos + right.TimelineLaneCanvases["mix"].Offset);
+        Assert.Equal(100 - 960, right.TimelineLaneCanvases["mix"].Offset);
     }
 
     // 合成侧：写入时报的范围（part 局部 tick）换成全局秒交给代理；没报 = 整条；没被声明的 id（孤儿）不转。
@@ -227,16 +227,16 @@ public class TimelineCanvasStorageTests
         document.SetProject(new Project(projectInfo));
         var part = (MidiPart)document.Project!.Tracks.First().Parts.First();
 
-        var declared = new OrderedMap<PropertyKey, TimelineCanvasConfig> { { "mix", TimelineCanvasConfig.Create(_ => null!) } };
+        var declared = new OrderedMap<PropertyKey, TimelineLaneCanvasConfig> { { "mix", TimelineLaneCanvasConfig.Create(_ => null!) } };
         var received = new List<(string Id, double Start, double End)>();
-        using var proxies = new TimelineCanvasProxies(part, part.TimelineCanvases, () => declared,
+        using var proxies = new TimelineLaneCanvasProxies(part, part.TimelineLaneCanvases, () => declared,
             (proxy, ranges) => { foreach (var (start, end) in ranges) received.Add(("mix", start, end)); });
 
-        part.TimelineCanvases.SetEntry("mix", new TimelineCanvasEntry(-480, Value("a")));
+        part.TimelineLaneCanvases.SetEntry("mix", new TimelineLaneCanvasEntry(-480, Value("a")));
         received.Clear();
-        part.TimelineCanvases.SetValue("mix", Value("b"), [new TickRange(480, 960)]);   // 值的 tick → part 的 0~480 → 全局 480~960
-        part.TimelineCanvases.SetValue("mix", Value("c"));
-        part.TimelineCanvases.SetValue("orphan", Value("x"));
+        part.TimelineLaneCanvases.SetValue("mix", Value("b"), [new TickRange(480, 960)]);   // 值的 tick → part 的 0~480 → 全局 480~960
+        part.TimelineLaneCanvases.SetValue("mix", Value("c"));
+        part.TimelineLaneCanvases.SetValue("orphan", Value("x"));
 
         Assert.Equal(2, received.Count);
         Assert.Equal(0.5, received[0].Start, 9);
@@ -256,15 +256,15 @@ public class TimelineCanvasStorageTests
         var first = new MidiPartInfo { Pos = 1000, EndOffset = 1000 };
         var second = new MidiPartInfo { Pos = 2000, EndOffset = 1000 };
         var third = new MidiPartInfo { Pos = 3000, EndOffset = 1000 };
-        second.TimelineCanvases.Add("mix", new TimelineCanvasInfo { Offset = -200, Value = Value("second") });
-        third.TimelineCanvases.Add("mix", new TimelineCanvasInfo { Value = Value("third") });
-        third.TimelineCanvases.Add("only3", new TimelineCanvasInfo { Offset = 10, Value = Value("3") });
+        second.TimelineLaneCanvases.Add("mix", new TimelineLaneCanvasInfo { Offset = -200, Value = Value("second") });
+        third.TimelineLaneCanvases.Add("mix", new TimelineLaneCanvasInfo { Value = Value("third") });
+        third.TimelineLaneCanvases.Add("only3", new TimelineLaneCanvasInfo { Offset = 10, Value = Value("3") });
 
         var merged = IMidiPartExtension.MergePartInfos([third, first, second]);
 
         Assert.Equal(1000, merged.Pos);
-        Assert.Equal(Value("second"), merged.TimelineCanvases["mix"].Value);
-        Assert.Equal(2000 - 200 - 1000, merged.TimelineCanvases["mix"].Offset);   // 绝对原点 1800
-        Assert.Equal(3000 + 10 - 1000, merged.TimelineCanvases["only3"].Offset);  // 绝对原点 3010
+        Assert.Equal(Value("second"), merged.TimelineLaneCanvases["mix"].Value);
+        Assert.Equal(2000 - 200 - 1000, merged.TimelineLaneCanvases["mix"].Offset);   // 绝对原点 1800
+        Assert.Equal(3000 + 10 - 1000, merged.TimelineLaneCanvases["only3"].Offset);  // 绝对原点 3010
     }
 }

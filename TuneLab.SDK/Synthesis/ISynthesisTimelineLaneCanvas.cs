@@ -2,9 +2,9 @@ using TuneLab.Foundation;
 
 namespace TuneLab.SDK;
 
-// 时间轴画布（TimelineCanvasConfig）的会话级活视图（宿主实现）：值 + 换算 + 带区间的变化通知。与 ISynthesisAutomation 同级，
-// 经合成上下文的 TimelineCanvases 按 id 取（只有当前声明了的 id）。只在数据线程上用；worker 里用快照的 TimelineCanvases。
-public interface ISynthesisTimelineCanvas
+// 时间轴 lane 画布（TimelineLaneCanvasConfig）的会话级活视图（宿主实现）：值 + 换算 + 带区间的变化通知。与 ISynthesisAutomation 同级，
+// 经合成上下文的 TimelineLaneCanvases 按 id 取（只有当前声明了的 id）。只在数据线程上用；worker 里用快照的 TimelineLaneCanvases。
+public interface ISynthesisTimelineLaneCanvas
 {
     // 当前值（插件自定的整值，宿主不解读）；没设过 = Null，插件按自己的默认值补。
     PropertyValue Value { get; }

@@ -26,7 +26,7 @@ internal static class ConfigValues
     internal static readonly IReadOnlyList<Type> Values =
     [
         typeof(CheckBoxConfig), typeof(SliderConfig), typeof(DraggableNumberBoxConfig), typeof(ComboBoxConfig), typeof(TagConfig),
-        typeof(TextBoxConfig), typeof(PathPickerConfig), typeof(CanvasConfig), typeof(CanvasLaneConfig), typeof(ValueOnlyConfig),
+        typeof(TextBoxConfig), typeof(PathPickerConfig), typeof(CanvasConfig), typeof(TimelineCanvasConfig), typeof(ValueOnlyConfig),
         typeof(ObjectConfig), typeof(ArrayConfig), typeof(ListConfig), typeof(ExtensibleObjectConfig),
     ];
     internal static readonly IReadOnlyList<Type> NotValues = [typeof(ButtonConfig), typeof(AutomationConfig)];
@@ -36,7 +36,7 @@ internal static class ConfigValues
     public static (PropertyValue Value, string? Error) Check(IControllerConfig config, PropertyValue value, string path)
     {
         // 画布、只传值没有默认值：Null 就是"没设过"，写 Null = 清掉（数组里的这种元素位置上也是 Null）。
-        if (value.IsNull() && config is CanvasConfig or CanvasLaneConfig or ValueOnlyConfig)
+        if (value.IsNull() && config is CanvasConfig or TimelineCanvasConfig or ValueOnlyConfig)
             return (value, null);
         if (value.IsNull())
             return (default, string.Format("\"{0}\" needs a value.", path));
@@ -108,7 +108,7 @@ internal static class ConfigValues
 
             // 画布、只传值的值形状由插件自定、宿主不解读：任何真实的值都收（插件读值时自己校验），只拒内部含 Multiple 的。
             case CanvasConfig:
-            case CanvasLaneConfig:
+            case TimelineCanvasConfig:
             case ValueOnlyConfig:
                 try
                 {

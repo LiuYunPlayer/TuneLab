@@ -330,8 +330,8 @@ internal interface IEditorStateAccess
 `run_action` 收一个可选的 `argument`，被触发动作用 `EditorAction.Parameter`（`ActionParameter`）声明它接什么。
 今天有八条：`parameter.showSynthesizedTrack` / `hideSynthesizedTrack`（作用在一条合成参数轨上）、
 `parameter.pinProperty` / `unpinProperty`（作用在一个 note / phoneme 属性上）与
-`parameter.hideFromTabBar` / `showInTabBar`（作用在一条常驻标签栏的参数上：声源 / 效果器的自动化轨与时间轴画布、画布 lane；只传值的不在值域里）与
-`parameter.placeOnPianoRoll` / `removeFromPianoRoll`（作用在一块能叠到钢琴窗上的画布上：时间轴画布与画布 lane）。八条口径：
+`parameter.hideFromTabBar` / `showInTabBar`（作用在一条常驻标签栏的参数上：声源 / 效果器的自动化轨与时间轴 lane 画布、时间轴画布；只传值的不在值域里）与
+`parameter.placeOnPianoRoll` / `removeFromPianoRoll`（作用在一块能叠到钢琴窗上的画布上：时间轴 lane 画布与时间轴画布）。八条口径：
 
 - **值域必须能自省**。动态成员集意味着调用方不可能预先知道合法值，故 `Values` 是闭包、`list_actions`
   把**此刻的合法值**连同每个值的当下状态（`shown` / `hidden` / `pinned`…）一起报出去（同 `setting list`
@@ -458,7 +458,7 @@ internal interface IEditorStateAccess
 
 **`preset` group（覆盖率清单的最后一个桶）**：`preset list` / `apply` / `save` / `delete` / `rename` ——
 Part 面板顶上那一行预设的外部面。一条 part preset 是**声音的快照**（声源 + part 属性 + 各自动化轨的
-默认值），刻意不含任何时间轴内容，故"应用一条预设"改的是这个 part 怎么唱，不是它唱什么。唯一的例外是插件的时间轴画布：
+默认值），刻意不含任何时间轴内容，故"应用一条预设"改的是这个 part 怎么唱，不是它唱什么。唯一的例外是插件的时间轴 lane 画布：
 整值带上（用户调好想长期留着的值，对预设来说就是默认值），由用户自己决定在哪个 part 上保存。
 它**只能是命令**（同 `project open` 的判据）：动作面无参，而这一族每件事都要参数——哪条预设、
 用在哪个 part、存成什么名字。应用确实写工程数据（那本该归脚本面），但预设的内容在**用户的配置目录里**，

@@ -998,13 +998,13 @@ internal sealed class EffectGraph : IDisposable
             mBatchSignal.BatchEnd += mOnBatchEnd;
             WireAutomations();
             WireVibratoTracking();
-            // 时间轴画布：范围（秒）注入代理，并与本段相交才标脏（同自动化轨）。
-            mTimelineCanvases = new TimelineCanvasProxies(part, effect.TimelineCanvases, () => effect.TimelineCanvasConfigs, ForwardCanvasRanges);
+            // 时间轴 lane 画布：范围（秒）注入代理，并与本段相交才标脏（同自动化轨）。
+            mTimelineLaneCanvases = new TimelineLaneCanvasProxies(part, effect.TimelineLaneCanvases, () => effect.TimelineLaneCanvasConfigs, ForwardCanvasRanges);
         }
 
-        public IReadOnlyMap<string, ISynthesisTimelineCanvas> TimelineCanvases => mTimelineCanvases.Map;
+        public IReadOnlyMap<string, ISynthesisTimelineLaneCanvas> TimelineLaneCanvases => mTimelineLaneCanvases.Map;
 
-        void ForwardCanvasRanges(TimelineCanvasProxy proxy, IReadOnlyList<(double Start, double End)> ranges)
+        void ForwardCanvasRanges(TimelineLaneCanvasProxy proxy, IReadOnlyList<(double Start, double End)> ranges)
         {
             bool intersects = false;
             foreach (var (start, end) in ranges)
@@ -1299,7 +1299,7 @@ internal sealed class EffectGraph : IDisposable
             mVibratoSubscriptions.Clear();
             mVibratoAffectedIds.Clear();
             mPendingRanges.Clear();   // 未转发的失效随节点丢弃
-            mTimelineCanvases.Dispose();
+            mTimelineLaneCanvases.Dispose();
             mProperties.Dispose();
             mOutputs.Clear();
             mOutputUpstreams.Clear();
@@ -1310,7 +1310,7 @@ internal sealed class EffectGraph : IDisposable
         readonly UpstreamSegment mInput;
         readonly BatchSignal mBatchSignal;
         readonly LivePropertyObject mProperties;
-        readonly TimelineCanvasProxies mTimelineCanvases;
+        readonly TimelineLaneCanvasProxies mTimelineLaneCanvases;
         readonly Action mOnBatchEnd;
         bool mPendingDirty;
         // 批量括号内攒下的区间失效（part 相对 tick，按轨 id 取并集），BatchEnd 时 flush。

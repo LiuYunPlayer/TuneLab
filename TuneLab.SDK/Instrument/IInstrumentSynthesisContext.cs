@@ -22,7 +22,7 @@ public interface IInstrumentSynthesisContext
     // 与声明面 IInstrumentSynthesisPartView.PartId 同一个号（见 InvalidatePart）。
     string PartId { get; }
 
-    // 速度映射（局部 tick ↔ 全局秒，原点 = part 的原点）：给按拍子定义的数据（如画布 lane 里按 tick 存的内容）在合成时换成秒。
+    // 速度映射（局部 tick ↔ 全局秒，原点 = part 的原点）：给按拍子定义的数据（如时间轴画布里按 tick 存的内容）在合成时换成秒。
     // 其余时间量照旧全是全局秒。读到的这份不可变、任何线程可用；快照里带同一份（snapshot.TimeConverter），worker 里用那份；速度表改了宿主给新的一份。
     // 音符级数据的原点用音符的 StartTime 换出：origin = TimeConverter.ToTick(note.StartTime)，time = TimeConverter.ToSecond(origin + pos)
     //（音素级用所属音符的 StartTime）——与画布侧 ICanvasTimeAxis 的局部 tick 一致。
@@ -39,8 +39,8 @@ public interface IInstrumentSynthesisContext
     // （与 voice 的 IVoiceSynthesisContext.Automations 同语义）；引擎不声明即恒空。
     IReadOnlyMap<string, ISynthesisAutomation> Automations { get; }
 
-    // 已声明的时间轴画布（引擎经 GetTimelineCanvasConfigs 声明的，按 id）：值 + 换算 + 区间通知。集合随声明变，取用前重读即当前集。
-    IReadOnlyMap<string, ISynthesisTimelineCanvas> TimelineCanvases { get; }
+    // 已声明的时间轴 lane 画布（引擎经 GetTimelineLaneCanvasConfigs 声明的，按 id）：值 + 换算 + 区间通知。集合随声明变，取用前重读即当前集。
+    IReadOnlyMap<string, ISynthesisTimelineLaneCanvas> TimelineLaneCanvases { get; }
 
     // 物化合成快照（插件主动拉取）：notes = 本次合成需要的 note（段内 + 协同邻居，插件自由圈定，
     // 返回的 snapshot.Notes 与之索引对齐）。仅数据线程、仅 SynthesizeNext 的同步前缀（offload 之前）调用。

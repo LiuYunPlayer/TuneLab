@@ -52,8 +52,8 @@ internal sealed class PartContext(IMidiPart part) : IVoiceSynthesisPartView, IIn
         }
     }
 
-    // 时间轴画布的当前值（含孤儿），按 id。
-    public IReadOnlyMap<string, PropertyValue> TimelineCanvases => part.TimelineCanvases.GetValues();
+    // 时间轴 lane 画布的当前值（含孤儿），按 id。
+    public IReadOnlyMap<string, PropertyValue> TimelineLaneCanvases => part.TimelineLaneCanvases.GetValues();
 
     List<PartNote>? mNotes;
 

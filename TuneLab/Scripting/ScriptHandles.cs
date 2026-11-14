@@ -611,22 +611,22 @@ internal sealed class ScriptPart(ScriptContext ctx, IPart part)
         ctx.Bump();
     }
 
-    // ── 时间轴画布（对齐 C# midi.TimelineCanvases；声明见 SoundSource.TimelineCanvasConfigs）──
-    // 值是插件自定的整值（宿主不解读，形状看该插件的文档），值里的 tick 相对 timelineCanvasOrigin(id)（绝对 tick）。
+    // ── 时间轴 lane 画布（对齐 C# midi.TimelineLaneCanvases；声明见 SoundSource.TimelineLaneCanvasConfigs）──
+    // 值是插件自定的整值（宿主不解读，形状看该插件的文档），值里的 tick 相对 timelineLaneCanvasOrigin(id)（绝对 tick）。
 
-    public string[] TimelineCanvasIds() => Midi.SoundSource.TimelineCanvasConfigs.Select(kvp => kvp.Key.Id).ToArray();
+    public string[] TimelineLaneCanvasIds() => Midi.SoundSource.TimelineLaneCanvasConfigs.Select(kvp => kvp.Key.Id).ToArray();
 
-    public JsValue GetTimelineCanvas(string id) => ScriptTimelineCanvas.Read(ctx.Engine, Midi.TimelineCanvases, id);
+    public JsValue GetTimelineLaneCanvas(string id) => ScriptTimelineLaneCanvas.Read(ctx.Engine, Midi.TimelineLaneCanvases, id);
 
-    public double TimelineCanvasOrigin(string id) => ScriptTimelineCanvas.Origin(Midi, Midi.TimelineCanvases, id);
+    public double TimelineLaneCanvasOrigin(string id) => ScriptTimelineLaneCanvas.Origin(Midi, Midi.TimelineLaneCanvases, id);
 
-    public void SetTimelineCanvas(string id, JsValue value)
+    public void SetTimelineLaneCanvas(string id, JsValue value)
     {
         var midi = MidiW;
-        if (!midi.SoundSource.TimelineCanvasConfigs.ContainsKey(id))
-            throw new ScriptApiException(string.Format("timeline canvas \"{0}\" is not declared by this part's sound source; use one of part.timelineCanvasIds().", id));
+        if (!midi.SoundSource.TimelineLaneCanvasConfigs.ContainsKey(id))
+            throw new ScriptApiException(string.Format("timeline lane canvas \"{0}\" is not declared by this part's sound source; use one of part.timelineLaneCanvasIds().", id));
         ctx.EnsureBracket(midi);
-        midi.TimelineCanvases.SetValue(id, ScriptTimelineCanvas.ToValue(value));
+        midi.TimelineLaneCanvases.SetValue(id, ScriptTimelineLaneCanvas.ToValue(value));
         ctx.Bump();
     }
 
@@ -1190,21 +1190,21 @@ internal sealed class ScriptEffect(ScriptContext ctx, IEffect effect)
         ctx.Bump();
     }
 
-    // ── 本 effect 的时间轴画布（口径同 part.getTimelineCanvas / setTimelineCanvas）──
+    // ── 本 effect 的时间轴 lane 画布（口径同 part.getTimelineLaneCanvas / setTimelineLaneCanvas）──
 
-    public string[] TimelineCanvasIds() => E.TimelineCanvasConfigs.Select(kvp => kvp.Key.Id).ToArray();
+    public string[] TimelineLaneCanvasIds() => E.TimelineLaneCanvasConfigs.Select(kvp => kvp.Key.Id).ToArray();
 
-    public JsValue GetTimelineCanvas(string id) => ScriptTimelineCanvas.Read(ctx.Engine, E.TimelineCanvases, id);
+    public JsValue GetTimelineLaneCanvas(string id) => ScriptTimelineLaneCanvas.Read(ctx.Engine, E.TimelineLaneCanvases, id);
 
-    public double TimelineCanvasOrigin(string id) => ScriptTimelineCanvas.Origin(E.Part, E.TimelineCanvases, id);
+    public double TimelineLaneCanvasOrigin(string id) => ScriptTimelineLaneCanvas.Origin(E.Part, E.TimelineLaneCanvases, id);
 
-    public void SetTimelineCanvas(string id, JsValue value)
+    public void SetTimelineLaneCanvas(string id, JsValue value)
     {
         var effect = W;
-        if (!effect.TimelineCanvasConfigs.ContainsKey(id))
-            throw new ScriptApiException(string.Format("timeline canvas \"{0}\" is not declared by this effect's engine; use one of effect.timelineCanvasIds().", id));
+        if (!effect.TimelineLaneCanvasConfigs.ContainsKey(id))
+            throw new ScriptApiException(string.Format("timeline lane canvas \"{0}\" is not declared by this effect's engine; use one of effect.timelineLaneCanvasIds().", id));
         ctx.EnsureBracket(effect.Part);
-        effect.TimelineCanvases.SetValue(id, ScriptTimelineCanvas.ToValue(value));
+        effect.TimelineLaneCanvases.SetValue(id, ScriptTimelineLaneCanvas.ToValue(value));
         ctx.Bump();
     }
 

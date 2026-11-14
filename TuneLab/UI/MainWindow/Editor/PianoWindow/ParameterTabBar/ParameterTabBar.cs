@@ -156,13 +156,13 @@ internal class ParameterTabBar : Panel
 
     // 标签栏上显示哪些参数：右键直接弹出一张勾选列表，打勾 = 在标签栏上，点一下切换、菜单不关（可连续勾选）。只认空白处
     //（标签栏本身或按钮行的空隙）：按钮上的右键冒泡上来时不弹。勾选的含义统一，背后是两类存储（见 ParameterHiding）：
-    // · 原本常驻的——音源的自动化轨、各效果器的自动化轨、时间轴画布、画布 lane：取消勾选 = 隐藏（ParameterHiding.SetHidden）。
+    // · 原本常驻的——音源的自动化轨、各效果器的自动化轨、时间轴 lane 画布、时间轴画布：取消勾选 = 隐藏（ParameterHiding.SetHidden）。
     //   有数据的在行尾标一个强调色小圆点：藏起来它照样参与合成，别让人忘了它还在起作用。
     // · 原本不显示的——可钉属性：勾上 = 钉选（ParameterPinning.SetPinned，同侧栏属性右键、同命令面的 parameter.pin / unpinProperty）。
     //   列表 = 此刻能钉的（各 note 声明的并集，与 parameter.pinProperty 同一份口径）+ 已钉但引擎不再声明的孤儿（取自钉选存储，
     //   标签栏里连按钮都没有，只能在这里清掉）。
     // 按参数属于谁分组，组前一条写着组名的分隔线（MenuSeparators.Labeled）：声源名 / 音符 / 音素 / 各效果器名——与标签栏的分组、顺序一致。
-    // 画布还是数值对用户不重要；音符、音素组里常驻的画布 lane 在前，可钉属性（按声明序）随后，孤儿钉选垫底。
+    // 画布还是数值对用户不重要；音符、音素组里常驻的时间轴画布在前，可钉属性（按声明序）随后，孤儿钉选垫底。
     void OnContextRequested(object? sender, ContextRequestedEventArgs e)
     {
         if (!ReferenceEquals(e.Source, this) && !ReferenceEquals(e.Source, mAutomationLayout))
@@ -192,7 +192,7 @@ internal class ParameterTabBar : Panel
         var voice = new List<MenuItem>();
         foreach (var kvp in part.SoundSource.AutomationConfigs)
             AddHideable(voice, AutomationKey.Voice(kvp.Key.Id), kvp.Key.DisplayText ?? kvp.Key.Id);
-        foreach (var kvp in part.SoundSource.TimelineCanvasConfigs)
+        foreach (var kvp in part.SoundSource.TimelineLaneCanvasConfigs)
             AddHideable(voice, AutomationKey.VoiceCanvas(kvp.Key.Id), kvp.Key.DisplayText ?? kvp.Key.Id);
         groups.Add((string.IsNullOrEmpty(part.SoundSource.Name) ? part.SoundSource.Type : part.SoundSource.Name, voice));
 
@@ -200,12 +200,12 @@ internal class ParameterTabBar : Panel
         var phoneme = new List<MenuItem>();
         foreach (var kvp in part.NoteLaneConfigs)
         {
-            if (kvp.Value.Kind == LaneKind.CanvasLane)
+            if (kvp.Value.Kind == LaneKind.TimelineCanvas)
                 AddHideable(note, AutomationKey.NoteLane(kvp.Key.Id), kvp.Key.DisplayText ?? kvp.Key.Id);
         }
         foreach (var kvp in part.PhonemeLaneConfigs)
         {
-            if (kvp.Value.Kind == LaneKind.CanvasLane)
+            if (kvp.Value.Kind == LaneKind.TimelineCanvas)
                 AddHideable(phoneme, AutomationKey.PhonemeLane(kvp.Key.Id), kvp.Key.DisplayText ?? kvp.Key.Id);
         }
 
@@ -232,7 +232,7 @@ internal class ParameterTabBar : Panel
             var effect = new List<MenuItem>();
             foreach (var kvp in part.Effects[i].AutomationConfigs)
                 AddHideable(effect, AutomationKey.Effect(i, kvp.Key.Id), kvp.Key.DisplayText ?? kvp.Key.Id);
-            foreach (var kvp in part.Effects[i].TimelineCanvasConfigs)
+            foreach (var kvp in part.Effects[i].TimelineLaneCanvasConfigs)
                 AddHideable(effect, AutomationKey.EffectCanvas(i, kvp.Key.Id), kvp.Key.DisplayText ?? kvp.Key.Id);
             groups.Add((EffectManager.GetDisplayName(part.Effects[i].Type), effect));
         }
@@ -291,7 +291,7 @@ internal class ParameterTabBar : Panel
     const double DataDotSize = 6;
 
     // 这条参数此刻有没有用户写的数据（隐藏了也照样参与合成）：自动化轨 = 有点 / 基线改过，分段轨 = 有段，
-    // 画布 lane = 有哪个 note / 钉死的音素写过它，时间轴画布 = 存着值。
+    // 时间轴画布 = 有哪个 note / 钉死的音素写过它，时间轴 lane 画布 = 存着值。
     static bool HasData(IMidiPart part, AutomationKey key)
     {
         switch (key.Source)
@@ -325,7 +325,7 @@ internal class ParameterTabBar : Panel
                 return false;
             case AutomationSource.VoiceCanvas:
             case AutomationSource.EffectCanvas:
-                return part.TryGetTimelineCanvas(key, out _, out var store) && store.TryGetValue(key.Id, out _);
+                return part.TryGetTimelineLaneCanvas(key, out _, out var store) && store.TryGetValue(key.Id, out _);
             default:
                 return false;
         }
@@ -349,15 +349,15 @@ internal class ParameterTabBar : Panel
             return;
 
         bool firstGroup = true;
-        AddAutomationGroup(Part.SoundSource.AutomationConfigs, Part.SoundSource.TimelineCanvasConfigs, -1, ref firstGroup);
+        AddAutomationGroup(Part.SoundSource.AutomationConfigs, Part.SoundSource.TimelineLaneCanvasConfigs, -1, ref firstGroup);
         AddLaneButtons(Part.NoteLaneConfigs, AutomationKey.NoteLane, ref firstGroup);
         AddLaneButtons(Part.PhonemeLaneConfigs, AutomationKey.PhonemeLane, ref firstGroup);
         for (int i = 0; i < Part.Effects.Count; i++)
-            AddAutomationGroup(Part.Effects[i].AutomationConfigs, Part.Effects[i].TimelineCanvasConfigs, i, ref firstGroup);
+            AddAutomationGroup(Part.Effects[i].AutomationConfigs, Part.Effects[i].TimelineLaneCanvasConfigs, i, ref firstGroup);
     }
 
     // 属性 lane 按钮：音符一组、音素一组，按参数属于谁分组（同右键菜单），组间插分隔符。
-    // 轨色：钉选的是钉选时分配的，画布 lane 取声明（未指定的由宿主分配）；名字沿用属性声明的 DisplayText。
+    // 轨色：钉选的是钉选时分配的，时间轴画布取声明（未指定的由宿主分配）；名字沿用属性声明的 DisplayText。
     void AddLaneButtons(IReadOnlyOrderedMap<PropertyKey, LaneEntry> lanes, Func<string, AutomationKey> makeKey, ref bool firstGroup)
     {
         bool separated = false;
@@ -394,9 +394,9 @@ internal class ParameterTabBar : Panel
         }
     }
 
-    // 一个来源（voice / 某 effect）一组（连续轨与分段轨同在此 map、按声明序；它的时间轴画布跟在后面），组间插分隔符。
+    // 一个来源（voice / 某 effect）一组（连续轨与分段轨同在此 map、按声明序；它的时间轴 lane 画布跟在后面），组间插分隔符。
     // 按钮形态与 kind 无关（读 config 色/名）。从标签栏隐藏的不出按钮；一组全藏了，连分隔符也不留。
-    void AddAutomationGroup(IReadOnlyOrderedMap<PropertyKey, AutomationConfig> configs, IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig> canvases, int effectIndex, ref bool firstGroup)
+    void AddAutomationGroup(IReadOnlyOrderedMap<PropertyKey, AutomationConfig> configs, IReadOnlyOrderedMap<PropertyKey, TimelineLaneCanvasConfig> canvases, int effectIndex, ref bool firstGroup)
     {
         var shown = new List<(AutomationKey Key, PropertyKey Name, string Color)>();
         foreach (var kvp in configs)
@@ -467,7 +467,7 @@ internal class ParameterTabBar : Panel
         }
 
         Sync(Part.SoundSource.AutomationConfigs, -1);
-        foreach (var kvp in Part.SoundSource.TimelineCanvasConfigs)
+        foreach (var kvp in Part.SoundSource.TimelineLaneCanvasConfigs)
             SyncKey(AutomationKey.VoiceCanvas(kvp.Key.Id));
         foreach (var kvp in Part.NoteLaneConfigs)
             SyncKey(AutomationKey.NoteLane(kvp.Key.Id));
@@ -476,7 +476,7 @@ internal class ParameterTabBar : Panel
         for (int i = 0; i < Part.Effects.Count; i++)
         {
             Sync(Part.Effects[i].AutomationConfigs, i);
-            foreach (var kvp in Part.Effects[i].TimelineCanvasConfigs)
+            foreach (var kvp in Part.Effects[i].TimelineLaneCanvasConfigs)
                 SyncKey(AutomationKey.EffectCanvas(i, kvp.Key.Id));
         }
     }

@@ -1,8 +1,8 @@
 namespace TuneLab.Data;
 
 // 参数面板轨道的来源类别：voice/part 级自动化、某个 effect 的自动化，或属性 lane（用户钉选的有界数值属性与侧栏画布、
-// 插件声明的画布 lane，按 note / 音素分段呈现——数据存 note.Properties / phoneme.Properties，非时间曲线），
-// 或时间轴画布（声源 / 某个 effect 声明的 TimelineCanvasConfig，数据存 part / effect 的 TimelineCanvases，与自动化轨各存各的、可以同 id）。
+// 插件声明的时间轴画布，按 note / 音素分段呈现——数据存 note.Properties / phoneme.Properties，非时间曲线），
+// 或时间轴 lane 画布（声源 / 某个 effect 声明的 TimelineLaneCanvasConfig，数据存 part / effect 的 TimelineLaneCanvases，与自动化轨各存各的、可以同 id）。
 internal enum AutomationSource
 {
     Voice,
@@ -22,7 +22,7 @@ internal readonly record struct AutomationKey(AutomationSource Source, int Effec
 {
     // EffectIndex 仅对 Effect / EffectCanvas 来源有意义（Part.Effects 下标）；其余来源恒 -1。
     public bool IsEffect => Source == AutomationSource.Effect;
-    public bool IsTimelineCanvas => Source is AutomationSource.VoiceCanvas or AutomationSource.EffectCanvas;
+    public bool IsTimelineLaneCanvas => Source is AutomationSource.VoiceCanvas or AutomationSource.EffectCanvas;
     public bool IsNoteLane => Source == AutomationSource.NoteLane;
     public bool IsPhonemeLane => Source == AutomationSource.PhonemeLane;
     // 属性 lane 统称（automation 路由的排除口径）。

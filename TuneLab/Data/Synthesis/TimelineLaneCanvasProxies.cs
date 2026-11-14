@@ -6,8 +6,8 @@ using TuneLab.SDK;
 
 namespace TuneLab.Data.Synthesis;
 
-// 时间轴画布的会话代理（ISynthesisTimelineCanvas）：值直接读画布表（整值、不拷贝），换算器的原点 = part 原点 + 存储里的偏移。
-internal sealed class TimelineCanvasProxy(MidiPart part, TimelineCanvases store, string id) : ISynthesisTimelineCanvas
+// 时间轴 lane 画布的会话代理（ISynthesisTimelineLaneCanvas）：值直接读画布表（整值、不拷贝），换算器的原点 = part 原点 + 存储里的偏移。
+internal sealed class TimelineLaneCanvasProxy(MidiPart part, TimelineLaneCanvases store, string id) : ISynthesisTimelineLaneCanvas
 {
     public PropertyValue Value => store.GetValue(id);
 
@@ -18,11 +18,11 @@ internal sealed class TimelineCanvasProxy(MidiPart part, TimelineCanvases store,
     internal void NotifyRangeModified(double startSecond, double endSecond)
     {
         try { mRangeModified.Invoke(startSecond, endSecond); }
-        catch (Exception ex) { Log.ErrorAttributed("Timeline canvas range handler threw", ex); }
+        catch (Exception ex) { Log.ErrorAttributed("Timeline lane canvas range handler threw", ex); }
     }
 
     // 快照与活视图共用：当时的速度表快照 + 值的原点（全局 tick）。
-    internal static ITimeConverter Converter(MidiPart part, TimelineCanvases store, string id)
+    internal static ITimeConverter Converter(MidiPart part, TimelineLaneCanvases store, string id)
         => new LocalTimeConverter(part.TempoManager.CreateSnapshot(), part.Pos.Value + (store.TryGetValue(id, out var entry) ? entry.Offset : 0));
 
     readonly ActionEvent<double, double> mRangeModified = new();
@@ -31,10 +31,10 @@ internal sealed class TimelineCanvasProxy(MidiPart part, TimelineCanvases store,
 // 一张画布表（part 的或某个 effect 的）对应的会话代理集合：按当前声明给出 map（代理按 id 缓存、保订阅稳定），
 // 订阅画布表的写入，把改动范围（part 局部 tick；null = 整条）换成全局秒后交给 forward——由所属上下文决定怎么转（声源经
 // ForwardChange 补收口，效果器还要按区间相交标脏）。没被声明的 id（孤儿）不转。
-internal sealed class TimelineCanvasProxies : IDisposable
+internal sealed class TimelineLaneCanvasProxies : IDisposable
 {
-    public TimelineCanvasProxies(MidiPart part, TimelineCanvases store, Func<IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig>> declared,
-        Action<TimelineCanvasProxy, IReadOnlyList<(double Start, double End)>> forward)
+    public TimelineLaneCanvasProxies(MidiPart part, TimelineLaneCanvases store, Func<IReadOnlyOrderedMap<PropertyKey, TimelineLaneCanvasConfig>> declared,
+        Action<TimelineLaneCanvasProxy, IReadOnlyList<(double Start, double End)>> forward)
     {
         mPart = part;
         mStore = store;
@@ -43,11 +43,11 @@ internal sealed class TimelineCanvasProxies : IDisposable
         store.CanvasModified.Subscribe(OnCanvasModified, s);
     }
 
-    public IReadOnlyMap<string, ISynthesisTimelineCanvas> Map
+    public IReadOnlyMap<string, ISynthesisTimelineLaneCanvas> Map
     {
         get
         {
-            var map = new Map<string, ISynthesisTimelineCanvas>();
+            var map = new Map<string, ISynthesisTimelineLaneCanvas>();
             foreach (var kvp in mDeclared())
                 map.Add(kvp.Key.Id, ProxyOf(kvp.Key.Id));
             return map;
@@ -55,22 +55,22 @@ internal sealed class TimelineCanvasProxies : IDisposable
     }
 
     // 快照：当前声明的各条取当下的值与换算器。
-    public static IReadOnlyMap<string, SynthesisTimelineCanvasSnapshot> Capture(MidiPart part, TimelineCanvases store, IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig> declared)
+    public static IReadOnlyMap<string, SynthesisTimelineLaneCanvasSnapshot> Capture(MidiPart part, TimelineLaneCanvases store, IReadOnlyOrderedMap<PropertyKey, TimelineLaneCanvasConfig> declared)
     {
-        var map = new Map<string, SynthesisTimelineCanvasSnapshot>();
+        var map = new Map<string, SynthesisTimelineLaneCanvasSnapshot>();
         foreach (var kvp in declared)
         {
             string id = kvp.Key.Id;
-            map.Add(id, new SynthesisTimelineCanvasSnapshot { Value = store.GetValue(id), TimeConverter = TimelineCanvasProxy.Converter(part, store, id) });
+            map.Add(id, new SynthesisTimelineLaneCanvasSnapshot { Value = store.GetValue(id), TimeConverter = TimelineLaneCanvasProxy.Converter(part, store, id) });
         }
         return map;
     }
 
-    TimelineCanvasProxy ProxyOf(string id)
+    TimelineLaneCanvasProxy ProxyOf(string id)
     {
         if (!mProxies.TryGetValue(id, out var proxy))
         {
-            proxy = new TimelineCanvasProxy(mPart, mStore, id);
+            proxy = new TimelineLaneCanvasProxy(mPart, mStore, id);
             mProxies.Add(id, proxy);
         }
         return proxy;
@@ -104,10 +104,10 @@ internal sealed class TimelineCanvasProxies : IDisposable
     }
 
     readonly MidiPart mPart;
-    readonly TimelineCanvases mStore;
-    readonly Func<IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig>> mDeclared;
-    readonly Action<TimelineCanvasProxy, IReadOnlyList<(double Start, double End)>> mForward;
-    readonly Dictionary<string, TimelineCanvasProxy> mProxies = new();
+    readonly TimelineLaneCanvases mStore;
+    readonly Func<IReadOnlyOrderedMap<PropertyKey, TimelineLaneCanvasConfig>> mDeclared;
+    readonly Action<TimelineLaneCanvasProxy, IReadOnlyList<(double Start, double End)>> mForward;
+    readonly Dictionary<string, TimelineLaneCanvasProxy> mProxies = new();
     readonly DisposableManager s = new();
     bool mDisposed;
 }

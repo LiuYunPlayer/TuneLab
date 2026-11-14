@@ -82,7 +82,7 @@ internal partial class AutomationRenderer
                 }
 
                 // 激活的是画布：编辑归插件，宿主的工具在这里没有对象（锚点、颤音幅度、画线都针对曲线）。不跳过的话，
-                // 锚点工具会清掉音高锚点的选中、颤音工具会选中颤音块，时间轴画布与自动化轨同 id 时画线还会画到那条轨上。
+                // 锚点工具会清掉音高锚点的选中、颤音工具会选中颤音块，时间轴 lane 画布与自动化轨同 id 时画线还会画到那条轨上。
                 if (Part != null && mDependency.ActiveAutomation is { } activeKey && Part.IsCanvasParameter(activeKey))
                     break;
 

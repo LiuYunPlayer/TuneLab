@@ -37,7 +37,7 @@ public interface IRawValueProperty
     PropertyValue RawValue { get; }
 }
 
-// 写入时能带上改动范围的字段（时间轴画布：插件提交时报的那几段，单位由字段定）。ranges = null 表示整条都算改了。
+// 写入时能带上改动范围的字段（时间轴 lane 画布：插件提交时报的那几段，单位由字段定）。ranges = null 表示整条都算改了。
 public interface IRangedValueProperty
 {
     void Set(PropertyValue value, IReadOnlyList<(double Start, double End)>? ranges);

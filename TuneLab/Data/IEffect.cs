@@ -21,10 +21,10 @@ internal interface IEffect : IDataObject<EffectInfo>
     IReadOnlyOrderedMap<PropertyKey, AutomationConfig> SynthesizedParameterConfigs { get; }
     IReadOnlyDataObjectMap<string, IAutomation> Automations { get; }
     IReadOnlyDataObjectMap<string, IPiecewiseAutomation> PiecewiseAutomations { get; }
-    // 时间轴画布声明（缓存，所属 part 重新询问声明时作废）与存储（id → 偏移 + 整值，含孤儿）。
-    IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig> TimelineCanvasConfigs { get; }
+    // 时间轴 lane 画布声明（缓存，所属 part 重新询问声明时作废）与存储（id → 偏移 + 整值，含孤儿）。
+    IReadOnlyOrderedMap<PropertyKey, TimelineLaneCanvasConfig> TimelineLaneCanvasConfigs { get; }
     void InvalidateDeclarations();
-    TimelineCanvases TimelineCanvases { get; }
+    TimelineLaneCanvases TimelineLaneCanvases { get; }
     IAutomation? AddAutomation(string automationID);
     IPiecewiseAutomation? AddPiecewiseAutomation(string automationID);
     double[] GetAutomationValues(IReadOnlyList<double> ticks, string automationID);

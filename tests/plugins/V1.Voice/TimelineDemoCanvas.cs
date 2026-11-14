@@ -4,7 +4,7 @@ using TuneLab.SDK;
 
 namespace TuneLab.TestPlugins.V1Voice;
 
-// 时间轴画布（TimelineCanvasConfig）演示：一条贯穿 part 的"标记"轨——每个标记占一格（半拍宽、一个半音高），落在 tick × 音高上。
+// 时间轴 lane 画布（TimelineLaneCanvasConfig）演示：一条贯穿 part 的"标记"轨——每个标记占一格（半拍宽、一个半音高），落在 tick × 音高上。
 // 值 = { "marks": [[tick, pitch], …] }，tick 是局部 tick（TickToX(0) = 原点，可为负、可超出 part），pitch 是键号（整数，占 [n, n + 1)）。
 // 没设过（Null）= 没有标记。覆盖：
 // · 整条时间轴：part 裁剪外照样画、照样能加（宿主盖遮罩）；原点画一条竖线，拆分后右半的原点仍在原处（偏移由宿主维护）。
@@ -15,13 +15,13 @@ namespace TuneLab.TestPlugins.V1Voice;
 //   空白处左键演示"按下不接、拖动再认领"：按下不接（宿主有自己的手势就归宿主），按着拖过几像素才在移动里置 Handled 认领，
 //   沿路刷出标记；没拖就松手 = 点击，加一个标记（宿主没认领时抬起回到这里，IsClick = true）。宿主认领走了则收到补发的抬起
 //   （IsClick = false），什么都不做。
-sealed class TimelineDemoCanvas(ITimelineCanvasHost host, PropertyValue value) : ICanvasControl
+sealed class TimelineDemoCanvas(ITimelineLaneCanvasHost host, PropertyValue value) : ICanvasControl
 {
     public const string Id = "markers";
     public const double MarkLength = 240;   // 半拍
 
-    public static TimelineCanvasConfig Config(PropertyValue value)
-        => TimelineCanvasConfig.Create(host => new TimelineDemoCanvas(host, value)).WithColor("#7FD1AE");
+    public static TimelineLaneCanvasConfig Config(PropertyValue value)
+        => TimelineLaneCanvasConfig.Create(host => new TimelineDemoCanvas(host, value)).WithColor("#7FD1AE");
 
     static readonly CanvasBrush MarkFill = CanvasBrush.Solid(Color.FromArgb(200, 127, 209, 174));
     static readonly CanvasBrush HotFill = CanvasBrush.Solid(Color.FromRgb(255, 196, 64));

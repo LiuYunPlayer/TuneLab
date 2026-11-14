@@ -28,7 +28,7 @@ namespace TuneLab.UI;
 internal partial class AutomationRenderer : View
 {
     public TickAxis TickAxis => mDependency.TickAxis;
-    // 面板背后那块音符区的音高轴（画布 lane 的纵轴取它，见 CanvasPitchAxis）。
+    // 面板背后那块音符区的音高轴（时间轴画布的纵轴取它，见 CanvasPitchAxis）。
     public PitchAxis PianoPitchAxis => mDependency.PianoScrollView.PitchAxis;
     public IMidiPart? Part => mDependency.PartHolder.Value;
     public bool IsOperating => mState != State.None;
@@ -184,7 +184,7 @@ internal partial class AutomationRenderer : View
         mDependency.PianoScrollView.PitchAxis.AxisChanged += OnPitchAxisChanged;
     }
 
-    // 画布 lane 的纵轴是面板背后那块音符区的音高（CanvasPitchAxis）：钢琴窗纵向滚动 / 缩放后要重画画布。没有画布就不必重画。
+    // 时间轴画布的纵轴是面板背后那块音符区的音高（CanvasPitchAxis）：钢琴窗纵向滚动 / 缩放后要重画画布。没有画布就不必重画。
     void OnPitchAxisChanged()
     {
         if (mCanvases.Count > 0)
@@ -289,17 +289,17 @@ internal partial class AutomationRenderer : View
                 if (Part.IsNumberLane(automationID))
                     DrawNoteLane(automationID, isActive);
                 else
-                    DrawCanvasLane(context, automationID, phoneme: false, isActive);
+                    DrawTimelineCanvas(context, automationID, phoneme: false, isActive);
             }
             else if (Part.IsEffectivePhonemeLane(automationID))
             {
                 if (Part.IsNumberLane(automationID))
                     DrawPhonemeLane(automationID, isActive);
                 else
-                    DrawCanvasLane(context, automationID, phoneme: true, isActive);
+                    DrawTimelineCanvas(context, automationID, phoneme: true, isActive);
             }
-            else if (Part.IsEffectiveTimelineCanvas(automationID))
-                DrawTimelineCanvas(context, automationID, isActive);
+            else if (Part.IsEffectiveTimelineLaneCanvas(automationID))
+                DrawTimelineLaneCanvas(context, automationID, isActive);
             else if (Part.IsEffectiveAutomation(automationID))
                 DrawContinuous(automationID);
             else if (Part.IsEffectivePiecewiseAutomation(automationID))
@@ -502,7 +502,7 @@ internal partial class AutomationRenderer : View
         // 开着小眼睛的（不是激活的那条）是背景，整组按半透明画（一个不透明度层，组内重叠处不会叠深）：曲线 / 数值 lane
         // 不接收事件；画布是一摞里的层，照常接收事件，只是和背景曲线一样由宿主统一调淡（插件借 IsBackground 决定画哪些，
         // 不用自己定"多淡"）。用不透明度而不是盖黑：背景参数淡下去，面板背后钢琴窗的透视不受影响。
-        // 叠放（自下而上）：先曲线类、后画布类；每类里越局部越在上——part 级（自动化曲线 / 时间轴画布）→ note 级 → 音素级，
+        // 叠放（自下而上）：先曲线类、后画布类；每类里越局部越在上——part 级（自动化曲线 / 时间轴 lane 画布）→ note 级 → 音素级，
         // 铺满整块的垫底，只占自己那段的放上面，两者都看得见、点得到；同一级按开启的先后（后开的在上）。
         // 画布的命中顺序跟着这里画的顺序走。激活的那条最后画、在最上（见 canvas-stacking.md）。
         // Avalonia 的 PushOpacity 默认只把透明度乘到每一笔上（不开图层），元素之间原本盖住的地方会透出来；
@@ -529,8 +529,8 @@ internal partial class AutomationRenderer : View
             return;
 
         var active = activeAutomation.Value;
-        // 时间轴画布：整块由插件画，没有值轴、颤音叠加与上下界标签。
-        if (Part.IsEffectiveTimelineCanvas(active))
+        // 时间轴 lane 画布：整块由插件画，没有值轴、颤音叠加与上下界标签。
+        if (Part.IsEffectiveTimelineLaneCanvas(active))
         {
             Draw(active, true);
             return;
@@ -559,7 +559,7 @@ internal partial class AutomationRenderer : View
             minLabel = entry.MinLabel;
             maxLabel = entry.MaxLabel;
             colorStr = entry.Color;
-            boundsKnown = entry.Resolved && entry.IsNumber;   // 未解析占位：量程未知；画布 lane 没有值轴——都不显上下界
+            boundsKnown = entry.Resolved && entry.IsNumber;   // 未解析占位：量程未知；时间轴画布没有值轴——都不显上下界
         }
         else
         {

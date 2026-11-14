@@ -15,7 +15,7 @@ public class EffectInfo
     public Map<string, AutomationInfo> Automations { get; set; } = new();
     // 声明分段轨（effect 暴露的可编辑分段曲线）：按轨 id 键。孤儿数据保留隐藏，按 map 现有内容整存。
     public Map<string, PiecewiseAutomationInfo> PiecewiseAutomations { get; set; } = new();
-    // 效果器声明的时间轴画布（TimelineCanvasConfig）：按 id 键，没设过的 id 不在表里。孤儿数据保留，按表现有内容整存。
-    public Map<string, TimelineCanvasInfo> TimelineCanvases { get; set; } = new();
+    // 效果器声明的时间轴 lane 画布（TimelineLaneCanvasConfig）：按 id 键，没设过的 id 不在表里。孤儿数据保留，按表现有内容整存。
+    public Map<string, TimelineLaneCanvasInfo> TimelineLaneCanvases { get; set; } = new();
     public PropertyObject Properties { get; set; } = PropertyObject.Empty;
 }

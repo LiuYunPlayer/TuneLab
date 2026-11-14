@@ -212,7 +212,7 @@ internal sealed class ParameterPanel : AutomationRenderer.IDependency, Parameter
                 return (key.Id, Style.LIGHT_WHITE);
             case AutomationSource.VoiceCanvas:
             case AutomationSource.EffectCanvas:
-                foreach (var (name, color, canvasKey) in TimelineCanvasEntries(part))
+                foreach (var (name, color, canvasKey) in TimelineLaneCanvasEntries(part))
                 {
                     if (canvasKey == key)
                         return (name, color);
@@ -302,7 +302,7 @@ internal sealed class ParameterPanel : AutomationRenderer.IDependency, Parameter
             if (!ParameterHiding.IsHidden(part, AutomationKey.Voice(kvp.Key.Id)))
                 return AutomationKey.Voice(kvp.Key.Id);
         }
-        foreach (var kvp in part.SoundSource.TimelineCanvasConfigs)
+        foreach (var kvp in part.SoundSource.TimelineLaneCanvasConfigs)
         {
             if (!ParameterHiding.IsHidden(part, AutomationKey.VoiceCanvas(kvp.Key.Id)))
                 return AutomationKey.VoiceCanvas(kvp.Key.Id);
@@ -324,7 +324,7 @@ internal sealed class ParameterPanel : AutomationRenderer.IDependency, Parameter
                 if (!ParameterHiding.IsHidden(part, AutomationKey.Effect(i, kvp.Key.Id)))
                     return AutomationKey.Effect(i, kvp.Key.Id);
             }
-            foreach (var kvp in part.Effects[i].TimelineCanvasConfigs)
+            foreach (var kvp in part.Effects[i].TimelineLaneCanvasConfigs)
             {
                 if (!ParameterHiding.IsHidden(part, AutomationKey.EffectCanvas(i, kvp.Key.Id)))
                     return AutomationKey.EffectCanvas(i, kvp.Key.Id);
@@ -333,14 +333,14 @@ internal sealed class ParameterPanel : AutomationRenderer.IDependency, Parameter
         return null;
     }
 
-    // 时间轴画布（声源的、各效果器的）：显示名、标签色（宿主物化声明时已给没指定的分配好）、路由键。
-    static IEnumerable<(string Name, Color Color, AutomationKey Key)> TimelineCanvasEntries(IMidiPart part)
+    // 时间轴 lane 画布（声源的、各效果器的）：显示名、标签色（宿主物化声明时已给没指定的分配好）、路由键。
+    static IEnumerable<(string Name, Color Color, AutomationKey Key)> TimelineLaneCanvasEntries(IMidiPart part)
     {
-        foreach (var kvp in part.SoundSource.TimelineCanvasConfigs)
+        foreach (var kvp in part.SoundSource.TimelineLaneCanvasConfigs)
             yield return (kvp.Key.DisplayText ?? kvp.Key.Id, ColorUtils.ParseOrFallback(kvp.Value.Color), AutomationKey.VoiceCanvas(kvp.Key.Id));
         for (int i = 0; i < part.Effects.Count; i++)
         {
-            foreach (var kvp in part.Effects[i].TimelineCanvasConfigs)
+            foreach (var kvp in part.Effects[i].TimelineLaneCanvasConfigs)
                 yield return (kvp.Key.DisplayText ?? kvp.Key.Id, ColorUtils.ParseOrFallback(kvp.Value.Color), AutomationKey.EffectCanvas(i, kvp.Key.Id));
         }
     }
@@ -354,7 +354,7 @@ internal sealed class ParameterPanel : AutomationRenderer.IDependency, Parameter
             return false;
 
         if (!Part.IsEffectiveAutomation(automation) && !Part.IsEffectivePiecewiseAutomation(automation)
-            && !Part.IsEffectiveNoteLane(automation) && !Part.IsEffectivePhonemeLane(automation) && !Part.IsEffectiveTimelineCanvas(automation))
+            && !Part.IsEffectiveNoteLane(automation) && !Part.IsEffectivePhonemeLane(automation) && !Part.IsEffectiveTimelineLaneCanvas(automation))
             return false;
 
         return !ParameterHiding.IsHidden(Part, automation);

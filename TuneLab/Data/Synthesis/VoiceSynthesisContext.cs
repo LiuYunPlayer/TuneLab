@@ -83,8 +83,8 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
         piecewiseMap.ItemAdded.Subscribe(WirePiecewiseAutomation, s);
         piecewiseMap.ItemRemoved.Subscribe(UnwirePiecewiseAutomation, s);
 
-        // 时间轴画布：写入（提交 / 撤销 / 宿主写值）时把范围换成秒转给代理，补一个 Committed 收口（一次写入一次收口）。
-        mTimelineCanvases = new TimelineCanvasProxies(part, part.TimelineCanvases, () => part.SoundSource.TimelineCanvasConfigs,
+        // 时间轴 lane 画布：写入（提交 / 撤销 / 宿主写值）时把范围换成秒转给代理，补一个 Committed 收口（一次写入一次收口）。
+        mTimelineLaneCanvases = new TimelineLaneCanvasProxies(part, part.TimelineLaneCanvases, () => part.SoundSource.TimelineLaneCanvasConfigs,
             (proxy, ranges) => ForwardChange(() => { foreach (var (start, end) in ranges) proxy.NotifyRangeModified(start, end); }));
     }
 
@@ -150,13 +150,13 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
         }
     }
 
-    // 已声明的时间轴画布（按 id；孤儿不在内）。
-    public IReadOnlyMap<string, ISynthesisTimelineCanvas> TimelineCanvases
+    // 已声明的时间轴 lane 画布（按 id；孤儿不在内）。
+    public IReadOnlyMap<string, ISynthesisTimelineLaneCanvas> TimelineLaneCanvases
     {
         get
         {
             AssertDataThread();
-            return mTimelineCanvases.Map;
+            return mTimelineLaneCanvases.Map;
         }
     }
 
@@ -181,7 +181,7 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
 
         mInvalidator.Dispose();
         s.DisposeAll();
-        mTimelineCanvases.Dispose();
+        mTimelineLaneCanvases.Dispose();
         mBatchSignal.BatchEnd -= OnBatchEnd;
         foreach (var kvp in mAutomationSubscriptions)
         {
@@ -454,7 +454,7 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
     readonly AutomationProxy mPitchDeviation;
     readonly NoteProxyList mNotes;
     readonly PropertyObjectGuard mPartProperties;
-    readonly TimelineCanvasProxies mTimelineCanvases;
+    readonly TimelineLaneCanvasProxies mTimelineLaneCanvases;
     readonly Dictionary<string, AutomationProxy> mAutomationProxies = new();
     readonly Dictionary<string, DisposableManager> mAutomationSubscriptions = new();
     readonly Dictionary<string, DisposableManager> mPiecewiseSubscriptions = new();

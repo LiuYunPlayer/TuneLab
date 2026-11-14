@@ -198,10 +198,10 @@ info 里没写的字段用**存储默认值**（例如 `name` 是空串），不
 | `part.samplePiecewiseAutomation(id, startTick, endTick, samples)` | `[number]` | 等距采样某分段轨。 |
 | `part.setPiecewiseAutomationLine(id, startTick, endTick, points)` | — | 清空 `[start, end)` 再落一条分段曲线（形状同 `setPitchLine`）。 |
 | `part.clearPiecewiseAutomation(id, startTick, endTick)` | — | 清空一段分段曲线。 |
-| `part.timelineCanvasIds()` | `[string]` | 音源声明的**时间轴画布** id：贯穿整个 part、由插件自己画、自己编辑的轨（标记、区段、插件自己的曲线……）。 |
-| `part.getTimelineCanvas(id)` | 值 \| `null` | 画布存着的值（number / boolean / string / 数组 / 对象）；`null` = 没设过。形状由插件定义，自己造之前先读该插件的文档。 |
-| `part.setTimelineCanvas(id, value)` | — | 整个换掉画布的值；`null` = 删掉存值（回到"没设过"，插件按自己的默认值补）。id 须已声明；宿主不检查形状。 |
-| `part.timelineCanvasOrigin(id)` | `number` | 值里 tick 0 对应的绝对 tick（即 part 锚点，拆分 / 合并后会偏开）。值里的 tick 都相对它。 |
+| `part.timelineLaneCanvasIds()` | `[string]` | 音源声明的**时间轴 lane 画布** id：贯穿整个 part、由插件自己画、自己编辑的轨（标记、区段、插件自己的曲线……）。 |
+| `part.getTimelineLaneCanvas(id)` | 值 \| `null` | 画布存着的值（number / boolean / string / 数组 / 对象）；`null` = 没设过。形状由插件定义，自己造之前先读该插件的文档。 |
+| `part.setTimelineLaneCanvas(id, value)` | — | 整个换掉画布的值；`null` = 删掉存值（回到"没设过"，插件按自己的默认值补）。id 须已声明；宿主不检查形状。 |
+| `part.timelineLaneCanvasOrigin(id)` | `number` | 值里 tick 0 对应的绝对 tick（即 part 锚点，拆分 / 合并后会偏开）。值里的 tick 都相对它。 |
 | `part.lockPitch(startTick?, endTick?)` | `bool` | **固定合成音高**：把引擎输出的音高按真实数值写成本 part 的音高曲线（与工具栏那支固定笔刷同一件事）。区间两参**要么都给、要么都不给**（都不给 = 整条 part）。 |
 | `part.lockAutomation(id, startTick?, endTick?)` | `bool` | **固定合成参数**：把该轨的引擎产物写成同 id 的可编辑轨（连续轨 / 分段轨由数据层按声明自动分派）。id 未知、或该轨没有配对合成参数都会**报错**（整段脚本随之回退），拿不准先问 `hasSynthesizedParameter(id)`。 |
 | `part.hasSynthesizedParameter(id)` | `bool` | 该轨有没有**配对合成参数**——即音源除了这条可编辑轨，还发布了同 id 的合成参数。没有配对就没有模型输出可固定。 |
@@ -304,7 +304,7 @@ for (const id of p.automationIds()) {
 | `effect.lockAutomation(id, startTick?, endTick?)` | `bool` | 固定本 effect 某条轨的合成参数（口径完全同 `part.lockAutomation`，只是作用域是本 effect）。 |
 | `effect.hasSynthesizedParameter(id)` | `bool` | 本 effect 该轨有没有配对合成参数。游离期恒 `false`（合成参数按链中下标定址，不在链上就无从定址）。 |
 | `effect.clearPiecewiseAutomation(id, startTick, endTick)` | — | 清空本 effect 某分段曲线的一段。 |
-| `effect.timelineCanvasIds()` / `effect.getTimelineCanvas(id)` / `effect.setTimelineCanvas(id, value)` / `effect.timelineCanvasOrigin(id)` | — | 本 effect 的时间轴画布，用法同 `part.` 那几个。 |
+| `effect.timelineLaneCanvasIds()` / `effect.getTimelineLaneCanvas(id)` / `effect.setTimelineLaneCanvas(id, value)` / `effect.timelineLaneCanvasOrigin(id)` | — | 本 effect 的时间轴 lane 画布，用法同 `part.` 那几个。 |
 
 effect 自动化与 part 级自动化**逐一平行**——同样的绝对 tick `points` 与绝对值语义、同样分连续/分段两族，只是目标从音源换成链中某 effect。
 

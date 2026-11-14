@@ -31,7 +31,7 @@ internal interface IMidiPart : IPart, IDataObject<MidiPartInfo>
     // 自动化轨集合因参数 commit 而变（条件轨随值显隐）：UI 收到重建参数栏/默认值面板。仅实际变化时触发。
     // 属性 lane 集合（见 NoteLaneConfigs / PhonemeLaneConfigs）的增删也并入本事件（同一批 UI 消费者：tabbar / 渲染器）。
     IActionEvent AutomationConfigsModified { get; }
-    // 参数面板 note 属性 lane 集合（物化缓存）：各 note 声明的并集里，钉选了的可钉字段（有界数值、侧栏画布）+ 全部画布 lane，
+    // 参数面板 note 属性 lane 集合（物化缓存）：各 note 声明的并集里，钉选了的可钉字段（有界数值、侧栏画布）+ 全部时间轴画布，
     // 按首见顺序（种类见 LaneEntry.Kind）。只决定有哪些 lane 与轨色；条目里的量程是首见声明的，逐段的形状按各自 note 取（TryGetNoteLaneShape）。
     // 值本体在各 note.Properties 里按 id 存取。
     IReadOnlyOrderedMap<PropertyKey, LaneEntry> NoteLaneConfigs { get; }
@@ -66,8 +66,8 @@ internal interface IMidiPart : IPart, IDataObject<MidiPartInfo>
     IReadOnlyDataObjectMap<string, IAutomation> Automations { get; }
     // 声明分段轨（除 Pitch 外的可编辑分段曲线），按轨 id 存；Pitch 是专属常驻通道、不入此 map。
     IReadOnlyDataObjectMap<string, IPiecewiseAutomation> PiecewiseAutomations { get; }
-    // 声源声明的时间轴画布的存储（id → 偏移 + 整值，含孤儿）；声明在 SoundSource.TimelineCanvasConfigs。
-    TimelineCanvases TimelineCanvases { get; }
+    // 声源声明的时间轴 lane 画布的存储（id → 偏移 + 整值，含孤儿）；声明在 SoundSource.TimelineLaneCanvasConfigs。
+    TimelineLaneCanvases TimelineLaneCanvases { get; }
     IReadOnlyDataObjectList<IEffect> Effects { get; }
     IPiecewiseAutomation Pitch { get; }
 
@@ -142,7 +142,7 @@ internal static class IMidiPartExtension
     // 从对应来源（voice / 某 effect）取该 key 的 config（不分 kind），不存在返回 false。
     static bool TryGetSourceConfig(IMidiPart part, AutomationKey key, out AutomationConfig config)
     {
-        if (key.IsLane || key.IsTimelineCanvas)
+        if (key.IsLane || key.IsTimelineLaneCanvas)
         {
             config = null!;
             return false;
@@ -159,31 +159,31 @@ internal static class IMidiPartExtension
         return part.SoundSource.AutomationConfigs.TryGetValue(key.Id, out config!);
     }
 
-    // ── 时间轴画布路由（声源 / 某 effect 声明的 TimelineCanvasConfig；存储在 part / effect 的 TimelineCanvases）。──
+    // ── 时间轴 lane 画布路由（声源 / 某 effect 声明的 TimelineLaneCanvasConfig；存储在 part / effect 的 TimelineLaneCanvases）。──
 
-    public static bool TryGetTimelineCanvas(this IMidiPart part, AutomationKey key, out TimelineCanvasConfig config, out TimelineCanvases store)
+    public static bool TryGetTimelineLaneCanvas(this IMidiPart part, AutomationKey key, out TimelineLaneCanvasConfig config, out TimelineLaneCanvases store)
     {
         config = null!;
         store = null!;
         if (key.Source == AutomationSource.VoiceCanvas)
         {
-            store = part.TimelineCanvases;
-            return part.SoundSource.TimelineCanvasConfigs.TryGetValue(key.Id, out config!);
+            store = part.TimelineLaneCanvases;
+            return part.SoundSource.TimelineLaneCanvasConfigs.TryGetValue(key.Id, out config!);
         }
         if (key.Source == AutomationSource.EffectCanvas && key.EffectIndex >= 0 && key.EffectIndex < part.Effects.Count)
         {
             var effect = part.Effects[key.EffectIndex];
-            store = effect.TimelineCanvases;
-            return effect.TimelineCanvasConfigs.TryGetValue(key.Id, out config!);
+            store = effect.TimelineLaneCanvases;
+            return effect.TimelineLaneCanvasConfigs.TryGetValue(key.Id, out config!);
         }
         return false;
     }
 
-    public static bool IsEffectiveTimelineCanvas(this IMidiPart part, AutomationKey key) => part.TryGetTimelineCanvas(key, out _, out _);
+    public static bool IsEffectiveTimelineLaneCanvas(this IMidiPart part, AutomationKey key) => part.TryGetTimelineLaneCanvas(key, out _, out _);
 
-    // 画布类参数（插件自绘的一整块界面）：非数值的画布 lane 与时间轴画布。面板里至多一个可见、激活的是画布时别的画布不作背景。
+    // 画布类参数（插件自绘的一整块界面）：非数值的时间轴画布与时间轴 lane 画布。面板里至多一个可见、激活的是画布时别的画布不作背景。
     public static bool IsCanvasParameter(this IMidiPart part, AutomationKey key)
-        => ((part.IsEffectiveNoteLane(key) || part.IsEffectivePhonemeLane(key)) && !part.IsNumberLane(key)) || part.IsEffectiveTimelineCanvas(key);
+        => ((part.IsEffectiveNoteLane(key) || part.IsEffectivePhonemeLane(key)) && !part.IsNumberLane(key)) || part.IsEffectiveTimelineLaneCanvas(key);
 
     // ── 属性 lane 路由（与 automation 对偶的第三来源，note / phoneme 两 scope 各自分派）。──
 
@@ -205,7 +205,7 @@ internal static class IMidiPartExtension
         return key.IsPhonemeLane && part.PhonemeLaneConfigs.ContainsKey(key.Id);
     }
 
-    // 数值 lane（宿主画值段、拖写 / 清除）：画布 lane 的编辑归插件画布，数值手势不碰它，免得把数字写进画布字段。
+    // 数值 lane（宿主画值段、拖写 / 清除）：时间轴画布的编辑归插件画布，数值手势不碰它，免得把数字写进画布字段。
     public static bool IsNumberLane(this IMidiPart part, AutomationKey key)
     {
         if (key.IsNoteLane)
@@ -777,19 +777,19 @@ internal static class IMidiPartExtension
 
                 ret.PiecewiseAutomations[kvp.Key].Segments.AddRange(ClipSegments(kvp.Value.Segments));
             }
-            // 时间轴画布（逐 id）：值宿主不解读、拼不了，保留按时间顺序第一个有该 id 的段的整值（母体），后面各段的丢掉；
+            // 时间轴 lane 画布（逐 id）：值宿主不解读、拼不了，保留按时间顺序第一个有该 id 的段的整值（母体），后面各段的丢掉；
             // 原点随锚点换算进偏移（值不动）。
-            foreach (var kvp in curPart.TimelineCanvases)
+            foreach (var kvp in curPart.TimelineLaneCanvases)
             {
-                if (!ret.TimelineCanvases.ContainsKey(kvp.Key))
-                    ret.TimelineCanvases.Add(kvp.Key, RebaseTimelineCanvas(kvp.Value, curPart.Pos - anchor));
+                if (!ret.TimelineLaneCanvases.ContainsKey(kvp.Key))
+                    ret.TimelineLaneCanvases.Add(kvp.Key, RebaseTimelineLaneCanvas(kvp.Value, curPart.Pos - anchor));
             }
         }
         return ret;
     }
 
-    // 时间轴画布换锚点：值的原点在绝对位置不动，part 原点挪了 shift（新锚点 = 旧锚点 − shift）⇒ 偏移加 shift。
-    static TimelineCanvasInfo RebaseTimelineCanvas(TimelineCanvasInfo info, double shift)
+    // 时间轴 lane 画布换锚点：值的原点在绝对位置不动，part 原点挪了 shift（新锚点 = 旧锚点 − shift）⇒ 偏移加 shift。
+    static TimelineLaneCanvasInfo RebaseTimelineLaneCanvas(TimelineLaneCanvasInfo info, double shift)
         => new() { Offset = info.Offset + shift, Value = info.Value };
 
     public static MidiPartInfo RangeInfo(this IMidiPart part, double start, double end)
@@ -803,14 +803,14 @@ internal static class IMidiPartExtension
             automations.Add(kvp.Key, new() { DefaultValue = part.Automations[kvp.Key].DefaultValue.GetInfo(), Points = kvp.Value });
         }
         // 效果链整条带上（实例 id 沿用：各子段是独立的 part，链内唯一不冲突，颤音对效果器轨的影响表按 id 随之重连），
-        // 各效果器的自动化轨与分段轨同 part 级一样裁到子段、换到子段起点，时间轴画布同 part 级整值随走、偏移减 start。
+        // 各效果器的自动化轨与分段轨同 part 级一样裁到子段、换到子段起点，时间轴 lane 画布同 part 级整值随走、偏移减 start。
         var effects = new List<EffectInfo>();
         foreach (var effect in part.Effects)
         {
             var info = effect.GetInfo();
             info.Automations = RangeAutomations(effect.Automations, start, end);
             info.PiecewiseAutomations = RangePiecewiseAutomations(effect.PiecewiseAutomations, start, end);
-            info.TimelineCanvases = RebaseTimelineCanvases(effect.TimelineCanvases, -start);
+            info.TimelineLaneCanvases = RebaseTimelineLaneCanvases(effect.TimelineLaneCanvases, -start);
             effects.Add(info);
         }
         return new MidiPartInfo()
@@ -828,8 +828,8 @@ internal static class IMidiPartExtension
             Automations = automations,
             PiecewiseAutomations = RangePiecewiseAutomations(part.PiecewiseAutomations, start, end),
             Effects = effects,
-            // 时间轴画布：截不出一段（值宿主不解读），整值随子段走，各显示自己那段；锚点挪到 start ⇒ 偏移减 start。
-            TimelineCanvases = RebaseTimelineCanvases(part.TimelineCanvases, -start),
+            // 时间轴 lane 画布：截不出一段（值宿主不解读），整值随子段走，各显示自己那段；锚点挪到 start ⇒ 偏移减 start。
+            TimelineLaneCanvases = RebaseTimelineLaneCanvases(part.TimelineLaneCanvases, -start),
         };
     }
 
@@ -850,11 +850,11 @@ internal static class IMidiPartExtension
         return map;
     }
 
-    static Map<string, TimelineCanvasInfo> RebaseTimelineCanvases(TimelineCanvases canvases, double shift)
+    static Map<string, TimelineLaneCanvasInfo> RebaseTimelineLaneCanvases(TimelineLaneCanvases canvases, double shift)
     {
-        var map = new Map<string, TimelineCanvasInfo>();
+        var map = new Map<string, TimelineLaneCanvasInfo>();
         foreach (var kvp in canvases.GetInfo())
-            map.Add(kvp.Key, RebaseTimelineCanvas(kvp.Value, shift));
+            map.Add(kvp.Key, RebaseTimelineLaneCanvas(kvp.Value, shift));
         return map;
     }
 }

@@ -60,12 +60,12 @@ internal sealed class PluginCanvas : Component
     public void SetFactory(Func<ICanvasHost, ICanvasControl> factory)
         => SetFactory(factory, (view, field) => new Session(view, field), session => factory(session));
 
-    // 画布 lane（CanvasLaneConfig）的工厂：实例拿到的宿主多一条时间轴与一条音高轴（ICanvasLaneHost）。
-    public void SetLaneFactory(Func<ICanvasLaneHost, ICanvasControl> factory, ICanvasTimeAxis timeAxis, ICanvasPitchAxis pitchAxis)
+    // 时间轴画布（TimelineCanvasConfig）的工厂：实例拿到的宿主多一条时间轴与一条音高轴（ITimelineCanvasHost）。
+    public void SetLaneFactory(Func<ITimelineCanvasHost, ICanvasControl> factory, ICanvasTimeAxis timeAxis, ICanvasPitchAxis pitchAxis)
         => SetFactory(factory, (view, field) => new LaneSession(view, field, timeAxis, pitchAxis), session => factory((LaneSession)session));
 
-    // 时间轴画布（TimelineCanvasConfig）的工厂：宿主同画布 lane，另有带改动范围的提交（随值交给字段，字段须实现 IRangedValueProperty）。
-    public void SetTimelineFactory(Func<ITimelineCanvasHost, ICanvasControl> factory, ICanvasTimeAxis timeAxis, ICanvasPitchAxis pitchAxis)
+    // 时间轴 lane 画布（TimelineLaneCanvasConfig）的工厂：宿主同时间轴画布，另有带改动范围的提交（随值交给字段，字段须实现 IRangedValueProperty）。
+    public void SetTimelineFactory(Func<ITimelineLaneCanvasHost, ICanvasControl> factory, ICanvasTimeAxis timeAxis, ICanvasPitchAxis pitchAxis)
         => SetFactory(factory, (view, field) => new TimelineSession(view, field, timeAxis, pitchAxis), session => factory((TimelineSession)session));
 
     // 作背景显示（参数面板里激活的是别的参数、本画布可见）：由所在视图设，变了就重画（契约见 ICanvasHost.IsBackground）。
@@ -815,7 +815,7 @@ internal sealed class PluginCanvas : Component
             view.RequestRender();
         }
 
-        // 提交时怎么写进字段：时间轴画布要把这次提交带的改动范围一起交出去（见 TimelineSession）。
+        // 提交时怎么写进字段：时间轴 lane 画布要把这次提交带的改动范围一起交出去（见 TimelineSession）。
         protected virtual void Write(IDataProperty<PropertyValue> field, PropertyValue value) => field.Set(value);
         protected string PluginPrefix => view.PluginPrefix();
 
@@ -1016,18 +1016,18 @@ internal sealed class PluginCanvas : Component
         IDisposable? mEditing;   // 面板在用期间在所在窗口 EditGate 上的登记（见 UpdateLock）
     }
 
-    // 画布 lane 的宿主：多一条时间轴与一条音高轴（由所在视图给、跟着它的坐标轴走）。
+    // 时间轴画布的宿主：多一条时间轴与一条音高轴（由所在视图给、跟着它的坐标轴走）。
     sealed class LaneSession(PluginCanvas view, IDataProperty<PropertyValue> field, ICanvasTimeAxis timeAxis, ICanvasPitchAxis pitchAxis)
-        : Session(view, field), ICanvasLaneHost
+        : Session(view, field), ITimelineCanvasHost
     {
         public ICanvasTimeAxis TimeAxis => timeAxis;
         public ICanvasPitchAxis PitchAxis => pitchAxis;
     }
 
-    // 时间轴画布的宿主：同画布 lane，另有带改动范围（局部 tick）的提交——范围只活在这一次提交里，随值交给字段（字段须实现
+    // 时间轴 lane 画布的宿主：同时间轴画布，另有带改动范围（局部 tick）的提交——范围只活在这一次提交里，随值交给字段（字段须实现
     // IRangedValueProperty）。不带参数的提交、空列表 = 整条（交 null）。范围原样交出，不合并（去重归插件）。
     sealed class TimelineSession(PluginCanvas view, IDataProperty<PropertyValue> field, ICanvasTimeAxis timeAxis, ICanvasPitchAxis pitchAxis)
-        : Session(view, field), ITimelineCanvasHost
+        : Session(view, field), ITimelineLaneCanvasHost
     {
         public ICanvasTimeAxis TimeAxis => timeAxis;
         public ICanvasPitchAxis PitchAxis => pitchAxis;

@@ -23,8 +23,8 @@ internal interface ISoundSource : IDataObject<SoundSourceInfo>
     IReadOnlyOrderedMap<PropertyKey, AutomationConfig> AutomationConfigs { get; }
     // 合成参数回显轨声明（只读、独立于可编辑轨集合）：曲线数据经 IMidiPart.SynthesizedParameters 按同一批 key 承载。
     IReadOnlyOrderedMap<PropertyKey, AutomationConfig> SynthesizedParameterConfigs { get; }
-    // 时间轴画布声明（物化缓存，与 AutomationConfigs 同一时机重算）。
-    IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig> TimelineCanvasConfigs { get; }
+    // 时间轴 lane 画布声明（物化缓存，与 AutomationConfigs 同一时机重算）。
+    IReadOnlyOrderedMap<PropertyKey, TimelineLaneCanvasConfig> TimelineLaneCanvasConfigs { get; }
     ObjectConfig GetPartPropertyConfig(PartPropertyContext context);
     ObjectConfig GetNotePropertyConfig(NotePropertyContext context);
     // 音素属性声明（voice 专属；复用 note 声明上下文，返回按核相对 slot 键控的 schema map，口径见 SDK PhonemeSlots；

@@ -35,7 +35,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         mNotePropertiesController.Hooks = new FieldHooks
         {
             ItemMenu = (path, config) => TryBuildLanePinMenuItem(ParameterPinKind.NoteProperty, path, config) is { } pin ? [pin] : null,
-            EditCanvasLane = path => EditInParameterPanel?.Invoke(AutomationKey.NoteLane(LanePath.Encode(path))),
+            EditTimelineCanvas = path => EditInParameterPanel?.Invoke(AutomationKey.NoteLane(LanePath.Encode(path))),
         };
         // 插件按钮执行完 → 重新询问 note 声明（按钮动的是插件状态，面板选项可能随之变）。
         mNotePropertiesController.ButtonActionCompleted += mNoteScheduler.InvalidateValues;
@@ -167,7 +167,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         => new(new PartContext(mPart!),
             mPart!.Notes.AllSelectedItems().Select(n => new PartContext.PartNote(n)).ToList());
 
-    // 画布 lane 那一行的编辑按钮：去参数面板编辑这条 lane（宿主注入：显示参数区、让焦点面板激活它）。
+    // 时间轴画布那一行的编辑按钮：去参数面板编辑这条 lane（宿主注入：显示参数区、让焦点面板激活它）。
     public Action<AutomationKey>? EditInParameterPanel { get; set; }
 
     // 属性右键菜单里的钉选项：有界数值与侧栏画布给「在参数面板编辑 / 从参数面板移除」。钉选是用户偏好
@@ -349,12 +349,12 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
                 poc.ButtonActionCompleted += mPhonemeScheduler.InvalidateStructure;
                 // 属性行右键 = 钉选项（phoneme scope，任何位置的字段都行：钉选按路径）+ slot 动作（拆分/删除，整块公共项、
                 // 嵌套对象的子字段也继承）——属性行的右键被这两个钩子接管后不再冒泡到行容器的 ContextMenu，故 slot 项并进来，
-                // 避免"点在属性上就丢拆分/删除"。画布 lane 那一行的编辑按钮跳到参数面板的音素 lane。
+                // 避免"点在属性上就丢拆分/删除"。时间轴画布那一行的编辑按钮跳到参数面板的音素 lane。
                 var menuMembers = members;
                 poc.Hooks = new FieldHooks
                 {
                     ItemMenu = (path, cfg) => TryBuildLanePinMenuItem(ParameterPinKind.PhonemeProperty, path, cfg) is { } pin ? [pin] : null,
-                    EditCanvasLane = path => EditInParameterPanel?.Invoke(AutomationKey.PhonemeLane(LanePath.Encode(path))),
+                    EditTimelineCanvas = path => EditInParameterPanel?.Invoke(AutomationKey.PhonemeLane(LanePath.Encode(path))),
                 };
                 poc.ContainerContextMenuProvider = () => BuildSlotMenuItems(menuMembers);
                 controller = poc;

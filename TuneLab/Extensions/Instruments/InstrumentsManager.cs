@@ -133,8 +133,8 @@ internal static class InstrumentsManager
     public static IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(string type, IInstrumentSynthesisPartPropertyContext context)
         => Declare(type, InstrumentIdOf(context), e => e.GetSynthesizedParameterConfigs(context));
 
-    public static IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig> GetTimelineCanvasConfigs(string type, IInstrumentSynthesisPartPropertyContext context)
-        => Declare(type, InstrumentIdOf(context), e => e.GetTimelineCanvasConfigs(context));
+    public static IReadOnlyOrderedMap<PropertyKey, TimelineLaneCanvasConfig> GetTimelineLaneCanvasConfigs(string type, IInstrumentSynthesisPartPropertyContext context)
+        => Declare(type, InstrumentIdOf(context), e => e.GetTimelineLaneCanvasConfigs(context));
 
     public static ObjectConfig GetPartPropertyConfig(string type, IInstrumentSynthesisPartPropertyContext context)
         => Declare(type, InstrumentIdOf(context), e => e.GetPartPropertyConfig(context));

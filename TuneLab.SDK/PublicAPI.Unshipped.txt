@@ -39,11 +39,11 @@ static TuneLab.SDK.TagItem.implicit operator TuneLab.SDK.TagItem(long value) -> 
 static TuneLab.SDK.TagItem.implicit operator TuneLab.SDK.TagItem(string! value) -> TuneLab.SDK.TagItem
 static TuneLab.SDK.TagItem.implicit operator TuneLab.SDK.TagItem(TuneLab.Foundation.PropertyValue value) -> TuneLab.SDK.TagItem
 static TuneLab.SDK.TagItem.Separator(string? label = null) -> TuneLab.SDK.TagItem
-static TuneLab.SDK.CanvasLaneConfig.Create(System.Func<TuneLab.SDK.ICanvasLaneHost!, TuneLab.SDK.ICanvasControl!>! createControl) -> TuneLab.SDK.CanvasLaneConfig!
+static TuneLab.SDK.TimelineCanvasConfig.Create(System.Func<TuneLab.SDK.ITimelineCanvasHost!, TuneLab.SDK.ICanvasControl!>! createControl) -> TuneLab.SDK.TimelineCanvasConfig!
 static TuneLab.SDK.TimeConverterExtensions.ToSecond(this TuneLab.SDK.ITimeConverter! converter, double tick) -> double
 static TuneLab.SDK.TimeConverterExtensions.ToTick(this TuneLab.SDK.ITimeConverter! converter, double second) -> double
-static TuneLab.SDK.TimelineCanvasConfig.Create() -> TuneLab.SDK.TimelineCanvasConfig!
-static TuneLab.SDK.TimelineCanvasConfig.Create(System.Func<TuneLab.SDK.ITimelineCanvasHost!, TuneLab.SDK.ICanvasControl!>! createControl) -> TuneLab.SDK.TimelineCanvasConfig!
+static TuneLab.SDK.TimelineLaneCanvasConfig.Create() -> TuneLab.SDK.TimelineLaneCanvasConfig!
+static TuneLab.SDK.TimelineLaneCanvasConfig.Create(System.Func<TuneLab.SDK.ITimelineLaneCanvasHost!, TuneLab.SDK.ICanvasControl!>! createControl) -> TuneLab.SDK.TimelineLaneCanvasConfig!
 static TuneLab.SDK.ValueOnlyConfig.Create() -> TuneLab.SDK.ValueOnlyConfig!
 TuneLab.SDK.AutomationConfig.Visibility.get -> TuneLab.SDK.ControllerVisibility
 TuneLab.SDK.AutomationConfig.WithVisibility(TuneLab.SDK.ControllerVisibility visibility) -> TuneLab.SDK.AutomationConfig!
@@ -147,8 +147,8 @@ TuneLab.SDK.CanvasKeyEvent
 TuneLab.SDK.CanvasKeyEvent.IsRepeat.get -> bool
 TuneLab.SDK.CanvasKeyEvent.Key.get -> TuneLab.SDK.CanvasKey
 TuneLab.SDK.CanvasKeyEvent.Modifiers.get -> TuneLab.SDK.CanvasModifierKeys
-TuneLab.SDK.CanvasLaneConfig.ShownByDefault.get -> bool
-TuneLab.SDK.CanvasLaneConfig.WithShownByDefault(bool shown) -> TuneLab.SDK.CanvasLaneConfig!
+TuneLab.SDK.TimelineCanvasConfig.ShownByDefault.get -> bool
+TuneLab.SDK.TimelineCanvasConfig.WithShownByDefault(bool shown) -> TuneLab.SDK.TimelineCanvasConfig!
 TuneLab.SDK.CanvasLineCap
 TuneLab.SDK.CanvasLineCap.Flat = 0 -> TuneLab.SDK.CanvasLineCap
 TuneLab.SDK.CanvasLineCap.Round = 1 -> TuneLab.SDK.CanvasLineCap
@@ -197,12 +197,12 @@ TuneLab.SDK.ControllerVisibility
 TuneLab.SDK.ControllerVisibility.HiddenByDefault = 1 -> TuneLab.SDK.ControllerVisibility
 TuneLab.SDK.ControllerVisibility.Never = 2 -> TuneLab.SDK.ControllerVisibility
 TuneLab.SDK.ControllerVisibility.ShownByDefault = 0 -> TuneLab.SDK.ControllerVisibility
-TuneLab.SDK.EffectInfo.TimelineCanvases.get -> TuneLab.Foundation.Map<string!, TuneLab.SDK.TimelineCanvasInfo!>!
-TuneLab.SDK.EffectInfo.TimelineCanvases.set -> void
+TuneLab.SDK.EffectInfo.TimelineLaneCanvases.get -> TuneLab.Foundation.Map<string!, TuneLab.SDK.TimelineLaneCanvasInfo!>!
+TuneLab.SDK.EffectInfo.TimelineLaneCanvases.set -> void
 TuneLab.SDK.EffectSynthesisSnapshot.TimeConverter.get -> TuneLab.SDK.ITimeConverter!
 TuneLab.SDK.EffectSynthesisSnapshot.TimeConverter.init -> void
-TuneLab.SDK.EffectSynthesisSnapshot.TimelineCanvases.get -> TuneLab.Foundation.IReadOnlyMap<string!, TuneLab.SDK.SynthesisTimelineCanvasSnapshot!>!
-TuneLab.SDK.EffectSynthesisSnapshot.TimelineCanvases.init -> void
+TuneLab.SDK.EffectSynthesisSnapshot.TimelineLaneCanvases.get -> TuneLab.Foundation.IReadOnlyMap<string!, TuneLab.SDK.SynthesisTimelineLaneCanvasSnapshot!>!
+TuneLab.SDK.EffectSynthesisSnapshot.TimelineLaneCanvases.init -> void
 TuneLab.SDK.IButtonClickContext
 TuneLab.SDK.IButtonClickContext.DialogService.get -> TuneLab.SDK.IDialogService!
 TuneLab.SDK.ICanvasControl
@@ -255,46 +255,46 @@ TuneLab.SDK.IDialogService.PromptInputs(string! title, TuneLab.SDK.ObjectConfig!
 TuneLab.SDK.IDialogService.RunWithProgress(string! title, System.Func<TuneLab.SDK.IProgressReporter!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! work) -> System.Threading.Tasks.Task!
 TuneLab.SDK.IDialogService.ShowMessage(string! title, string! message) -> System.Threading.Tasks.Task!
 TuneLab.SDK.IEffectSynthesisContext.TimeConverter.get -> TuneLab.SDK.ITimeConverter!
-TuneLab.SDK.IEffectSynthesisContext.TimelineCanvases.get -> TuneLab.Foundation.IReadOnlyMap<string!, TuneLab.SDK.ISynthesisTimelineCanvas!>!
-TuneLab.SDK.IEffectSynthesisEngine.GetTimelineCanvasConfigs(TuneLab.SDK.IEffectSynthesisPropertyContext! context) -> TuneLab.Foundation.IReadOnlyOrderedMap<TuneLab.SDK.PropertyKey, TuneLab.SDK.TimelineCanvasConfig!>!
-TuneLab.SDK.IEffectSynthesisView.TimelineCanvases.get -> TuneLab.Foundation.IReadOnlyMap<string!, TuneLab.Foundation.PropertyValue>!
+TuneLab.SDK.IEffectSynthesisContext.TimelineLaneCanvases.get -> TuneLab.Foundation.IReadOnlyMap<string!, TuneLab.SDK.ISynthesisTimelineLaneCanvas!>!
+TuneLab.SDK.IEffectSynthesisEngine.GetTimelineLaneCanvasConfigs(TuneLab.SDK.IEffectSynthesisPropertyContext! context) -> TuneLab.Foundation.IReadOnlyOrderedMap<TuneLab.SDK.PropertyKey, TuneLab.SDK.TimelineLaneCanvasConfig!>!
+TuneLab.SDK.IEffectSynthesisView.TimelineLaneCanvases.get -> TuneLab.Foundation.IReadOnlyMap<string!, TuneLab.Foundation.PropertyValue>!
 TuneLab.SDK.IInstrumentSynthesisContext.InvalidateNotes(System.Collections.Generic.IEnumerable<string!>! noteIds) -> void
 TuneLab.SDK.IInstrumentSynthesisContext.InvalidatePart() -> void
 TuneLab.SDK.IInstrumentSynthesisContext.PartId.get -> string!
 TuneLab.SDK.IInstrumentSynthesisContext.TimeConverter.get -> TuneLab.SDK.ITimeConverter!
-TuneLab.SDK.IInstrumentSynthesisContext.TimelineCanvases.get -> TuneLab.Foundation.IReadOnlyMap<string!, TuneLab.SDK.ISynthesisTimelineCanvas!>!
-TuneLab.SDK.IInstrumentSynthesisEngine.GetTimelineCanvasConfigs(TuneLab.SDK.IInstrumentSynthesisPartPropertyContext! context) -> TuneLab.Foundation.IReadOnlyOrderedMap<TuneLab.SDK.PropertyKey, TuneLab.SDK.TimelineCanvasConfig!>!
+TuneLab.SDK.IInstrumentSynthesisContext.TimelineLaneCanvases.get -> TuneLab.Foundation.IReadOnlyMap<string!, TuneLab.SDK.ISynthesisTimelineLaneCanvas!>!
+TuneLab.SDK.IInstrumentSynthesisEngine.GetTimelineLaneCanvasConfigs(TuneLab.SDK.IInstrumentSynthesisPartPropertyContext! context) -> TuneLab.Foundation.IReadOnlyOrderedMap<TuneLab.SDK.PropertyKey, TuneLab.SDK.TimelineLaneCanvasConfig!>!
 TuneLab.SDK.IInstrumentSynthesisNote.Id.get -> string!
 TuneLab.SDK.IInstrumentSynthesisNoteView.Id.get -> string!
 TuneLab.SDK.IInstrumentSynthesisPartView.PartId.get -> string!
-TuneLab.SDK.ICanvasLaneHost.PitchAxis.get -> TuneLab.SDK.ICanvasPitchAxis!
-TuneLab.SDK.IInstrumentSynthesisPartView.TimelineCanvases.get -> TuneLab.Foundation.IReadOnlyMap<string!, TuneLab.Foundation.PropertyValue>!
+TuneLab.SDK.ITimelineCanvasHost.PitchAxis.get -> TuneLab.SDK.ICanvasPitchAxis!
+TuneLab.SDK.IInstrumentSynthesisPartView.TimelineLaneCanvases.get -> TuneLab.Foundation.IReadOnlyMap<string!, TuneLab.Foundation.PropertyValue>!
 TuneLab.SDK.InstrumentSynthesisSnapshot.TimeConverter.get -> TuneLab.SDK.ITimeConverter!
 TuneLab.SDK.InstrumentSynthesisSnapshot.TimeConverter.init -> void
-TuneLab.SDK.InstrumentSynthesisSnapshot.TimelineCanvases.get -> TuneLab.Foundation.IReadOnlyMap<string!, TuneLab.SDK.SynthesisTimelineCanvasSnapshot!>!
-TuneLab.SDK.InstrumentSynthesisSnapshot.TimelineCanvases.init -> void
+TuneLab.SDK.InstrumentSynthesisSnapshot.TimelineLaneCanvases.get -> TuneLab.Foundation.IReadOnlyMap<string!, TuneLab.SDK.SynthesisTimelineLaneCanvasSnapshot!>!
+TuneLab.SDK.InstrumentSynthesisSnapshot.TimelineLaneCanvases.init -> void
 TuneLab.SDK.IProgressReporter
 TuneLab.SDK.IProgressReporter.Report(double? fraction, string? status = null) -> void
 TuneLab.SDK.IProgressReporter.SetCancellable(bool cancellable) -> void
-TuneLab.SDK.ICanvasLaneHost
-TuneLab.SDK.ICanvasLaneHost.TimeAxis.get -> TuneLab.SDK.ICanvasTimeAxis!
-TuneLab.SDK.ISynthesisTimelineCanvas
-TuneLab.SDK.ISynthesisTimelineCanvas.RangeModified.get -> TuneLab.Foundation.IActionEvent<double, double>!
-TuneLab.SDK.ISynthesisTimelineCanvas.TimeConverter.get -> TuneLab.SDK.ITimeConverter!
-TuneLab.SDK.ISynthesisTimelineCanvas.Value.get -> TuneLab.Foundation.PropertyValue
+TuneLab.SDK.ITimelineCanvasHost
+TuneLab.SDK.ITimelineCanvasHost.TimeAxis.get -> TuneLab.SDK.ICanvasTimeAxis!
+TuneLab.SDK.ISynthesisTimelineLaneCanvas
+TuneLab.SDK.ISynthesisTimelineLaneCanvas.RangeModified.get -> TuneLab.Foundation.IActionEvent<double, double>!
+TuneLab.SDK.ISynthesisTimelineLaneCanvas.TimeConverter.get -> TuneLab.SDK.ITimeConverter!
+TuneLab.SDK.ISynthesisTimelineLaneCanvas.Value.get -> TuneLab.Foundation.PropertyValue
 TuneLab.SDK.ITimeConverter
 TuneLab.SDK.ITimeConverter.ToSeconds(System.Collections.Generic.IReadOnlyList<double>! ticks) -> double[]!
 TuneLab.SDK.ITimeConverter.ToTicks(System.Collections.Generic.IReadOnlyList<double>! seconds) -> double[]!
-TuneLab.SDK.ITimelineCanvasHost
-TuneLab.SDK.ITimelineCanvasHost.CommitValue(System.Collections.Generic.IReadOnlyList<TuneLab.Foundation.Range>! modifiedTickRanges) -> void
-TuneLab.SDK.ITimelineCanvasHost.PitchAxis.get -> TuneLab.SDK.ICanvasPitchAxis!
-TuneLab.SDK.ITimelineCanvasHost.TimeAxis.get -> TuneLab.SDK.ICanvasTimeAxis!
+TuneLab.SDK.ITimelineLaneCanvasHost
+TuneLab.SDK.ITimelineLaneCanvasHost.CommitValue(System.Collections.Generic.IReadOnlyList<TuneLab.Foundation.Range>! modifiedTickRanges) -> void
+TuneLab.SDK.ITimelineLaneCanvasHost.PitchAxis.get -> TuneLab.SDK.ICanvasPitchAxis!
+TuneLab.SDK.ITimelineLaneCanvasHost.TimeAxis.get -> TuneLab.SDK.ICanvasTimeAxis!
 TuneLab.SDK.IVoiceSynthesisContext.InvalidateNotes(System.Collections.Generic.IEnumerable<string!>! noteIds) -> void
 TuneLab.SDK.IVoiceSynthesisContext.InvalidatePart() -> void
 TuneLab.SDK.IVoiceSynthesisContext.PartId.get -> string!
 TuneLab.SDK.IVoiceSynthesisContext.TimeConverter.get -> TuneLab.SDK.ITimeConverter!
-TuneLab.SDK.IVoiceSynthesisContext.TimelineCanvases.get -> TuneLab.Foundation.IReadOnlyMap<string!, TuneLab.SDK.ISynthesisTimelineCanvas!>!
-TuneLab.SDK.IVoiceSynthesisEngine.GetTimelineCanvasConfigs(TuneLab.SDK.IVoiceSynthesisPartPropertyContext! context) -> TuneLab.Foundation.IReadOnlyOrderedMap<TuneLab.SDK.PropertyKey, TuneLab.SDK.TimelineCanvasConfig!>!
+TuneLab.SDK.IVoiceSynthesisContext.TimelineLaneCanvases.get -> TuneLab.Foundation.IReadOnlyMap<string!, TuneLab.SDK.ISynthesisTimelineLaneCanvas!>!
+TuneLab.SDK.IVoiceSynthesisEngine.GetTimelineLaneCanvasConfigs(TuneLab.SDK.IVoiceSynthesisPartPropertyContext! context) -> TuneLab.Foundation.IReadOnlyOrderedMap<TuneLab.SDK.PropertyKey, TuneLab.SDK.TimelineLaneCanvasConfig!>!
 TuneLab.SDK.IVoiceSynthesisNoteView.Id.get -> string!
 TuneLab.SDK.IVoiceSynthesisPartView.PartId.get -> string!
 TuneLab.SDK.AddableElement.AddableElement(string! label, System.Collections.Generic.IEnumerable<TuneLab.SDK.AddableElement>! subItems) -> void
@@ -304,15 +304,15 @@ TuneLab.SDK.AddableKey.SubItems.get -> System.Collections.Generic.IReadOnlyList<
 static TuneLab.SDK.AddableElement.Separator(string? label = null) -> TuneLab.SDK.AddableElement
 static TuneLab.SDK.AddableKey.Separator(string? label = null) -> TuneLab.SDK.AddableKey
 static TuneLab.SDK.ComboBoxItem.Separator(string? label = null) -> TuneLab.SDK.ComboBoxItem
-TuneLab.SDK.IVoiceSynthesisPartView.TimelineCanvases.get -> TuneLab.Foundation.IReadOnlyMap<string!, TuneLab.Foundation.PropertyValue>!
-TuneLab.SDK.MidiPartInfo.TimelineCanvases.get -> TuneLab.Foundation.Map<string!, TuneLab.SDK.TimelineCanvasInfo!>!
-TuneLab.SDK.MidiPartInfo.TimelineCanvases.set -> void
-TuneLab.SDK.SynthesisTimelineCanvasSnapshot
-TuneLab.SDK.SynthesisTimelineCanvasSnapshot.SynthesisTimelineCanvasSnapshot() -> void
-TuneLab.SDK.SynthesisTimelineCanvasSnapshot.TimeConverter.get -> TuneLab.SDK.ITimeConverter!
-TuneLab.SDK.SynthesisTimelineCanvasSnapshot.TimeConverter.init -> void
-TuneLab.SDK.SynthesisTimelineCanvasSnapshot.Value.get -> TuneLab.Foundation.PropertyValue
-TuneLab.SDK.SynthesisTimelineCanvasSnapshot.Value.init -> void
+TuneLab.SDK.IVoiceSynthesisPartView.TimelineLaneCanvases.get -> TuneLab.Foundation.IReadOnlyMap<string!, TuneLab.Foundation.PropertyValue>!
+TuneLab.SDK.MidiPartInfo.TimelineLaneCanvases.get -> TuneLab.Foundation.Map<string!, TuneLab.SDK.TimelineLaneCanvasInfo!>!
+TuneLab.SDK.MidiPartInfo.TimelineLaneCanvases.set -> void
+TuneLab.SDK.SynthesisTimelineLaneCanvasSnapshot
+TuneLab.SDK.SynthesisTimelineLaneCanvasSnapshot.SynthesisTimelineLaneCanvasSnapshot() -> void
+TuneLab.SDK.SynthesisTimelineLaneCanvasSnapshot.TimeConverter.get -> TuneLab.SDK.ITimeConverter!
+TuneLab.SDK.SynthesisTimelineLaneCanvasSnapshot.TimeConverter.init -> void
+TuneLab.SDK.SynthesisTimelineLaneCanvasSnapshot.Value.get -> TuneLab.Foundation.PropertyValue
+TuneLab.SDK.SynthesisTimelineLaneCanvasSnapshot.Value.init -> void
 TuneLab.SDK.TagConfig
 TuneLab.SDK.TagConfig.DefaultTags.get -> System.Collections.Generic.IReadOnlyList<TuneLab.Foundation.PropertyValue>!
 TuneLab.SDK.TagConfig.Items.get -> System.Collections.Generic.IReadOnlyList<TuneLab.SDK.TagItem>!
@@ -325,27 +325,27 @@ TuneLab.SDK.TagItem.TagItem() -> void
 TuneLab.SDK.TagItem.TagItem(string! displayText, System.Collections.Generic.IEnumerable<TuneLab.SDK.TagItem>! subItems) -> void
 TuneLab.SDK.TagItem.TagItem(TuneLab.Foundation.PropertyValue value, string? displayText = null) -> void
 TuneLab.SDK.TagItem.Value.get -> TuneLab.Foundation.PropertyValue
-TuneLab.SDK.CanvasLaneConfig
-TuneLab.SDK.CanvasLaneConfig.Color.get -> string!
-TuneLab.SDK.CanvasLaneConfig.CreateControl.get -> System.Func<TuneLab.SDK.ICanvasLaneHost!, TuneLab.SDK.ICanvasControl!>!
-TuneLab.SDK.CanvasLaneConfig.Summary.get -> string?
-TuneLab.SDK.CanvasLaneConfig.WithColor(string! color) -> TuneLab.SDK.CanvasLaneConfig!
-TuneLab.SDK.CanvasLaneConfig.WithSummary(string! summary) -> TuneLab.SDK.CanvasLaneConfig!
-TuneLab.SDK.TimeConverterExtensions
 TuneLab.SDK.TimelineCanvasConfig
 TuneLab.SDK.TimelineCanvasConfig.Color.get -> string!
-TuneLab.SDK.TimelineCanvasConfig.CreateControl.get -> System.Func<TuneLab.SDK.ITimelineCanvasHost!, TuneLab.SDK.ICanvasControl!>?
-TuneLab.SDK.TimelineCanvasConfig.Visibility.get -> TuneLab.SDK.ControllerVisibility
+TuneLab.SDK.TimelineCanvasConfig.CreateControl.get -> System.Func<TuneLab.SDK.ITimelineCanvasHost!, TuneLab.SDK.ICanvasControl!>!
+TuneLab.SDK.TimelineCanvasConfig.Summary.get -> string?
 TuneLab.SDK.TimelineCanvasConfig.WithColor(string! color) -> TuneLab.SDK.TimelineCanvasConfig!
-TuneLab.SDK.TimelineCanvasConfig.WithVisibility(TuneLab.SDK.ControllerVisibility visibility) -> TuneLab.SDK.TimelineCanvasConfig!
-TuneLab.SDK.TimelineCanvasInfo
-TuneLab.SDK.TimelineCanvasInfo.Offset.get -> double
-TuneLab.SDK.TimelineCanvasInfo.Offset.set -> void
-TuneLab.SDK.TimelineCanvasInfo.TimelineCanvasInfo() -> void
-TuneLab.SDK.TimelineCanvasInfo.Value.get -> TuneLab.Foundation.PropertyValue
-TuneLab.SDK.TimelineCanvasInfo.Value.set -> void
+TuneLab.SDK.TimelineCanvasConfig.WithSummary(string! summary) -> TuneLab.SDK.TimelineCanvasConfig!
+TuneLab.SDK.TimeConverterExtensions
+TuneLab.SDK.TimelineLaneCanvasConfig
+TuneLab.SDK.TimelineLaneCanvasConfig.Color.get -> string!
+TuneLab.SDK.TimelineLaneCanvasConfig.CreateControl.get -> System.Func<TuneLab.SDK.ITimelineLaneCanvasHost!, TuneLab.SDK.ICanvasControl!>?
+TuneLab.SDK.TimelineLaneCanvasConfig.Visibility.get -> TuneLab.SDK.ControllerVisibility
+TuneLab.SDK.TimelineLaneCanvasConfig.WithColor(string! color) -> TuneLab.SDK.TimelineLaneCanvasConfig!
+TuneLab.SDK.TimelineLaneCanvasConfig.WithVisibility(TuneLab.SDK.ControllerVisibility visibility) -> TuneLab.SDK.TimelineLaneCanvasConfig!
+TuneLab.SDK.TimelineLaneCanvasInfo
+TuneLab.SDK.TimelineLaneCanvasInfo.Offset.get -> double
+TuneLab.SDK.TimelineLaneCanvasInfo.Offset.set -> void
+TuneLab.SDK.TimelineLaneCanvasInfo.TimelineLaneCanvasInfo() -> void
+TuneLab.SDK.TimelineLaneCanvasInfo.Value.get -> TuneLab.Foundation.PropertyValue
+TuneLab.SDK.TimelineLaneCanvasInfo.Value.set -> void
 TuneLab.SDK.ValueOnlyConfig
 TuneLab.SDK.VoiceSynthesisSnapshot.TimeConverter.get -> TuneLab.SDK.ITimeConverter!
 TuneLab.SDK.VoiceSynthesisSnapshot.TimeConverter.init -> void
-TuneLab.SDK.VoiceSynthesisSnapshot.TimelineCanvases.get -> TuneLab.Foundation.IReadOnlyMap<string!, TuneLab.SDK.SynthesisTimelineCanvasSnapshot!>!
-TuneLab.SDK.VoiceSynthesisSnapshot.TimelineCanvases.init -> void
+TuneLab.SDK.VoiceSynthesisSnapshot.TimelineLaneCanvases.get -> TuneLab.Foundation.IReadOnlyMap<string!, TuneLab.SDK.SynthesisTimelineLaneCanvasSnapshot!>!
+TuneLab.SDK.VoiceSynthesisSnapshot.TimelineLaneCanvases.init -> void

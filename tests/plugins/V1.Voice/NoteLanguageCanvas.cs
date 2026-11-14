@@ -3,17 +3,17 @@ using TuneLab.SDK;
 
 namespace TuneLab.TestPlugins.V1Voice;
 
-// 叠到钢琴窗上的画布 lane 演示：在每个音符正下方显示它的语言（一个小标签），点标签弹菜单换语言。
+// 叠到钢琴窗上的时间轴画布演示：在每个音符正下方显示它的语言（一个小标签），点标签弹菜单换语言。
 // 值 = 语言代码字符串（"zh" / "ja" / "en"）；没设过 = Null，显示为 "auto"（按声库默认）。
 // 覆盖：
-// · 音高轴（ICanvasLaneHost.PitchAxis）：插件在声明时拿到音符的音高，PitchToY(pitch) = 这个音符那一行的下沿，标签就画在它下面。
+// · 音高轴（ITimelineCanvasHost.PitchAxis）：插件在声明时拿到音符的音高，PitchToY(pitch) = 这个音符那一行的下沿，标签就画在它下面。
 //   叠到钢琴窗上时这正好贴着音符；在参数面板里纵轴是"面板背后那块音符区"，标签多半落在面板外，看不到是正常的。
 // · 只在画了东西处接按下：块铺满音符区，但只有标签那一小块接左右键，其余（空白处框选、点音符拖动……）落到下面的工具上。
 // · 悬停：指针在标签上时提亮。
-sealed class NoteLanguageCanvas(ICanvasLaneHost host, PropertyValue value, int pitch) : ICanvasControl
+sealed class NoteLanguageCanvas(ITimelineCanvasHost host, PropertyValue value, int pitch) : ICanvasControl
 {
-    public static CanvasLaneConfig Config(PropertyValue value, int pitch)
-        => CanvasLaneConfig.Create(host => new NoteLanguageCanvas(host, value, pitch)).WithSummary(Read(value) ?? "auto");
+    public static TimelineCanvasConfig Config(PropertyValue value, int pitch)
+        => TimelineCanvasConfig.Create(host => new NoteLanguageCanvas(host, value, pitch)).WithSummary(Read(value) ?? "auto");
 
     static readonly string[] Languages = ["zh", "ja", "en"];
     static readonly CanvasTextStyle TextStyle = CanvasTextStyle.Create().WithFontSize(11).WithAlignment(CanvasAlignment.Center);

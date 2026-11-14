@@ -12,7 +12,7 @@ namespace TuneLab.Configs;
 
 // 叠到钢琴窗上（PianoOverlay）：用户把画布叠在钢琴窗的音符区上，和当前工具一起操作（不分工具，切工具不变）。
 // 画布还是同一块画布，只是放的位置不同（同参数区那一摞，见 docs/canvas-stacking.md）。
-// 【能叠的】时间轴画布（铺满音符区）与画布 lane（每个音符 / 音素一块）；侧栏画布没有时间轴、只传值的没有控件，都不能叠。
+// 【能叠的】时间轴 lane 画布（铺满音符区）与时间轴画布（每个音符 / 音素一块）；侧栏画布没有时间轴、只传值的没有控件，都不能叠。
 // 【一摞】用户排的顺序（= 悬浮标签的顺序，越靠左越在上）+ 各自开没开（小眼睛）+ 激活的那块。
 //   激活 = 临时画到最上、总是显示，不改顺序；撤掉激活就回到它在顺序里的位置。激活与小眼睛脱钩（同参数区）。
 // 【存法】同标签栏隐藏：界面偏好、跟声源 / 效果器类型走（跨工程生效），自带独立 JSON（Configs/PianoOverlay.json），改后即时存盘。
@@ -58,25 +58,25 @@ internal static class PianoOverlay
         }
 
         var sourceName = string.IsNullOrEmpty(part.SoundSource.Name) ? part.SoundSource.Type : part.SoundSource.Name;
-        foreach (var kvp in part.SoundSource.TimelineCanvasConfigs)
+        foreach (var kvp in part.SoundSource.TimelineLaneCanvasConfigs)
         {
             if (kvp.Value.CreateControl != null)
                 Add(AutomationKey.VoiceCanvas(kvp.Key.Id), kvp.Key, kvp.Value.Color, sourceName);
         }
         foreach (var kvp in part.NoteLaneConfigs)
         {
-            if (kvp.Value.Kind == LaneKind.CanvasLane)
+            if (kvp.Value.Kind == LaneKind.TimelineCanvas)
                 Add(AutomationKey.NoteLane(kvp.Key.Id), kvp.Key, kvp.Value.Color, "Note".Tr(TC.Property));
         }
         foreach (var kvp in part.PhonemeLaneConfigs)
         {
-            if (kvp.Value.Kind == LaneKind.CanvasLane)
+            if (kvp.Value.Kind == LaneKind.TimelineCanvas)
                 Add(AutomationKey.PhonemeLane(kvp.Key.Id), kvp.Key, kvp.Value.Color, "Phoneme".Tr(TC.Property));
         }
         for (int i = 0; i < part.Effects.Count; i++)
         {
             var group = EffectManager.GetDisplayName(part.Effects[i].Type);
-            foreach (var kvp in part.Effects[i].TimelineCanvasConfigs)
+            foreach (var kvp in part.Effects[i].TimelineLaneCanvasConfigs)
             {
                 if (kvp.Value.CreateControl != null)
                     Add(AutomationKey.EffectCanvas(i, kvp.Key.Id), kvp.Key, kvp.Value.Color, group);

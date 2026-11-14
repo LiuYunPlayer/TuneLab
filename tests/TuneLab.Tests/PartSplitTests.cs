@@ -32,9 +32,9 @@ public class PartSplitTests
         var effect = new EffectInfo { Id = "fx1", Type = "TLTestGain", IsEnabled = false };
         effect.Automations.Add("gain", new AutomationInfo { DefaultValue = 1, Points = [new(200, 0.5), new(1400, -0.5)] });
         effect.PiecewiseAutomations.Add("formant", new PiecewiseAutomationInfo { Segments = [[new(1100, 10), new(1300, 20)]] });
-        effect.TimelineCanvases.Add("env", new TimelineCanvasInfo { Offset = 3, Value = 0.25 });
+        effect.TimelineLaneCanvases.Add("env", new TimelineLaneCanvasInfo { Offset = 3, Value = 0.25 });
         info.Effects.Add(effect);
-        info.TimelineCanvases.Add("marks", new TimelineCanvasInfo { Offset = 10, Value = "m" });
+        info.TimelineLaneCanvases.Add("marks", new TimelineLaneCanvasInfo { Offset = 10, Value = "m" });
         var track = new NativeTrackInfo { Name = "t1" };
         track.Parts.Add(info);
         var document = new ProjectDocument();
@@ -73,10 +73,10 @@ public class PartSplitTests
             Assert.Contains(right.Effects[0].Automations["gain"].Points, p => p.X == 1400 - 960 && p.Y == -0.5);
             Assert.DoesNotContain(right.Effects[0].Automations["gain"].Points, p => p.X == 200 - 960);
 
-            // 时间轴画布（part 级与效果器的）：整值随两半走，偏移按子段起点平移，值落在原来的时刻。
-            Assert.Equal(10, left.TimelineCanvases["marks"].Offset);
-            Assert.Equal(10 - 960, right.TimelineCanvases["marks"].Offset);
-            Assert.Equal(3 - 960, right.Effects[0].TimelineCanvases["env"].Offset);
+            // 时间轴 lane 画布（part 级与效果器的）：整值随两半走，偏移按子段起点平移，值落在原来的时刻。
+            Assert.Equal(10, left.TimelineLaneCanvases["marks"].Offset);
+            Assert.Equal(10 - 960, right.TimelineLaneCanvases["marks"].Offset);
+            Assert.Equal(3 - 960, right.Effects[0].TimelineLaneCanvases["env"].Offset);
         }
         finally
         {

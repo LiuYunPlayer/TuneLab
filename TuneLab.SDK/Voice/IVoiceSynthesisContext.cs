@@ -29,7 +29,7 @@ public interface IVoiceSynthesisContext
     // 派生状态（如后台分析结果）与声明求值时拿到的 part 对上（见 InvalidatePart）。
     string PartId { get; }
 
-    // 速度映射（局部 tick ↔ 全局秒，原点 = part 的原点）：给按拍子定义的数据（如画布 lane 里按 tick 存的内容）在合成时换成秒。
+    // 速度映射（局部 tick ↔ 全局秒，原点 = part 的原点）：给按拍子定义的数据（如时间轴画布里按 tick 存的内容）在合成时换成秒。
     // 其余时间量照旧全是全局秒。读到的这份不可变、任何线程可用；快照里带同一份（snapshot.TimeConverter），worker 里用那份；速度表改了宿主给新的一份。
     // 音符级数据的原点用音符的 StartTime 换出：origin = TimeConverter.ToTick(note.StartTime)，time = TimeConverter.ToSecond(origin + pos)
     //（音素级用所属音符的 StartTime）——与画布侧 ICanvasTimeAxis 的局部 tick 一致。
@@ -49,8 +49,8 @@ public interface IVoiceSynthesisContext
     // 重读本属性即当前集；订阅各轨 ISynthesisAutomation.RangeModified 收区间失效。
     IReadOnlyMap<string, ISynthesisAutomation> Automations { get; }
 
-    // 已声明的时间轴画布（引擎经 GetTimelineCanvasConfigs 声明的，按 id）：值 + 换算 + 区间通知。集合随声明变，取用前重读即当前集。
-    IReadOnlyMap<string, ISynthesisTimelineCanvas> TimelineCanvases { get; }
+    // 已声明的时间轴 lane 画布（引擎经 GetTimelineLaneCanvasConfigs 声明的，按 id）：值 + 换算 + 区间通知。集合随声明变，取用前重读即当前集。
+    IReadOnlyMap<string, ISynthesisTimelineLaneCanvas> TimelineLaneCanvases { get; }
 
     // 音高的两个平行通道（绝对约束 + 相对偏差）：
     // Pitch = 用户钉死的绝对音高曲线（分段型：有值=钉死、NaN=插件自由发挥）；

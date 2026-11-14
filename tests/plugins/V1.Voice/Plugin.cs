@@ -114,11 +114,11 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
         return map;
     }
 
-    // 时间轴画布：一条贯穿 part 的标记轨（见 TimelineDemoCanvas），排在标签栏里本声源的自动化轨后面。值从声明视图取。
-    public IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig> GetTimelineCanvasConfigs(IVoiceSynthesisPartPropertyContext context)
+    // 时间轴 lane 画布：一条贯穿 part 的标记轨（见 TimelineDemoCanvas），排在标签栏里本声源的自动化轨后面。值从声明视图取。
+    public IReadOnlyOrderedMap<PropertyKey, TimelineLaneCanvasConfig> GetTimelineLaneCanvasConfigs(IVoiceSynthesisPartPropertyContext context)
     {
-        var value = context.Parts.Count > 0 && context.Parts[0].TimelineCanvases.TryGetValue(TimelineDemoCanvas.Id, out var stored) ? stored : PropertyValue.Null;
-        return new OrderedMap<PropertyKey, TimelineCanvasConfig> { { (TimelineDemoCanvas.Id, "Markers"), TimelineDemoCanvas.Config(value) } };
+        var value = context.Parts.Count > 0 && context.Parts[0].TimelineLaneCanvases.TryGetValue(TimelineDemoCanvas.Id, out var stored) ? stored : PropertyValue.Null;
+        return new OrderedMap<PropertyKey, TimelineLaneCanvasConfig> { { (TimelineDemoCanvas.Id, "Markers"), TimelineDemoCanvas.Config(value) } };
     }
 
     // 合成参数回显轨（只读）：恒声明一条 energy 回显轨（分段形、DefaultValue=NaN、自带色），合成前 key 即存在、可预声明。
@@ -135,7 +135,7 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
         var properties = With(mPartProperties, ("analysis_summary", "Analysis"), ButtonConfig.Create("Summary", click => ShowPartSummary(click, partIds)));
         // 显示名给空串 = 无标题、按钮铺满整行（验证整行按钮形态）。
         properties = With(properties, ("analysis_run", ""), ButtonConfig.Create("Run Analysis", click => ShowPartSummary(click, partIds)));
-        // 反例：画布 lane 放在 part 声明里——这里没有时间轴，宿主应显示"此处不支持"并记一条警告，而不是一行改不了的摘要。
+        // 反例：时间轴画布放在 part 声明里——这里没有时间轴，宿主应显示"此处不支持"并记一条警告，而不是一行改不了的摘要。
         properties = With(properties, ("part_timeline", "Part Timeline"), LaneDemoCanvas.Config(LaneDemoCanvas.Default, "part"));
         if (context.Parts.Any(p => IsBlinkVisible(p.PartId)))
             properties = With(properties, ("blink", "Blinking Slider"), mBlinkConfig);
@@ -162,15 +162,15 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
         var notes = context.Notes.Select(n => n.Properties).ToList();
         var properties = With(mNoteProperties, ("stretch", "Stretch Curve"), StretchCurveCanvas.Config(ValuesOf(notes, "stretch", StretchCurveCanvas.Default)));
         properties = With(properties, ("image_demo", "Canvas Images"), ImageDemoCanvas.Config(ValuesOf(notes, "image_demo", ImageDemoCanvas.Default)));
-        // 画布 lane：侧栏不显示，参数面板里每个 note 一块（见 LaneDemoCanvas）。参数面板里 context 只有这一个 note。
+        // 时间轴画布：侧栏不显示，参数面板里每个 note 一块（见 LaneDemoCanvas）。参数面板里 context 只有这一个 note。
         properties = With(properties, ("timeline_demo", "Timeline Demo"), LaneDemoCanvas.Config(ValuesOf(notes, "timeline_demo", LaneDemoCanvas.Default)[0], "note"));
-        // 叠到钢琴窗上用的画布 lane：在音符正下方显示语言（见 NoteLanguageCanvas）。音高在声明时取（这里 context 只有这一个 note）。
+        // 叠到钢琴窗上用的时间轴画布：在音符正下方显示语言（见 NoteLanguageCanvas）。音高在声明时取（这里 context 只有这一个 note）。
         // 默认不上标签栏：它在参数面板里没用处（标签画在音符下方，多半落在面板外），是叠到钢琴窗上用的；从标签栏藏起来照样能叠。
         properties = With(properties, ("language", "Language"),
             NoteLanguageCanvas.Config(ValuesOf(notes, "language", PropertyValue.Null)[0], context.Notes.Count > 0 ? context.Notes[0].Pitch : 60).WithShownByDefault(false));
-        // 嵌套位置的画布 lane（参数面板里按路径各成一条 lane，侧栏在它的位置只有一行摘要 + 编辑按钮）：
-        // · Layers = 定长数组，元素是对象 { Curve: 画布 lane, Gain: 滑条 }——画布是元素里的一个成员，Gain 照常在侧栏批量改；
-        // · Takes = 列表，元素本身就是画布 lane，侧栏里增删、调序（没存过时给 2 项）。
+        // 嵌套位置的时间轴画布（参数面板里按路径各成一条 lane，侧栏在它的位置只有一行摘要 + 编辑按钮）：
+        // · Layers = 定长数组，元素是对象 { Curve: 时间轴画布, Gain: 滑条 }——画布是元素里的一个成员，Gain 照常在侧栏批量改；
+        // · Takes = 列表，元素本身就是时间轴画布，侧栏里增删、调序（没存过时给 2 项）。
         var first = notes.Count > 0 ? notes[0] : PropertyObject.Empty;
         var layers = Enumerable.Range(0, 2).Select(i => (IControllerConfig)ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>
         {
@@ -242,7 +242,7 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
             }));
         if (IsBlinkVisible(context.Part.PartId))
             coreProperties = With(coreProperties, ("blink", "Blinking Slider"), mBlinkConfig);
-        // 音素级画布 lane：参数面板里每个核音素一块。
+        // 音素级时间轴画布：参数面板里每个核音素一块。
         coreProperties = With(coreProperties, ("phoneme_timeline", "Phoneme Timeline"),
             LaneDemoCanvas.Config(ValuesOf(context.Notes.Select(n => n.PhonemeAt(0)?.Properties), "phoneme_timeline", LaneDemoCanvas.Default)[0], "core"));
         var core = ObjectConfig.Create(coreProperties);
@@ -335,8 +335,8 @@ public sealed class TestSession : IVoiceSynthesisSession
         // 故此处 context.Automations 已含自己声明的轨——参数绘制后的区间失效经此回调送达、触发重渲。
         if (context.Automations.TryGetValue("Growl", out var growl))
             growl.RangeModified.Subscribe(OnAutomationRangeModified);
-        // 时间轴画布（标记轨）：提交时报的范围换成秒送到这里，只标脏相交的块——状态带上只有那几拍重合成。
-        if (context.TimelineCanvases.TryGetValue(TimelineDemoCanvas.Id, out var markers))
+        // 时间轴 lane 画布（标记轨）：提交时报的范围换成秒送到这里，只标脏相交的块——状态带上只有那几拍重合成。
+        if (context.TimelineLaneCanvases.TryGetValue(TimelineDemoCanvas.Id, out var markers))
             markers.RangeModified.Subscribe(OnAutomationRangeModified);
         // 分段轨同在 context.Automations（形态对插件透明，只是求值可能得 NaN）：Bend 参与合成，故同样订阅失效。
         // 它是音高级输入（弯音改的是频率），失效走 pitch 那条——与 Growl 那种同级兄弟输入分级不同。

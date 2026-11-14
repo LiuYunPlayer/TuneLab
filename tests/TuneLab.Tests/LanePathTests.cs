@@ -13,9 +13,9 @@ public class LanePathTests
 {
     sealed class NullControl : ICanvasControl { }
 
-    static CanvasLaneConfig Canvas => CanvasLaneConfig.Create(_ => new NullControl());
+    static TimelineCanvasConfig Canvas => TimelineCanvasConfig.Create(_ => new NullControl());
 
-    // 音素混合式的形状：mixes = [{ curve: 画布 lane, gain: 滑条 }, …]（定长 2）+ 顶层一个滑条。
+    // 音素混合式的形状：mixes = [{ curve: 时间轴画布, gain: 滑条 }, …]（定长 2）+ 顶层一个滑条。
     static ObjectConfig Declaration => ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>
     {
         { ("level", "Level"), SliderConfig.Linear(0, 0, 1) },
@@ -40,14 +40,14 @@ public class LanePathTests
     {
         var leaves = LanePath.Leaves(Declaration).ToList();
         Assert.Equal(["level", "mixes/0/curve", "mixes/0/gain", "mixes/1/curve", "mixes/1/gain"], leaves.Select(l => l.Path));
-        Assert.IsType<CanvasLaneConfig>(leaves[3].Config);
+        Assert.IsType<TimelineCanvasConfig>(leaves[3].Config);
         Assert.Equal("Mix 2 · Curve", LanePath.FullLabel(leaves[3].Label));   // 序号跟在它所属的那一段后面
     }
 
     [Fact]
     public void ResolveFindsTheLeafOrNothing()
     {
-        Assert.IsType<CanvasLaneConfig>(LanePath.Resolve(Declaration, "mixes/1/curve")!.Leaf);
+        Assert.IsType<TimelineCanvasConfig>(LanePath.Resolve(Declaration, "mixes/1/curve")!.Leaf);
         Assert.Null(LanePath.Resolve(Declaration, "mixes/2/curve"));   // 越界
         Assert.Null(LanePath.Resolve(Declaration, "mixes/1"));         // 不是叶子
         Assert.Null(LanePath.Resolve(Declaration, "nope"));
@@ -75,7 +75,7 @@ public class LanePathTests
     }
 
     // 画布没有默认值：按原值读，存了什么形状都读出来；没存 = Null。按类型过滤的 Read 拿 Null 当默认值会把任何存值都读成 Null
-    //（标签栏"有数据"圆点曾因此对画布 lane 永远不亮）。
+    //（标签栏"有数据"圆点曾因此对时间轴画布永远不亮）。
     [Fact]
     public void ReadRawReturnsTheStoredCanvasValue_NullWhenUnset()
     {

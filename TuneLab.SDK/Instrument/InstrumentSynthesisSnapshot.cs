@@ -28,6 +28,6 @@ public sealed class InstrumentSynthesisSnapshot
     // 不可变、任何线程可用。快照发布后才加的字段：不标 required，默认是"未提供"（一调用就报错）——宿主构造的快照永远填好。
     public ITimeConverter TimeConverter { get; init; } = UnprovidedTimeConverter.Instance;
 
-    // 已声明的时间轴画布（按 id），与活视图 context.TimelineCanvases 同构。快照发布后才加的字段：不标 required，默认空表。
-    public IReadOnlyMap<string, SynthesisTimelineCanvasSnapshot> TimelineCanvases { get; init; } = Map<string, SynthesisTimelineCanvasSnapshot>.Empty;
+    // 已声明的时间轴 lane 画布（按 id），与活视图 context.TimelineLaneCanvases 同构。快照发布后才加的字段：不标 required，默认空表。
+    public IReadOnlyMap<string, SynthesisTimelineLaneCanvasSnapshot> TimelineLaneCanvases { get; init; } = Map<string, SynthesisTimelineLaneCanvasSnapshot>.Empty;
 }

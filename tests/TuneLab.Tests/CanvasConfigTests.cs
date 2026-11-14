@@ -54,15 +54,15 @@ public class CanvasConfigTests
     public void Canvases_HaveNoDefaultValue()
     {
         Assert.IsNotAssignableFrom<IValueConfig>(CanvasConfig.Create(240, 80, _ => new NullControl()));
-        Assert.IsNotAssignableFrom<IValueConfig>(CanvasLaneConfig.Create(_ => new NullControl()));
+        Assert.IsNotAssignableFrom<IValueConfig>(TimelineCanvasConfig.Create(_ => new NullControl()));
     }
 
     // 颜色默认全透明 = 不指定（宿主分配，同 AutomationConfig）。
     [Fact]
-    public void CanvasLane_ColorUnassignedByDefault()
+    public void TimelineCanvas_ColorUnassignedByDefault()
     {
-        Assert.Throws<ArgumentNullException>(() => CanvasLaneConfig.Create(null!));
-        var config = CanvasLaneConfig.Create(_ => new NullControl());
+        Assert.Throws<ArgumentNullException>(() => TimelineCanvasConfig.Create(null!));
+        var config = TimelineCanvasConfig.Create(_ => new NullControl());
         Assert.True(TuneLab.Configs.TrackColors.IsUnassigned(config.Color));
         Assert.Equal("#F1595B", config.WithColor("#F1595B").Color);
         Assert.True(TuneLab.Configs.TrackColors.IsUnassigned(config.Color));   // With 不改原对象
@@ -96,8 +96,8 @@ public class CanvasConfigTests
         var config = ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>
         {
             { "curve", CanvasConfig.Create(240, 80, _ => new NullControl()) },
-            { "lane", CanvasLaneConfig.Create(_ => new NullControl()) },
-            { "takes", ArrayConfig.Create([CanvasLaneConfig.Create(_ => new NullControl())]) },
+            { "lane", TimelineCanvasConfig.Create(_ => new NullControl()) },
+            { "takes", ArrayConfig.Create([TimelineCanvasConfig.Create(_ => new NullControl())]) },
         });
 
         Assert.True(config.GetDefaultValue().ToObject(out var value));

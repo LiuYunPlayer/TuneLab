@@ -324,7 +324,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
             },
         });
 
-        // ── 标签栏上常驻参数（音源 / 效果器的自动化轨与时间轴画布、画布 lane）的隐藏 / 显示：与标签栏空白处右键那张勾选列表里
+        // ── 标签栏上常驻参数（音源 / 效果器的自动化轨与时间轴 lane 画布、时间轴画布）的隐藏 / 显示：与标签栏空白处右键那张勾选列表里
         // 这几类的勾是同一件事（同一个 ParameterHiding.SetHidden）。可钉属性不在这对里——它们走 pin / unpinProperty。
         // AppState 的理由同钉选：写的是界面偏好（Configs/ParameterHidden.json），一眼看得见、自己就能改回来。
         ActionRegistry.Register(new()
@@ -389,8 +389,8 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     }
 
     const string OverlayParameterDescription =
-        "Which canvas, written \"source-canvas:<id>\" / \"effect<n>-canvas:<id>\" for a timeline canvas of the sound source / of the n-th effect in the chain (0-based), "
-        + "or \"note:<path>\" / \"phoneme:<path>\" for a canvas lane. Placed canvases lie over the note area of the piano roll, on top of the notes, and are operated together with whichever tool is selected; "
+        "Which canvas, written \"source-canvas:<id>\" / \"effect<n>-canvas:<id>\" for a timeline lane canvas of the sound source / of the n-th effect in the chain (0-based), "
+        + "or \"note:<path>\" / \"phoneme:<path>\" for a timeline canvas. Placed canvases lie over the note area of the piano roll, on top of the notes, and are operated together with whichever tool is selected; "
         + "a newly placed one goes on top. Each value says whether it is on the piano roll right now. Side-panel canvases and value-only parameters can't be placed and are not in this list. The label works too.";
 
     string? OverlayUnavailable()
@@ -419,7 +419,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
             PianoOverlay.SetOverlaid(part, ParseParameterToken(token), overlaid);
     }
 
-    // 时间轴画布与画布 lane 的 token（拼法同 HideableValues，解析见 ParseParameterToken）。
+    // 时间轴 lane 画布与时间轴画布的 token（拼法同 HideableValues，解析见 ParseParameterToken）。
     static string ParameterToken(AutomationKey key) => key.Source switch
     {
         AutomationSource.VoiceCanvas => "source-canvas:" + key.Id,
@@ -431,15 +431,15 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
 
     const string HideableParameterDescription =
         "Which parameter, written \"source:<id>\" for an automation track of the part's sound source, \"effect<n>:<id>\" for one of the n-th effect in the chain (0-based, the same position as in part.effects()), "
-        + "\"source-canvas:<id>\" / \"effect<n>-canvas:<id>\" for a timeline canvas of the sound source / of the n-th effect, "
-        + "or \"note:<path>\" / \"phoneme:<path>\" for a canvas lane. Each value says whether it is shown or hidden right now; hiding takes away its controls (the tab bar button, and the default-value slider in the side panel), its data still takes part in synthesis. "
+        + "\"source-canvas:<id>\" / \"effect<n>-canvas:<id>\" for a timeline lane canvas of the sound source / of the n-th effect, "
+        + "or \"note:<path>\" / \"phoneme:<path>\" for a timeline canvas. Each value says whether it is shown or hidden right now; hiding takes away its controls (the tab bar button, and the default-value slider in the side panel), its data still takes part in synthesis. "
         + "Parameters the extension declared with no controller at all (value only) are not in this list and can't be shown. "
         + "Pinnable properties are not in this list: they are added and removed with parameter.pinProperty / unpinProperty. The label works too.";
 
     string? HideableUnavailable()
         => Part == null ? "no part is open in the piano roll, so there is no parameter tab bar" : null;
 
-    // 值域 = 标签栏上能常驻的全集（含已藏的：终态动作幂等），序同标签栏（音源轨与时间轴画布、画布 lane、各效果器轨与时间轴画布）。
+    // 值域 = 标签栏上能常驻的全集（含已藏的：终态动作幂等），序同标签栏（音源轨与时间轴 lane 画布、时间轴画布、各效果器轨与时间轴 lane 画布）。
     // 只传值（ControllerVisibility.Never）的没有控件，不在值域里。
     IReadOnlyList<ActionArgument> HideableValues()
     {
@@ -456,17 +456,17 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
 
         foreach (var kvp in part.SoundSource.AutomationConfigs)
             Add(AutomationKey.Voice(kvp.Key.Id), "source:" + kvp.Key.Id, (kvp.Key.DisplayText ?? kvp.Key.Id) + " (sound source)");
-        foreach (var kvp in part.SoundSource.TimelineCanvasConfigs)
-            Add(AutomationKey.VoiceCanvas(kvp.Key.Id), "source-canvas:" + kvp.Key.Id, (kvp.Key.DisplayText ?? kvp.Key.Id) + " (sound source, timeline canvas)");
+        foreach (var kvp in part.SoundSource.TimelineLaneCanvasConfigs)
+            Add(AutomationKey.VoiceCanvas(kvp.Key.Id), "source-canvas:" + kvp.Key.Id, (kvp.Key.DisplayText ?? kvp.Key.Id) + " (sound source, timeline lane canvas)");
         foreach (var kvp in part.NoteLaneConfigs)
         {
-            if (kvp.Value.Kind == LaneKind.CanvasLane)
-                Add(AutomationKey.NoteLane(kvp.Key.Id), "note:" + kvp.Key.Id, (kvp.Key.DisplayText ?? kvp.Key.Id) + " (canvas lane)");
+            if (kvp.Value.Kind == LaneKind.TimelineCanvas)
+                Add(AutomationKey.NoteLane(kvp.Key.Id), "note:" + kvp.Key.Id, (kvp.Key.DisplayText ?? kvp.Key.Id) + " (timeline canvas)");
         }
         foreach (var kvp in part.PhonemeLaneConfigs)
         {
-            if (kvp.Value.Kind == LaneKind.CanvasLane)
-                Add(AutomationKey.PhonemeLane(kvp.Key.Id), "phoneme:" + kvp.Key.Id, (kvp.Key.DisplayText ?? kvp.Key.Id) + " (phoneme canvas lane)");
+            if (kvp.Value.Kind == LaneKind.TimelineCanvas)
+                Add(AutomationKey.PhonemeLane(kvp.Key.Id), "phoneme:" + kvp.Key.Id, (kvp.Key.DisplayText ?? kvp.Key.Id) + " (phoneme timeline canvas)");
         }
         for (int i = 0; i < part.Effects.Count; i++)
         {
@@ -475,8 +475,8 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
             var index = i.ToString(System.Globalization.CultureInfo.InvariantCulture);
             foreach (var kvp in part.Effects[i].AutomationConfigs)
                 Add(AutomationKey.Effect(i, kvp.Key.Id), "effect" + index + ":" + kvp.Key.Id, (kvp.Key.DisplayText ?? kvp.Key.Id) + " (" + source + ")");
-            foreach (var kvp in part.Effects[i].TimelineCanvasConfigs)
-                Add(AutomationKey.EffectCanvas(i, kvp.Key.Id), "effect" + index + "-canvas:" + kvp.Key.Id, (kvp.Key.DisplayText ?? kvp.Key.Id) + " (" + source + ", timeline canvas)");
+            foreach (var kvp in part.Effects[i].TimelineLaneCanvasConfigs)
+                Add(AutomationKey.EffectCanvas(i, kvp.Key.Id), "effect" + index + "-canvas:" + kvp.Key.Id, (kvp.Key.DisplayText ?? kvp.Key.Id) + " (" + source + ", timeline lane canvas)");
         }
         return values;
     }
@@ -493,7 +493,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         int colon = token.IndexOf(':');
         var source = token[..colon];
         var id = token[(colon + 1)..];
-        // 时间轴画布：source-canvas / effect<n>-canvas（拼法见 HideableValues）。
+        // 时间轴 lane 画布：source-canvas / effect<n>-canvas（拼法见 HideableValues）。
         const string CanvasSuffix = "-canvas";
         return source switch
         {
@@ -611,7 +611,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
 
     // pin 与 unpin 的值域是两个不同的集合（能钉的 / 已钉的），故说明也分开写：共用一句就必然对其中一条说反。
     const string PinPropertyDescription =
-        "Which property to pin to the parameter panel, written \"note:<id>\" or \"phoneme:<id>\" (only bounded numeric properties and side-panel canvases can be pinned, so the values are exactly the ones that can; canvas lanes are always in the panel and need no pinning). "
+        "Which property to pin to the parameter panel, written \"note:<id>\" or \"phoneme:<id>\" (only bounded numeric properties and side-panel canvases can be pinned, so the values are exactly the ones that can; timeline canvases are always in the panel and need no pinning). "
         + "Each value says whether it is already pinned; pinning one that already is does nothing. The label works too.";
 
     const string UnpinPropertyDescription =
@@ -1030,7 +1030,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         }
     }
 
-    // 在焦点面板里编辑这条参数（侧栏画布 lane 那一行的编辑按钮）：同点它的页签——参数区藏着就先显示出来，
+    // 在焦点面板里编辑这条参数（侧栏时间轴画布那一行的编辑按钮）：同点它的页签——参数区藏着就先显示出来，
     // 它被从标签栏隐藏了也先显示回去（按这个按钮就是要看它）。
     public void EditInFocusedPanel(AutomationKey automation)
     {

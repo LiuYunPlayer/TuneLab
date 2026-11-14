@@ -20,7 +20,7 @@ public interface IVoiceSynthesisPartView
     // 含孤儿）：只读 map，可枚举可点取。外生口径（非「已声明」）：声明集 = f(context)，按声明枚举会把
     // 引擎上一轮输出喂回声明求值；未绘制且无投影的已声明轨不在 map——其值恒为引擎自知的默认。
     IReadOnlyMap<string, IAutomationEvaluator> Automations { get; }
-    // 时间轴画布（TimelineCanvasConfig）的当前值，按 id；没设过的 id 不在表里（含孤儿：存着值、当前没声明的也在）。
-    // 值里的 tick 相对 part 原点（换算见画布的 TimeAxis / 合成侧的 ISynthesisTimelineCanvas.TimeConverter）。
-    IReadOnlyMap<string, PropertyValue> TimelineCanvases { get; }
+    // 时间轴 lane 画布（TimelineLaneCanvasConfig）的当前值，按 id；没设过的 id 不在表里（含孤儿：存着值、当前没声明的也在）。
+    // 值里的 tick 相对 part 原点（换算见画布的 TimeAxis / 合成侧的 ISynthesisTimelineLaneCanvas.TimeConverter）。
+    IReadOnlyMap<string, PropertyValue> TimelineLaneCanvases { get; }
 }

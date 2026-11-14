@@ -43,7 +43,7 @@ Package level (top level):
 |---|---|---|
 | `1.0` | TuneLab 2.0.0 | Everything the V1 SDK shipped with |
 | `1.1` | TuneLab 2.1.0 | Path picker controls (`PathPickerConfig` / `FileTypeFilter`), multiline text boxes (`TextBoxConfig.WithMultiline`) |
-| `1.2` | Not released yet | Tag groups (`TagConfig` / `TagItem`), buttons (`ButtonConfig` / `IButtonClickContext` / `IDialogService` / `IProgressReporter`, see §9), declaration invalidation (`InvalidatePart` / `InvalidateNotes` with the matching `PartId` / note `Id`, see §5.2), groups and separators in `+` menus and drop-downs (`AddableElement` / `AddableKey` groups, `Separator`, `ComboBoxItem.Separator`), controller visibility for automation tracks and timeline canvases (`ControllerVisibility` / `WithVisibility`, including value-only `Never` and the shell `Create()`), value-only properties (`ValueOnlyConfig`); plus the **experimental** canvas (`CanvasConfig` / `CanvasLaneConfig` / `ICanvasControl` / `ICanvasHost` / `ICanvasLaneHost` / `ICanvasTimeAxis` / `ICanvasDrawing` / `CanvasImage` and their event types, see §10) |
+| `1.2` | Not released yet | Tag groups (`TagConfig` / `TagItem`), buttons (`ButtonConfig` / `IButtonClickContext` / `IDialogService` / `IProgressReporter`, see §9), declaration invalidation (`InvalidatePart` / `InvalidateNotes` with the matching `PartId` / note `Id`, see §5.2), groups and separators in `+` menus and drop-downs (`AddableElement` / `AddableKey` groups, `Separator`, `ComboBoxItem.Separator`), controller visibility for automation tracks and timeline lane canvases (`ControllerVisibility` / `WithVisibility`, including value-only `Never` and the shell `Create()`), value-only properties (`ValueOnlyConfig`); plus the **experimental** canvas (`CanvasConfig` / `TimelineCanvasConfig` / `ICanvasControl` / `ICanvasHost` / `ITimelineCanvasHost` / `ICanvasTimeAxis` / `ICanvasDrawing` / `CanvasImage` and their event types, see §10) |
 
 Plugin level (describing "what this package provides"). **Identity is inlined into the manifest**: one entry = one concrete registrable capability, carrying its own identity (engine id / file extension) + the full name of the implementing class. After reading the manifest the host knows what the plugin provides without loading assemblies and reflecting.
 
@@ -266,7 +266,7 @@ A voice is a **singing synthesis engine** (e.g. an SVS model). This chapter is o
 
 - **Session-hosted thick model**: You implement `IVoiceSynthesisEngine` (one per engine type, parameterless constructor required; the engine id goes in `manifest.json`'s `engine` and the implementing class in `class`, which the host verifies implements `IVoiceSynthesisEngine`). The host calls `CreateSession` once **per MidiPart** in the project to build an `IVoiceSynthesisSession`. **All synthesis state is hosted by the session itself** — chunking, scheduling state, audio buffers, synthesis progress, and dirty (invalidation) decisions are all on your side. The reason: the invalidation dependency graph (e.g. the tiered pipeline "phoneme duration → pitch → audio", where changing an automation only requires re-rendering audio and not recomputing phonemes) is understood only by the engine; the host cannot replicate it. The host does only three things: push the change stream of project data to you, drive scheduling, and read your products to display them.
 - **Declaration vs execution layering**: The session has two kinds of outward responsibilities — *declaration* (which automation tracks / synthesized parameter tracks / property panels / default lyric this sound source exposes) and *execution* (synthesis). Declaration is entirely a **pure function of the current part/note parameter values**; the host recomputes it on parameter commit and diffs it to the UI (see §5.2).
-- **All time quantities on the plugin side are global seconds**: note boundaries, curve query points, windowing intervals, status-segment ranges, audio-segment alignment — **all are seconds** (`double`). Ticks reach you only through the tempo map: for data defined in beats (say, ticks stored in a canvas lane), `context.TimeConverter` (`ITimeConverter`, local ticks ↔ global seconds, origin = the part's origin; derive a note-level origin with `TimeConverter.ToTick(note.StartTime)`) converts them to seconds. It is immutable and usable from any thread, and the synthesis snapshot carries the same one (`snapshot.TimeConverter`) for the worker. Global time 0s = sample 0. Tempo changes (and part shifts) do not need explicit handling on your side, and there is **no incremental notification**: the host simply rebuilds the whole session (old session `Dispose`d, a new session with a new context), and the new session reads the new second values — implement `Dispose` correctly and it is naturally correct (§5.9).
+- **All time quantities on the plugin side are global seconds**: note boundaries, curve query points, windowing intervals, status-segment ranges, audio-segment alignment — **all are seconds** (`double`). Ticks reach you only through the tempo map: for data defined in beats (say, ticks stored in a timeline canvas), `context.TimeConverter` (`ITimeConverter`, local ticks ↔ global seconds, origin = the part's origin; derive a note-level origin with `TimeConverter.ToTick(note.StartTime)`) converts them to seconds. It is immutable and usable from any thread, and the synthesis snapshot carries the same one (`snapshot.TimeConverter`) for the worker. Global time 0s = sample 0. Tempo changes (and part shifts) do not need explicit handling on your side, and there is **no incremental notification**: the host simply rebuilds the whole session (old session `Dispose`d, a new session with a new context), and the new session reads the new second values — implement `Dispose` correctly and it is naturally correct (§5.9).
 - **Two views + thread discipline (the most important pitfall)**:
   - **Live view** (`IVoiceSynthesisContext` and its `IVoiceSynthesisNote` / `ISynthesisAutomation`): subscribable, **accessible only on the data thread**. Used for "receive change notifications → mark dirty", "`GetNextPendingSynthesisRange` chunking decisions", and "the `SynthesizeNext` synchronous prefix pulling a snapshot".
   - **Frozen snapshot** (`VoiceSynthesisSnapshot` and the `*Snapshot` family, `IAutomationEvaluator`): immutable, event-free, **cross-thread safe**. Background workers **only read snapshots** and never touch any live-view object.
@@ -509,8 +509,8 @@ public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext con
 
 **Value only: declare data without any controller.** The data is stored and passed to synthesis as usual, presets, undo and scripts / agents take part as usual, and nothing appears in the UI. Uses: a parameter moved to a new representation and the old data must still apply while the new one is unset (the second approach under "Changing a field's shape" below often needs it); data only scripts or imports write. Two forms, by where the data lives:
 
-- **Properties (any member of the controller tree, including side-panel canvases and canvas lanes)**: replace it in place with `ValueOnlyConfig.Create()`. Value semantics are those of a canvas — **no default** (a declared default is only the fallback a host control displays; with no control there's nothing to display), unset = nothing stored (you read Null and supply your own default), restore default = delete the stored value, the shape is yours and you validate it when reading. It takes no row in the side panel; in an array / list its row doesn't appear. Properties reach synthesis whole anyway, declared or not; declaring it puts it into presets and into the parameter description agents read.
-- **Automation tracks and timeline canvases (each has its own storage, outside the controller tree)**: `WithVisibility(ControllerVisibility.Never)`, or the shell that takes no UI arguments, `AutomationConfig.Create()` / `TimelineCanvasConfig.Create()` — no range, color or control factory. On a shell automation track `WithDefault` still decides continuous / piecewise, and synthesis reads it where there is no curve; no range = no quantization, synthesis reads the raw curve (to snap to a discrete scale use `Create(scale).WithVisibility(Never)`). Setting a shell to a visible state throws an argument exception right away.
+- **Properties (any member of the controller tree, including side-panel canvases and timeline canvases)**: replace it in place with `ValueOnlyConfig.Create()`. Value semantics are those of a canvas — **no default** (a declared default is only the fallback a host control displays; with no control there's nothing to display), unset = nothing stored (you read Null and supply your own default), restore default = delete the stored value, the shape is yours and you validate it when reading. It takes no row in the side panel; in an array / list its row doesn't appear. Properties reach synthesis whole anyway, declared or not; declaring it puts it into presets and into the parameter description agents read.
+- **Automation tracks and timeline lane canvases (each has its own storage, outside the controller tree)**: `WithVisibility(ControllerVisibility.Never)`, or the shell that takes no UI arguments, `AutomationConfig.Create()` / `TimelineLaneCanvasConfig.Create()` — no range, color or control factory. On a shell automation track `WithDefault` still decides continuous / piecewise, and synthesis reads it where there is no curve; no range = no quantization, synthesis reads the raw curve (to snap to a discrete scale use `Create(scale).WithVisibility(Never)`). Setting a shell to a visible state throws an argument exception right away.
 
 The user can't clear value-only data in the UI (as with orphan data: kept, not shown); once you switch to the new format you stop reading it, and leaving it there doesn't change the sound.
 
@@ -971,7 +971,7 @@ The related interfaces are all in `TuneLab.SDK`: `IEffectSynthesisEngine` / `IEf
 
 An instrument is a **polyphonic sound source** (synth / sampler / chord source). It is **mechanically isomorphic to voice** (engine lifecycle, peek/commit scheduling, isolated snapshot, audio-segment delivery, effect chain, extension settings are all the same), with the interface family paralleled by the `IInstrument*` prefix, not inheriting from the voice family. **It differs substantially from voice in only three places**:
 
-- **Notes go to full end, no de-overlap**: `IInstrumentSynthesisNote.EndTime` / `InstrumentSynthesisNoteSnapshot.EndTime` is the note's full end (`Pos+Dur`), and the host does **not** clamp it to the next note's start. `Notes` passes through the original overlappable notes (chords / polyphony), and the engine superimposes voicing itself (the reference implementation adds one waveform segment per note's pitch and mixes by sum). The UI does the same: note-level lanes in the parameter panel (number lanes, canvas lanes) take each note's full span, and overlapping ones stack — **keep overlapping notes in mind when you declare a canvas lane** (see §10.6).
+- **Notes go to full end, no de-overlap**: `IInstrumentSynthesisNote.EndTime` / `InstrumentSynthesisNoteSnapshot.EndTime` is the note's full end (`Pos+Dur`), and the host does **not** clamp it to the next note's start. `Notes` passes through the original overlappable notes (chords / polyphony), and the engine superimposes voicing itself (the reference implementation adds one waveform segment per note's pitch and mixes by sum). The UI does the same: note-level lanes in the parameter panel (number lanes, timeline canvases) take each note's full span, and overlapping ones stack — **keep overlapping notes in mind when you declare a timeline canvas** (see §10.6).
 - **No lyrics / no phonemes**: `IInstrumentSynthesisNote` has no `Lyric`, and no phoneme surface at all (no `LeadingPhonemes` / `BodyPhonemes` / `BodyOffset`); the session has no `DefaultLyric` and produces no `SynthesizedPhonemes`.
 - **No pitch curve, product is audio only**: `IInstrumentSynthesisContext` has no `Pitch` / `PitchDeviation` (v1 voices purely by the note's integer `Pitch`); the session produces no `SynthesizedPitch`. It may still declare automation tracks and `SynthesizedParameters` synthesized parameters (none if the engine declares none).
 
@@ -1295,33 +1295,33 @@ if (picked is { } v && v.ToString(out var command) && command == "set")
 
 Reference implementation: `tests/plugins/V1.Voice/StretchCurveCanvas.cs` (a stretch curve on the note panel and the core-phoneme panel: a draft on press, drag, double-click to reset, wheel over a point to nudge with a deferred commit / over empty space to scroll the panel, merged multi-selection values; with the canvas focused, ↑ / ↓ nudge the point under the pointer — hold to repeat, commit on release — and Esc cancels a drag; a context menu — a text box popped over the value label to set a point, a multi-line note, reset-all after a confirmation) and `tests/plugins/V1.Voice/ImageDemoCanvas.cs` ("Canvas Images" on the note panel: plugin-level caching of an encoded bitmap and an SVG, pixels generated at the device pixel ratio, a rounded clip, opacity, a rotation transform, ← / → to rotate).
 
-### 10.6 Canvas lane (CanvasLaneConfig)
+### 10.6 Timeline canvas (TimelineCanvasConfig)
 
 An editor that must line up with the timeline and is edited one object at a time (e.g. a phoneme mix: a curve over time plus a
-symbol and a language) is declared as a **canvas lane**. It is not edited in the side panel (which only shows a summary row, see below); it lives in the parameter panel under
+symbol and a language) is declared as a **timeline canvas**. It is not edited in the side panel (which only shows a summary row, see below); it lives in the parameter panel under
 the piano roll — every object that declares it (note-level field = each note, phoneme-level field = each phoneme) gets a block
 over its own time span: width = that object's time span, height = the panel height. It shows in the tab bar whenever some note's
 declaration has it; the user does not pin it.
 
 ```csharp
-props.Add(("mix", "Mix"), CanvasLaneConfig.Create(host => new MixCanvas(host, value))
+props.Add(("mix", "Mix"), TimelineCanvasConfig.Create(host => new MixCanvas(host, value))
     .WithColor("#E58AC9"));   // leave the color unset and the host picks one from its palette (same as AutomationConfig)
 ```
 
 - **Which one**: the editor belongs to the side panel and has nothing to do with time (or only uses positions relative to the
-  object) → `CanvasConfig`; it must line up with the timeline → `CanvasLaneConfig`. A field picks one. The side panel can
-  multi-select, and several objects have no single time span, so only the canvas lane has a time mapping.
+  object) → `CanvasConfig`; it must line up with the timeline → `TimelineCanvasConfig`. A field picks one. The side panel can
+  multi-select, and several objects have no single time span, so only the timeline canvas has a time mapping.
 - **Everything else is the same as the side-panel canvas**: the same `ICanvasControl`, drawing / events / drafts / commits /
   popups / dialogs (§10.1–10.5), value semantics and instance lifetime. Top-level members of note / phoneme property
   declarations, or anywhere below them. No preferred size: the width comes from the object's duration, the height is the panel
   height the user set.
 - **Anywhere in the tree**: it can be a top-level member of a note / phoneme property declaration or sit inside objects, fixed
-  arrays, lists or keyed containers, nested to any depth (say one canvas per layer: `mixes: [{ curve: canvas lane, … }]`). In
+  arrays, lists or keyed containers, nested to any depth (say one canvas per layer: `mixes: [{ curve: timeline canvas, … }]`). In
   the parameter panel each one becomes a lane by its path; the tab shows the last segment's display name plus the indexes on the
   path ("Curve 2") and adds ancestor names only when it would clash with another tab ("Mix 2 · Curve" — the number stays with the segment it belongs to); hovering shows the full
   path — **avoid duplicate display names on leaf fields** and the tabs stay short. List indexes move as the user adds, removes or
   reorders elements; lanes go by index.
-- **Its row in the side panel**: every canvas lane position (inside each array / list element too) takes one row in the side
+- **Its row in the side panel**: every timeline canvas position (inside each array / list element too) takes one row in the side
   panel — field name, summary and an edit button that jumps to the parameter panel. Compute the summary at declaration time with
   `.WithSummary(text)` (what to show for a multi-selection is up to you); without it the host shows "Default / Modified /
   Multiple". Lists keep their add / remove / reorder in the side panel, and other plain fields in the element objects still show
@@ -1329,7 +1329,7 @@ props.Add(("mix", "Mix"), CanvasLaneConfig.Create(host => new MixCanvas(host, va
 - **Shown on the tab bar at first or not**: `.WithShownByDefault(false)` hides it by default (as `HiddenByDefault` does for automation
   tracks). It is only the initial state — once the user has shown or hidden it on the tab bar, their choice wins; its side-panel row
   stays, and its edit button shows it again. For no controller at all, replace it in place with `ValueOnlyConfig` (§5.2, "Value only").
-- **Coordinates**: the factory receives an `ICanvasLaneHost` — time runs horizontally and pitch vertically, so it has a
+- **Coordinates**: the factory receives an `ITimelineCanvasHost` — time runs horizontally and pitch vertically, so it has a
   `TimeAxis` and a `PitchAxis`. The host always provides both; ignore what you don't need.
   - **Time, two units**: `SecondToX(seconds)` / `XToSecond(x)` in global seconds (`SecondToX(0)` = project start, the same as the
     declaration view's `IVoiceSynthesisNoteView.StartTime`), and `TickToX(ticks)` / `XToTick(x)` in **local ticks** relative to the
@@ -1376,7 +1376,7 @@ props.Add(("mix", "Mix"), CanvasLaneConfig.Create(host => new MixCanvas(host, va
     presses across all of it — draw only where needed and take presses only where you drew, or the block on top hides the one below entirely and
     the user has to select that note in the piano roll first to edit it.
   - **Stacking**: within one parameter panel the user can turn on several canvases at once (the eye); they are all drawn,
-    timeline canvases below canvas lanes (the more local on top: part level → note level → phoneme level), and within one level in the
+    timeline lane canvases below timeline canvases (the more local on top: part level → note level → phoneme level), and within one level in the
     order they were turned on (later on top), with the active one on top and the host's own editing at the
     bottom. While a curve / value lane is active its editing is the top layer, and the canvases that are on are only shown, without events. Events go through the layers top-down and whoever sets `Handled` takes them (rules in "Mouse"). So **any canvas may be
     stacked with others**: mostly transparent, drawing only where needed and taking presses only where it drew. A canvas that is on
@@ -1385,7 +1385,7 @@ props.Add(("mix", "Mix"), CanvasLaneConfig.Create(host => new MixCanvas(host, va
   - Users can also pin a **side-panel canvas** (`CanvasConfig`) into the parameter panel: it is then one block per object too, with
     the object's duration as width and the panel height as height, and the host is still an `ICanvasHost` (no time axis) — a
     side-panel canvas has to cope with any size anyway.
-- **Placed on the piano roll**: users can also place a canvas lane over the note area of the piano roll (the "+" on the floating tab strip at the
+- **Placed on the piano roll**: users can also place a timeline canvas over the note area of the piano roll (the "+" on the floating tab strip at the
   note area's top right), where it is operated together with whichever piano-roll tool is selected.
   - Each block spans the object's time span as in the parameter panel and the full height of the note area; the vertical axis is the piano roll's
     pitch axis, so `PitchToY(note's Pitch)` is exactly the bottom edge of that note's row. Take the note's `Pitch` at declaration time
@@ -1403,33 +1403,33 @@ click empty space to add a point, drag points, right-click to delete; click the 
 for a language menu; only the curve when narrow or short) and `tools/ScreenshotBot/demo-plugins/DemoVoice/BreathCanvas.cs`
 (the minimal display-only version).
 
-### 10.7 Timeline canvas (TimelineCanvasConfig)
+### 10.7 Timeline lane canvas (TimelineLaneCanvasConfig)
 
 A plugin-drawn track that **runs across the whole part** (sections, markers, video frames, lyric blocks, your own curves… the host does not
 interpret it), on the same level as automation tracks: it is not a field of some property but a track the engine declares in
-`GetTimelineCanvasConfigs` (voice, instrument and effect engines all have it; the default body returns none).
+`GetTimelineLaneCanvasConfigs` (voice, instrument and effect engines all have it; the default body returns none).
 
 ```csharp
-public IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig> GetTimelineCanvasConfigs(IVoiceSynthesisPartPropertyContext context)
+public IReadOnlyOrderedMap<PropertyKey, TimelineLaneCanvasConfig> GetTimelineLaneCanvasConfigs(IVoiceSynthesisPartPropertyContext context)
 {
     // Take the value from the declaration view (ids never set are absent = Null); the factory captures it — same as other canvases.
-    var value = context.Parts[0].TimelineCanvases.TryGetValue("mix", out var v) ? v : PropertyValue.Null;
-    return new OrderedMap<PropertyKey, TimelineCanvasConfig>
+    var value = context.Parts[0].TimelineLaneCanvases.TryGetValue("mix", out var v) ? v : PropertyValue.Null;
+    return new OrderedMap<PropertyKey, TimelineLaneCanvasConfig>
     {
-        { ("mix", "Speaker Mix"), TimelineCanvasConfig.Create(host => new MixTrack(host, value)).WithColor("#7FD1AE") },
+        { ("mix", "Speaker Mix"), TimelineLaneCanvasConfig.Create(host => new MixTrack(host, value)).WithColor("#7FD1AE") },
     };
 }
 ```
 
-- **Which one**: a property of one note / phoneme → `CanvasLaneConfig` (each object owns its own span and the data travels with it);
-  a track across the whole part → `TimelineCanvasConfig`. Users don't need to care — both are canvases in the tab bar.
+- **Which one**: a property of one note / phoneme → `TimelineCanvasConfig` (each object owns its own span and the data travels with it);
+  a track across the whole part → `TimelineLaneCanvasConfig`. Users don't need to care — both are canvases in the tab bar.
 - **Declaration**: same context and same timing as `GetAutomationConfigs`, also a pure function; map order = tab-bar order (after this source's /
-  this effect's automation tracks). `.WithVisibility(...)` works as for automation tracks (shown / hidden by default / value only); for value only you can also use `TimelineCanvasConfig.Create()` without a factory (see §5.2, "Value only"). Ids need not differ
+  this effect's automation tracks). `.WithVisibility(...)` works as for automation tracks (shown / hidden by default / value only); for value only you can also use `TimelineLaneCanvasConfig.Create()` without a factory (see §5.2, "Value only"). Ids need not differ
   from automation ids (the two are stored separately), but giving both the same display name shows two tabs with the same name.
 - **Value**: one whole value, shaped by you (the host doesn't interpret it — validate when reading). **No default value**: never set = Null
-  (fill in your own default when reading). Read it from the declaration view's `TimelineCanvases` (`IVoiceSynthesisPartView` /
+  (fill in your own default when reading). Read it from the declaration view's `TimelineLaneCanvases` (`IVoiceSynthesisPartView` /
   `IInstrumentSynthesisPartView` / `IEffectSynthesisView`); an instance lives for one declaration, the same contract as `CanvasConfig`.
-- **Host**: the factory receives `ITimelineCanvasHost` — `TimeAxis` (seconds / local ticks) and `PitchAxis` as for canvas lanes (§10.6), plus
+- **Host**: the factory receives `ITimelineLaneCanvasHost` — `TimeAxis` (seconds / local ticks) and `PitchAxis` as for timeline canvases (§10.6), plus
   a commit that carries the modified ranges, `CommitValue(modifiedTickRanges)` (below). The canvas fills the whole parameter panel: `Width` / `Height` are the panel's size and canvas coordinates are
   panel coordinates; place content through the two axes. Placed on the piano roll (see §10.6) it fills the note area the same way.
 - **Time**: the domain is the **whole timeline**. Local ticks are relative to the part's origin (`TickToX(0)`), may be negative and may run past
@@ -1445,10 +1445,10 @@ public IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig> GetTimelineCanvasC
   - Report the final result of the commit — not spans a drag passed through but left unchanged.
   - **`CommitValue()` without arguments = the whole track changed**: use it when you replace everything (clear, import, reset to your default);
     an empty list means the same (correct, just more re-rendering).
-- **Synthesis**: the context's `TimelineCanvases` (`IVoiceSynthesisContext` / `IInstrumentSynthesisContext` / `IEffectSynthesisContext`, by id,
-  declared ones only) gives `ISynthesisTimelineCanvas`: `Value`, `TimeConverter` (local tick ↔ global seconds, same origin as `TickToX(0)` on the
+- **Synthesis**: the context's `TimelineLaneCanvases` (`IVoiceSynthesisContext` / `IInstrumentSynthesisContext` / `IEffectSynthesisContext`, by id,
+  declared ones only) gives `ISynthesisTimelineLaneCanvas`: `Value`, `TimeConverter` (local tick ↔ global seconds, same origin as `TickToX(0)` on the
   canvas) and `RangeModified` (global seconds, once per reported span; writes without a range and host-initiated writes — scripts, the agent —
-  fire (-∞, +∞)). In workers use the snapshot's `TimelineCanvases` (`SynthesisTimelineCanvasSnapshot`: `Value` + `TimeConverter`). For effects the
+  fire (-∞, +∞)). In workers use the snapshot's `TimelineLaneCanvases` (`SynthesisTimelineLaneCanvasSnapshot`: `Value` + `TimeConverter`). For effects the
   host does the range-intersection dirtying; `RangeModified` is only a cache hint there.
 - **Part operations (this version)**: moving a part changes nothing; **split** = each half gets the whole value and shows its own span (redundant
   data; stretching a half later reveals what was hidden); **merge** = for each id, keep the value of the first part in time order that has it and drop
@@ -1458,9 +1458,9 @@ public IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig> GetTimelineCanvasC
   plugins that don't supply them keep today's behaviour.
 - **Orphan data**: when an id leaves the declaration (another sound source, a conditional declaration) its value stays stored and saved, just not
   shown or synthesized; declaring it again restores it. After switching sources you may read a value some other plugin wrote — always validate.
-- **Project file**: the value is saved with the part / effect (`TimelineCanvases` on `MidiPartInfo` / `EffectInfo`: offset + value). Exporting
+- **Project file**: the value is saved with the part / effect (`TimelineLaneCanvases` on `MidiPartInfo` / `EffectInfo`: offset + value). Exporting
   to another project format drops that table (format plugins don't know it).
-- **As background**: as for canvas lanes (`IsBackground`, simplify the drawing); it may likewise be stacked with other canvases, and gets events under the same rule.
+- **As background**: as for timeline canvases (`IsBackground`, simplify the drawing); it may likewise be stacked with other canvases, and gets events under the same rule.
 
 Reference implementation: `tests/plugins/V1.Voice/TimelineDemoCanvas.cs` ("Markers": cells placed on tick × pitch, aligned with the piano keys;
 an origin line; add / drag / delete all report the affected half-beats before committing; the session subscribes to `RangeModified` and dirties only

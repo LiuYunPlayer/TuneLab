@@ -43,12 +43,12 @@ public class NoteLaneShapeTests
             };
         public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IVoiceSynthesisPartPropertyContext context) => new OrderedMap<PropertyKey, AutomationConfig>();
         public ObjectConfig GetPartPropertyConfig(IVoiceSynthesisPartPropertyContext context) => ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>());
-        // 高音 note 的核音素（slot 0）声明一个画布 lane。
+        // 高音 note 的核音素（slot 0）声明一个时间轴画布。
         public IReadOnlyMap<int, ObjectConfig> GetPhonemePropertyConfigs(IVoiceSynthesisNotePropertyContext context)
         {
             var map = new Map<int, ObjectConfig>();
             if (context.Notes.Count > 0 && context.Notes.All(n => n.Pitch >= 62))
-                map.Add(0, ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig> { { "ptimeline", CanvasLaneConfig.Create(_ => new NullControl()) } }));
+                map.Add(0, ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig> { { "ptimeline", TimelineCanvasConfig.Create(_ => new NullControl()) } }));
             return map;
         }
 
@@ -60,8 +60,8 @@ public class NoteLaneShapeTests
             if (high)
             {
                 map.Add("adv", SliderConfig.Linear(0, -12, 12));
-                map.Add("timeline", CanvasLaneConfig.Create(_ => new NullControl()));
-                map.Add("hiddenlane", CanvasLaneConfig.Create(_ => new NullControl()).WithShownByDefault(false));
+                map.Add("timeline", TimelineCanvasConfig.Create(_ => new NullControl()));
+                map.Add("hiddenlane", TimelineCanvasConfig.Create(_ => new NullControl()).WithShownByDefault(false));
             }
             map.Add("side", CanvasConfig.Create(200, 80, _ => new NullControl()));
             return ObjectConfig.Create(map);
@@ -175,18 +175,18 @@ public class NoteLaneShapeTests
         });
     }
 
-    // 画布 lane 常驻：只有部分 note 声明也进 lane 集合，不用钉；颜色没指定就由宿主分配（实色）。
+    // 时间轴画布常驻：只有部分 note 声明也进 lane 集合，不用钉；颜色没指定就由宿主分配（实色）。
     [Fact]
-    public void CanvasLaneConfigIsAlwaysALane_WithAHostAssignedColor()
+    public void TimelineCanvasConfigIsAlwaysALane_WithAHostAssignedColor()
     {
         OnDataThread(() =>
         {
             var part = SamplePart();
             Assert.True(part.NoteLaneConfigs.TryGetValue("timeline", out var lane));
-            Assert.Equal(LaneKind.CanvasLane, lane.Kind);
+            Assert.Equal(LaneKind.TimelineCanvas, lane.Kind);
             Assert.False(TuneLab.Configs.TrackColors.IsUnassigned(lane.Color));
             Assert.False(part.IsNumberLane(AutomationKey.NoteLane("timeline")));
-            // 画布 lane 没有数值形状：数值的绘制 / 拖写不碰它。
+            // 时间轴画布没有数值形状：数值的绘制 / 拖写不碰它。
             Assert.False(part.TryGetNoteLaneShape(part.Notes.Last(), "timeline", out _));
         });
     }
@@ -209,9 +209,9 @@ public class NoteLaneShapeTests
         });
     }
 
-    // note 声明随时问得到：哪个 note 都不再声明画布 lane，标签就去掉；再被声明时回来，颜色沿用上次的。
+    // note 声明随时问得到：哪个 note 都不再声明时间轴画布，标签就去掉；再被声明时回来，颜色沿用上次的。
     [Fact]
-    public void NoteCanvasLaneGoesWhenNoNoteDeclaresIt_AndComesBackInTheSameColor()
+    public void NoteTimelineCanvasGoesWhenNoNoteDeclaresIt_AndComesBackInTheSameColor()
     {
         OnDataThread(() =>
         {
@@ -247,9 +247,9 @@ public class NoteLaneShapeTests
         });
     }
 
-    // 音素声明要等引擎对音素表态：还有 note 没表态（这里从没合成过）时，出现过的音素级画布 lane 保留，音源一换才清。
+    // 音素声明要等引擎对音素表态：还有 note 没表态（这里从没合成过）时，出现过的音素级时间轴画布保留，音源一换才清。
     [Fact]
-    public void PhonemeCanvasLaneStaysWhileSomeNoteHasNoPhonemeAnswer()
+    public void PhonemeTimelineCanvasStaysWhileSomeNoteHasNoPhonemeAnswer()
     {
         OnDataThread(() =>
         {
@@ -266,7 +266,7 @@ public class NoteLaneShapeTests
         });
     }
 
-    // 常驻的（自动化轨、画布 lane）能从标签栏隐藏，按声源记、终态幂等；钉选的 lane 不归隐藏管（不想要就解钉）。
+    // 常驻的（自动化轨、时间轴画布）能从标签栏隐藏，按声源记、终态幂等；钉选的 lane 不归隐藏管（不想要就解钉）。
     [Fact]
     public void ResidentParametersCanBeHidden_PinnedLanesCannot()
     {
@@ -347,9 +347,9 @@ public class NoteLaneShapeTests
         });
     }
 
-    // 画布 lane 声明默认隐藏：照常是 lane、一开始藏着，用户能打开。
+    // 时间轴画布声明默认隐藏：照常是 lane、一开始藏着，用户能打开。
     [Fact]
-    public void CanvasLaneVisibility()
+    public void TimelineCanvasVisibility()
     {
         OnDataThread(() =>
         {

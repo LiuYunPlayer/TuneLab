@@ -16,7 +16,7 @@ using Size = Avalonia.Size;
 
 namespace TuneLab.UI;
 
-// 参数面板里的插件画布（画布 lane CanvasLaneConfig 与钉进来的侧栏画布 CanvasConfig）：画布 lane 上每个声明了该字段的
+// 参数面板里的插件画布（时间轴画布 TimelineCanvasConfig 与钉进来的侧栏画布 CanvasConfig）：时间轴画布上每个声明了该字段的
 // 对象（note 级 = 每个 note、音素级 = 每个显示音素）一块，横向正好占满它的时间段（不留缝）、纵向占满面板。
 //
 // 分工：每块是一个 PluginCanvas 子控件，负责输入、焦点、弹出与编辑状态；**画由本渲染器在自己的绘制里做**（RenderInto）——
@@ -29,11 +29,11 @@ namespace TuneLab.UI;
 // 插件正在编辑（BeginEdit / 草稿 / 弹出）时不换，等它用完。保留数量不设上限（缩小后它们又都会出来）。
 // 背景画布不收输入；插件没处理的滚轮冒泡回本渲染器（滚动 / 缩放时间轴）。
 //
-// 时间轴画布（TimelineCanvasConfig）每条一块，铺满整个面板（定义域是整条时间轴，画布内坐标就是面板坐标），局部 tick 的原点 =
-// part 原点 + 存储里的偏移；没有对象、不跟 note 走，其余（分层绘制、实例复用、编辑中不换）同画布 lane。
+// 时间轴 lane 画布（TimelineLaneCanvasConfig）每条一块，铺满整个面板（定义域是整条时间轴，画布内坐标就是面板坐标），局部 tick 的原点 =
+// part 原点 + 存储里的偏移；没有对象、不跟 note 走，其余（分层绘制、实例复用、编辑中不换）同时间轴画布。
 internal partial class AutomationRenderer
 {
-    // 画布 lane 的一块 = （lane、note、音素位）；时间轴画布的一块 = 它的路由键（Note 为 null）。
+    // 时间轴画布的一块 = （lane、note、音素位）；时间轴 lane 画布的一块 = 它的路由键（Note 为 null）。
     readonly record struct CanvasSlot(string LaneId, bool Phoneme, INote? Note, int Index, AutomationKey? Timeline = null)
     {
         public static CanvasSlot ForTimeline(AutomationKey key) => new(key.Id, false, null, -1, key);
@@ -51,7 +51,7 @@ internal partial class AutomationRenderer
         public int Order;                    // 这一帧在本条 lane 里的叠放序（后放的在上），画完后同步成命中顺序（ZIndex）
     }
 
-    // 画布 lane 的时间换算：全局秒 / 局部 tick ↔ 画布内横坐标，跟着钢琴窗的 tick 轴（速度变化处秒不均匀）。
+    // 时间轴画布的时间换算：全局秒 / 局部 tick ↔ 画布内横坐标，跟着钢琴窗的 tick 轴（速度变化处秒不均匀）。
     // Left = 画布左缘在本渲染器里的 x；Origin = 局部 tick 的原点（所属音符的起点，工程 tick）。
     sealed class CanvasTimeAxis(AutomationRenderer renderer) : ICanvasTimeAxis
     {
@@ -74,7 +74,7 @@ internal partial class AutomationRenderer
 
     static readonly TempoSnapshot EmptyTempo = new([new TempoMark(0, 120)], MusicTheory.RESOLUTION);
 
-    // 画布 lane 的音高换算：参数面板是一扇看向下方音符区的窗口，纵轴 = 面板背后那块音符区的音高（同一屏幕高度上钢琴窗的音高）。
+    // 时间轴画布的音高换算：参数面板是一扇看向下方音符区的窗口，纵轴 = 面板背后那块音符区的音高（同一屏幕高度上钢琴窗的音高）。
     // n 号键占 [n, n + 1)：PitchToY(n) = n 号键的下沿，同宿主 PitchAxis.Pitch2Y（音高值画在中线上由插件 +0.5，见 ICanvasPitchAxis）。
     // Top = 画布上缘在本渲染器里的 y。
     sealed class CanvasPitchAxis(AutomationRenderer renderer) : ICanvasPitchAxis
@@ -90,7 +90,7 @@ internal partial class AutomationRenderer
             => Avalonia.VisualExtensions.TranslatePoint(renderer, new Avalonia.Point(0, Top), renderer.mDependency.PianoScrollView) is { } p ? p.Y : Top;
     }
 
-    // 画一条画布 lane：视口内声明了该字段的对象各画一块。还没有实例的记下来，画完推迟一拍再建（绘制期间不能动子控件）。
+    // 画一条时间轴画布：视口内声明了该字段的对象各画一块。还没有实例的记下来，画完推迟一拍再建（绘制期间不能动子控件）。
     // 激活的那条由宿主画各块的分界（参数区里看不到音符本身，靠它分清哪块是哪个对象）：各块的起止（音符 / 音素真实的边界 tick），
     // 按值去重（相邻两块共用的边、同时开始的和弦音符只画一条），全部块画完后统一盖在插件内容上面；插件不必自己画分隔。
     // 叠在下面的 lane 不画，免得几层分界叠成一片。
@@ -98,7 +98,7 @@ internal partial class AutomationRenderer
     // 叠放（音符重叠时，乐器 part）：先按音符顺序放没选中的，再按音符顺序放选中的，后放的在上。音符顺序是起点升序、同起点时
     // 尾巴长的在前——同起点的短的在上、长的在它结束后露出来；起点不同的后开始的在上、先开始的露出前面一截，于是每块都点得到；
     // 起止完全相同的靠选中区分。命中顺序跟着放的顺序走（ZIndex，画完后在 SyncCanvases 里同步）。
-    void DrawCanvasLane(DrawingContext context, AutomationKey key, bool phoneme, bool isActive)
+    void DrawTimelineCanvas(DrawingContext context, AutomationKey key, bool phoneme, bool isActive)
     {
         if (Part is not { } part)
             return;
@@ -109,7 +109,7 @@ internal partial class AutomationRenderer
         mLaneBoundaries.Clear();
         try
         {
-            DrawCanvasLaneBlocks(context, part, key, phoneme, isActive);
+            DrawTimelineCanvasBlocks(context, part, key, phoneme, isActive);
         }
         finally
         {
@@ -124,7 +124,7 @@ internal partial class AutomationRenderer
         }
     }
 
-    void DrawCanvasLaneBlocks(DrawingContext context, IMidiPart part, AutomationKey key, bool phoneme, bool isActive)
+    void DrawTimelineCanvasBlocks(DrawingContext context, IMidiPart part, AutomationKey key, bool phoneme, bool isActive)
     {
         double minVisibleTick = TickAxis.MinVisibleTick;
         double maxVisibleTick = TickAxis.MaxVisibleTick;
@@ -169,19 +169,19 @@ internal partial class AutomationRenderer
         }
     }
 
-    Pen? mLaneBoundaryPen;   // 本次画的这条 lane 的分界线（只有激活的那条有，见 DrawCanvasLane）
+    Pen? mLaneBoundaryPen;   // 本次画的这条 lane 的分界线（只有激活的那条有，见 DrawTimelineCanvas）
     static readonly Pen LaneBoundaryPen = new(Style.LIGHT_WHITE.Opacity(0.3).ToBrush(), 1);
     readonly HashSet<double> mLaneBoundaries = [];   // 本条 lane 各块的起止 tick（按值去重），全部块画完后统一画
-    int mCanvasOrder;        // 这一帧放到第几块了（跨 lane 与时间轴画布）：命中顺序（ZIndex）跟着它，后放的在上
+    int mCanvasOrder;        // 这一帧放到第几块了（跨 lane 与时间轴 lane 画布）：命中顺序（ZIndex）跟着它，后放的在上
     static readonly bool[] SelectionPasses = [false, true];   // 先没选中的、后选中的
 
     void DrawCanvas(DrawingContext context, CanvasSlot slot, LanePath.Resolved resolved, double startTick, double endTick, bool isActive)
     {
         var config = resolved.Leaf;
-        if (config is not (CanvasConfig or CanvasLaneConfig))
+        if (config is not (CanvasConfig or TimelineCanvasConfig))
             return;
         // 不留缝（数值 lane 留 1px 缝是因为段由宿主画）：画布正好覆盖对象的时间段，XToSecond(0) / XToSecond(Width) 就是它的起止，
-        // 跨对象连续的内容也接得上；分界由宿主画（见 DrawCanvasLane）。
+        // 跨对象连续的内容也接得上；分界由宿主画（见 DrawTimelineCanvas）。
         double left = TickAxis.Tick2X(startTick);
         double right = TickAxis.Tick2X(endTick);
         if (right - left < 1)
@@ -217,11 +217,11 @@ internal partial class AutomationRenderer
             canvas.View.RenderInto(context);
     }
 
-    // 画一块时间轴画布：铺满面板（画布坐标 = 面板坐标），原点 = part 原点 + 偏移。还没有实例的推迟一拍再建（同画布 lane）。
-    void DrawTimelineCanvas(DrawingContext context, AutomationKey key, bool isActive)
+    // 画一块时间轴 lane 画布：铺满面板（画布坐标 = 面板坐标），原点 = part 原点 + 偏移。还没有实例的推迟一拍再建（同时间轴画布）。
+    void DrawTimelineLaneCanvas(DrawingContext context, AutomationKey key, bool isActive)
     {
         // 只传值的空壳没有工厂（它也不会成为可见 / 激活的参数，这里只是兜底）。
-        if (Part is not { } part || !part.TryGetTimelineCanvas(key, out var config, out var store) || config.CreateControl == null)
+        if (Part is not { } part || !part.TryGetTimelineLaneCanvas(key, out var config, out var store) || config.CreateControl == null)
             return;
 
         var slot = CanvasSlot.ForTimeline(key);
@@ -243,7 +243,7 @@ internal partial class AutomationRenderer
         if (!ReferenceEquals(canvas.Config, config) && !canvas.View.IsInUse)
         {
             canvas.Config = config;
-            canvas.View.Bind(new TimelineCanvasField(store, key.Id));
+            canvas.View.Bind(new TimelineLaneCanvasField(store, key.Id));
             canvas.View.SetTimelineFactory(config.CreateControl!, canvas.Axis, canvas.PitchAxis);
         }
 
@@ -259,7 +259,7 @@ internal partial class AutomationRenderer
         canvas.Config = config;
         IDataProperty<PropertyValue> field = new LanePathField(slot.Note!, slot.Phoneme ? slot.Index : -1, resolved.Steps);
         canvas.View.Bind(field);
-        if (config is CanvasLaneConfig t)
+        if (config is TimelineCanvasConfig t)
             canvas.View.SetLaneFactory(t.CreateControl, canvas.Axis, canvas.PitchAxis);
         else
             canvas.View.SetFactory(((CanvasConfig)config).CreateControl);
@@ -308,10 +308,10 @@ internal partial class AutomationRenderer
         bool activeIsCanvas = part != null && mDependency.ActiveAutomation is { } active && part.IsCanvasParameter(active);
         foreach (var (slot, canvas) in mCanvases)
         {
-            // 对象没了（note 删了）、lane 不在了（解钉 / 时间轴画布不再声明）：不会再出现，丢掉。
+            // 对象没了（note 删了）、lane 不在了（解钉 / 时间轴 lane 画布不再声明）：不会再出现，丢掉。
             var lanes = slot.Phoneme ? part?.PhonemeLaneConfigs : part?.NoteLaneConfigs;
             bool gone = slot.Timeline is { } timeline
-                ? part == null || !part.IsEffectiveTimelineCanvas(timeline)
+                ? part == null || !part.IsEffectiveTimelineLaneCanvas(timeline)
                 : notes == null || !notes.Contains(slot.Note!) || lanes == null || !lanes.ContainsKey(slot.LaneId);
             if (gone)
             {
@@ -323,7 +323,7 @@ internal partial class AutomationRenderer
             canvas.View.IsVisible = shown;
             canvas.View.IsHitTestVisible = shown && (canvas.Active || activeIsCanvas);
             if (canvas.View.ZIndex != canvas.Order)
-                canvas.View.ZIndex = canvas.Order;   // 命中顺序跟上这一帧的叠放（见 DrawCanvasLane）
+                canvas.View.ZIndex = canvas.Order;   // 命中顺序跟上这一帧的叠放（见 DrawTimelineCanvas）
         }
         if (stale != null)
         {
@@ -393,9 +393,9 @@ internal partial class AutomationRenderer
     bool mCanvasSyncPosted;
     bool mInRender;
 
-    // 时间轴画布字段：读写 part / effect 上画布表里的一条（整值，没设过 = Null）。提交时插件报的改动范围随值交给存储
+    // 时间轴 lane 画布字段：读写 part / effect 上画布表里的一条（整值，没设过 = Null）。提交时插件报的改动范围随值交给存储
     //（局部 tick，存储换成 part 局部 tick 随撤销记录存下）。撤销根、提交、通知借画布表的。
-    internal sealed class TimelineCanvasField(TimelineCanvases store, string id) : IDataProperty<PropertyValue>, IRawValueProperty, IRangedValueProperty
+    internal sealed class TimelineLaneCanvasField(TimelineLaneCanvases store, string id) : IDataProperty<PropertyValue>, IRawValueProperty, IRangedValueProperty
     {
         public PropertyValue RawValue => store.GetValue(id);
         public PropertyValue Value => RawValue;

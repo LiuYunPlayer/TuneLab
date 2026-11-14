@@ -55,8 +55,8 @@ internal static class TrackColors
         return result;
     }
 
-    // 时间轴画布：同 Assign（标签按钮与标题用这个色），已占用 = occupied + 本集合里指定了的 + 先分到的。
-    public static IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig> AssignCanvases(IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig> configs, IEnumerable<string> occupied)
+    // 时间轴 lane 画布：同 Assign（标签按钮与标题用这个色），已占用 = occupied + 本集合里指定了的 + 先分到的。
+    public static IReadOnlyOrderedMap<PropertyKey, TimelineLaneCanvasConfig> AssignCanvases(IReadOnlyOrderedMap<PropertyKey, TimelineLaneCanvasConfig> configs, IEnumerable<string> occupied)
     {
         bool any = false;
         var used = new List<string>(occupied);
@@ -72,7 +72,7 @@ internal static class TrackColors
         if (!any)
             return configs;
 
-        var result = new OrderedMap<PropertyKey, TimelineCanvasConfig>();
+        var result = new OrderedMap<PropertyKey, TimelineLaneCanvasConfig>();
         foreach (var kvp in configs)
         {
             var config = kvp.Value;
