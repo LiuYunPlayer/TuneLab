@@ -303,6 +303,9 @@ internal partial class AutomationRenderer
 
         List<CanvasSlot>? stale = null;
         var notes = part == null ? null : new HashSet<INote>(part.Notes);
+        // 激活的参数在最上层：绘制如此，事件也如此。激活的是曲线 / 数值 lane 时，宿主对它的编辑就是最上层，
+        // 背景画布只作显示、不接收事件（同背景曲线）；激活的是画布时，它在最上，开着的其余画布在它下面照常接收事件。
+        bool activeIsCanvas = part != null && mDependency.ActiveAutomation is { } active && part.IsCanvasParameter(active);
         foreach (var (slot, canvas) in mCanvases)
         {
             // 对象没了（note 删了）、lane 不在了（解钉 / 时间轴画布不再声明）：不会再出现，丢掉。
@@ -318,7 +321,7 @@ internal partial class AutomationRenderer
             bool shown = mCanvasesShownLastFrame.Contains(slot);
             canvas.Shown = shown;
             canvas.View.IsVisible = shown;
-            canvas.View.IsHitTestVisible = shown;   // 开着的画布都是一摞里的层，都接收事件（激活的在最上）
+            canvas.View.IsHitTestVisible = shown && (canvas.Active || activeIsCanvas);
             if (canvas.View.ZIndex != canvas.Order)
                 canvas.View.ZIndex = canvas.Order;   // 命中顺序跟上这一帧的叠放（见 DrawCanvasLane）
         }

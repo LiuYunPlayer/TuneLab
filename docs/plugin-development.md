@@ -1350,7 +1350,7 @@ props.Add(("mix", "Mix"), CanvasLaneConfig.Create(host => new MixCanvas(host, va
   drawn by mapping only its control points and joining them with straight lines — across a tempo change that differs from
   interpolating in that unit. Sample per pixel (`XToSecond(x)` for each column, then evaluate in seconds) and it matches synthesis
   exactly. Draw and synthesize in the same unit.
-- **Background**: `host.IsBackground` is true while the canvas is shown but another parameter is active (it still gets events, see
+- **Background**: `host.IsBackground` is true while the canvas is shown but another parameter is active (it still gets events while another canvas is active, but not while a curve / value lane is active; see
   "Stacking" below). The host fades it together with the background curves, so you only decide what to draw (say, only the outline, no
   text), not how faint. It is false in the side panel.
 - **The host's mapping wins**: do not draw with the phoneme times your synthesis computed. The host gives the time span shown on
@@ -1375,9 +1375,9 @@ props.Add(("mix", "Mix"), CanvasLaneConfig.Create(host => new MixCanvas(host, va
     least a slice); where they overlap only the topmost block gets events. Design the canvas content for this: don't fill the whole block or take
     presses across all of it — draw only where needed and take presses only where you drew, or the block on top hides the one below entirely and
     the user has to select that note in the piano roll first to edit it.
-  - **Stacking**: within one parameter panel the user can turn on several canvases at once (the eye); they are all drawn and all get
-    events, stacked in the order they were turned on (later on top), with the active one on top and the host's own editing at the
-    bottom. Events go through the layers top-down and whoever sets `Handled` takes them (rules in "Mouse"). So **any canvas may be
+  - **Stacking**: within one parameter panel the user can turn on several canvases at once (the eye); they are all drawn,
+    stacked in the order they were turned on (later on top), with the active one on top and the host's own editing at the
+    bottom. While a curve / value lane is active its editing is the top layer, and the canvases that are on are only shown, without events. Events go through the layers top-down and whoever sets `Handled` takes them (rules in "Mouse"). So **any canvas may be
     stacked with others**: mostly transparent, drawing only where needed and taking presses only where it drew. A canvas that is on
     but not active has `IsBackground` true.
   - When a phoneme-level field is written, the host locks that note's phonemes first and then writes the value, in one undo step.
@@ -1459,7 +1459,7 @@ public IReadOnlyOrderedMap<PropertyKey, TimelineCanvasConfig> GetTimelineCanvasC
   shown or synthesized; declaring it again restores it. After switching sources you may read a value some other plugin wrote — always validate.
 - **Project file**: the value is saved with the part / effect (`TimelineCanvases` on `MidiPartInfo` / `EffectInfo`: offset + value). Exporting
   to another project format drops that table (format plugins don't know it).
-- **As background**: as for canvas lanes (`IsBackground`, simplify the drawing); it may likewise be stacked with other canvases and still gets events.
+- **As background**: as for canvas lanes (`IsBackground`, simplify the drawing); it may likewise be stacked with other canvases, and gets events under the same rule.
 
 Reference implementation: `tests/plugins/V1.Voice/TimelineDemoCanvas.cs` ("Markers": cells placed on tick × pitch, aligned with the piano keys;
 an origin line; add / drag / delete all report the affected half-beats before committing; the session subscribes to `RangeModified` and dirties only
