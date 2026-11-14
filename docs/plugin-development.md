@@ -1376,7 +1376,8 @@ props.Add(("mix", "Mix"), CanvasLaneConfig.Create(host => new MixCanvas(host, va
     presses across all of it — draw only where needed and take presses only where you drew, or the block on top hides the one below entirely and
     the user has to select that note in the piano roll first to edit it.
   - **Stacking**: within one parameter panel the user can turn on several canvases at once (the eye); they are all drawn,
-    stacked in the order they were turned on (later on top), with the active one on top and the host's own editing at the
+    timeline canvases below canvas lanes (the more local on top: part level → note level → phoneme level), and within one level in the
+    order they were turned on (later on top), with the active one on top and the host's own editing at the
     bottom. While a curve / value lane is active its editing is the top layer, and the canvases that are on are only shown, without events. Events go through the layers top-down and whoever sets `Handled` takes them (rules in "Mouse"). So **any canvas may be
     stacked with others**: mostly transparent, drawing only where needed and taking presses only where it drew. A canvas that is on
     but not active has `IsBackground` true.

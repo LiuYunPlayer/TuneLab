@@ -502,31 +502,21 @@ internal partial class AutomationRenderer : View
         // 开着小眼睛的（不是激活的那条）是背景，整组按半透明画（一个不透明度层，组内重叠处不会叠深）：曲线 / 数值 lane
         // 不接收事件；画布是一摞里的层，照常接收事件，只是和背景曲线一样由宿主统一调淡（插件借 IsBackground 决定画哪些，
         // 不用自己定"多淡"）。用不透明度而不是盖黑：背景参数淡下去，面板背后钢琴窗的透视不受影响。
-        // 画布先画曲线后画，按开启的先后叠（后开的在上）；激活的那条最后画、在最上（见 canvas-stacking.md）。
+        // 叠放（自下而上）：先曲线类、后画布类；每类里越局部越在上——part 级（自动化曲线 / 时间轴画布）→ note 级 → 音素级，
+        // 铺满整块的垫底，只占自己那段的放上面，两者都看得见、点得到；同一级按开启的先后（后开的在上）。
+        // 画布的命中顺序跟着这里画的顺序走。激活的那条最后画、在最上（见 canvas-stacking.md）。
         // Avalonia 的 PushOpacity 默认只把透明度乘到每一笔上（不开图层），元素之间原本盖住的地方会透出来；
         // RequiresFullOpacityHandling 让它开一个图层、整组画完再按透明度合成。
         using (context.PushRenderOptions(new RenderOptions { RequiresFullOpacityHandling = true }))
         using (context.PushOpacity(BackgroundOpacity))
         {
-            var backgroundCanvases = new List<AutomationKey>();
-            foreach (var automation in mDependency.VisibleAutomations)
-            {
-                if (automation == activeAutomation)
-                    continue;
-
-                if (!mDependency.IsAutomationVisible(automation))
-                    continue;
-
-                if (Part.IsCanvasParameter(automation))
-                {
-                    backgroundCanvases.Add(automation);
-                    continue;
-                }
-
-                Draw(automation, false);
-            }
-
-            foreach (var automation in backgroundCanvases)
+            var part = Part;   // 开头已判过非空
+            int Rank(AutomationKey key) => (part.IsCanvasParameter(key) ? 3 : 0)
+                + (part.IsEffectivePhonemeLane(key) ? 2 : part.IsEffectiveNoteLane(key) ? 1 : 0);
+            var background = mDependency.VisibleAutomations
+                .Where(automation => automation != activeAutomation && mDependency.IsAutomationVisible(automation))
+                .OrderBy(Rank);   // 稳定排序：同一级保持开启的先后
+            foreach (var automation in background)
                 Draw(automation, false);
         }
 
