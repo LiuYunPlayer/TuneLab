@@ -25,6 +25,7 @@ namespace TuneLab.UI;
 internal class ParameterTabBar : Panel
 {
     public event Action<AutomationKey, ParameterButton.ButtonState>? StateChangeAsked;
+    public event Action<AutomationKey>? ShowInBackgroundAsked;
     public ParameterButton PitchButton => mPitchButton;
 
     public interface IDependency
@@ -378,6 +379,7 @@ internal class ParameterTabBar : Panel
                 button = new ParameterButton(ColorUtils.ParseOrFallback(kvp.Value.Color), kvp.Key.DisplayText ?? kvp.Key.Id) { Margin = new(6, 0) };
                 var captured = key;
                 button.StateChangeAsked += (state) => StateChangeAsked?.Invoke(captured, state);
+                button.ShowInBackgroundAsked += () => ShowInBackgroundAsked?.Invoke(captured);
                 mCacheParameterButtons.Add(key, button);
             }
             else
@@ -425,6 +427,7 @@ internal class ParameterTabBar : Panel
                 button = new ParameterButton(ColorUtils.ParseOrFallback(color), name.DisplayText ?? name.Id) { Margin = new(6, 0) };
                 var captured = key;
                 button.StateChangeAsked += (state) => StateChangeAsked?.Invoke(captured, state);
+                button.ShowInBackgroundAsked += () => ShowInBackgroundAsked?.Invoke(captured);
                 mCacheParameterButtons.Add(key, button);
             }
             mAutomationButtons.Add(key, button);

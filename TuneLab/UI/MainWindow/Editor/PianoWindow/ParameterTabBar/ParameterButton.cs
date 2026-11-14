@@ -23,6 +23,8 @@ namespace TuneLab.UI;
 internal class ParameterButton : Panel
 {
     public event Action<ButtonState>? StateChangeAsked;
+    // 激活着时右键：取消激活、作为背景显示（小眼睛打开）。
+    public event Action? ShowInBackgroundAsked;
     public event Action? StateChanged;
     public Color Color
     {
@@ -105,10 +107,11 @@ internal class ParameterButton : Panel
 
         mButtonBack.VisibleAsked += () =>
         {
-            if (State != ButtonState.Edit)
-            {
+            // 右键 = 小眼睛。激活着时右键 = 退回背景并开着小眼睛（相当于左键再点一下 + 打开小眼睛）。
+            if (State == ButtonState.Edit)
+                ShowInBackgroundAsked?.Invoke();
+            else
                 StateChangeAsked?.Invoke(State == ButtonState.Off ? ButtonState.Visible : ButtonState.Off);
-            }
         };
 
         mButtonBack.HoverStateChanged += (isHover) =>

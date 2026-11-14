@@ -142,6 +142,13 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         this.AddDock(layerPanel);
 
         mParameterTabBar.StateChangeAsked += OnParameterTabBarStateChangeAsked;
+        mParameterTabBar.ShowInBackgroundAsked += automation =>
+        {
+            // 右键已激活的标签：打开小眼睛，再回到上一个激活的——它留在背景里显示。
+            FocusedPanel.SetAutomationVisible(automation, true);
+            if (automation == FocusedPanel.ActiveAutomation)
+                FocusedPanel.RevertActiveAutomation();
+        };
         mPartHolder.Modified.Subscribe(ApplyPendingParameterLayout, s);
         mParameterLayer.SizeChanged += (s, e) => { ApplyLayout(); };
 
